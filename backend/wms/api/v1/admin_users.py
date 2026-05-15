@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
 from wms.models import User
+from wms.services import hierarchy as hier_svc
 from wms.services import users_admin as svc
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
@@ -166,3 +167,109 @@ def reactivate_user(
         return svc.reactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+# ── Hierarchy + assignment endpoints (SCO-36) ──────────────────────────
+
+
+class SupervisorAssign(BaseModel):
+    supervisor_id: int | None = None  # None clears the link
+
+
+class DepartmentTransfer(BaseModel):
+    department: str | None = Field(default=None, max_length=60)
+
+
+class ShiftChange(BaseModel):
+    shift: str | None = Field(default=None, max_length=20)
+
+
+class HierarchyInfo(BaseModel):
+    id: int
+    employee_code: str
+    full_name: str
+    role: str
+    permission_level: int
+    tier_label: str
+    supervisor_id: int | None
+    site_id: str
+
+    model_config = {"from_attributes": True}
+
+
+def _to_hier(u: User) -> HierarchyInfo:
+    return HierarchyInfo(
+        id=u.id,
+        employee_code=u.employee_code,
+        full_name=u.full_name,
+        role=u.role,
+        permission_level=u.permission_level,
+        tier_label=hier_svc.tier_label(u.permission_level),
+        supervisor_id=u.supervisor_id,
+        site_id=u.site_id,
+    )
+
+
+@router.put("/{user_id}/supervisor", response_model=HierarchyInfo)
+def assign_supervisor(
+    user_id: int,
+    payload: SupervisorAssign,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> HierarchyInfo:
+    target = _load_target(db, user_id)
+    try:
+        updated = hier_svc.assign_supervisor(db, caller, target, payload.supervisor_id)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return _to_hier(updated)
+
+
+@router.put("/{user_id}/department", response_model=UserAdminOut)
+def transfer_department(
+    user_id: int,
+    payload: DepartmentTransfer,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> User:
+    target = _load_target(db, user_id)
+    try:
+        return hier_svc.transfer_department(db, caller, target, payload.department)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+@router.put("/{user_id}/shift", response_model=UserAdminOut)
+def change_shift(
+    user_id: int,
+    payload: ShiftChange,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> User:
+    target = _load_target(db, user_id)
+    try:
+        return hier_svc.change_shift(db, caller, target, payload.shift)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+@router.get("/{user_id}/subordinates", response_model=list[HierarchyInfo])
+def list_subordinates(
+    user_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> list[HierarchyInfo]:
+    target = _load_target(db, user_id)
+    try:
+        rows = hier_svc.list_subordinates(db, caller, target)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    return [_to_hier(u) for u in rows]
+
+
+@router.get("/tiers/labels")
+def tier_labels(_: User = Depends(get_current_user)) -> dict[int, str]:
+    """Static reference data for the admin UI's role/level picker."""
+    return hier_svc.TIER_LABELS
