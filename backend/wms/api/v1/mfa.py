@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from wms.core.config import get_settings
 from wms.core.deps import get_current_user, get_session
-from wms.core.security import create_access_token, decode_token
+from wms.core.security import create_access_token, decode_token, verify_password
 from wms.models import User, UserMFA
 from wms.schemas.auth import MFAChallenge, MFAEnrollVerify, TokenResponse
 from wms.services import mfa as mfa_svc
@@ -45,12 +45,16 @@ def create_mfa_challenge_token(employee_code: str, site_id: str) -> str:
 
 
 def decode_mfa_challenge(token: str) -> dict:
+    # M-4: keep the client-facing error generic; the detailed jose exception
+    # could help an attacker tell signature-failure apart from expiry.
     try:
         payload = decode_token(token)
     except ValueError as e:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid challenge token: {e}") from e
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid or expired challenge token"
+        ) from e
     if payload.get("purpose") != "mfa_challenge":
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not an MFA challenge token")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired challenge token")
     return payload
 
 
@@ -86,10 +90,20 @@ def verify_mfa(
     return MFAStatus(enrolled=True, has_pending_enrollment=False)
 
 
-@router.delete("/disable", response_model=MFAStatus)
+class MFADisableRequest(BaseModel):
+    current_password: str
+
+
+@router.post("/disable", response_model=MFAStatus)
 def disable_mfa(
-    db: Session = Depends(get_session), user: User = Depends(get_current_user)
+    payload: MFADisableRequest,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ) -> MFAStatus:
+    """H-2: require the user's current password so an XSS-stolen token alone
+    can't silently disable MFA for the victim."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
     mfa_svc.disable_mfa(db, user.id)
     return MFAStatus(enrolled=False, has_pending_enrollment=False)
 

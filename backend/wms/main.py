@@ -27,6 +27,8 @@ from wms.db.base import Base
 from wms.db.session import engine
 
 settings = get_settings()
+# C-1: fail-fast if production was started with the dev sentinel key.
+settings.assert_secure_for_env()
 
 
 def create_app() -> FastAPI:
