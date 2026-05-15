@@ -172,6 +172,8 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | POST | `/api/v1/profile/mfa/verify` | Activate MFA by submitting a valid TOTP code |
 | DELETE | `/api/v1/profile/mfa/disable` | User-initiated MFA removal |
 | POST | `/api/v1/auth/mfa/verify` | Step 2 of login — exchange challenge token + code for an access token |
+| POST | `/api/v1/profile/picture/upload` | Multipart avatar upload — sanitizes + re-encodes via Pillow, returns sanitized URL |
+| GET  | `/uploads/avatars/{file}` | Static-served avatars, `Content-Security-Policy: default-src 'none'` + `nosniff` |
 
 ## FEFO trigger
 
@@ -188,8 +190,21 @@ A line uses FEFO instead of FIFO when **either**:
 - Health endpoints
 - Password policy resolution + complexity enforcement at the change-password endpoint
 - MFA enrollment, TOTP verification, login-challenge flow, backup-code consumption, admin reset
+- Avatar upload: format whitelist (PNG/JPEG/WebP/GIF), size + dimension caps, SVG rejection, polyglot strip via re-encode, server-generated filenames
 
-37 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+47 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+
+## File uploads
+
+Avatars (display pictures) flow through `POST /api/v1/profile/picture/upload`. Hardening:
+
+1. **Pillow-based decode + re-encode.** Bytes are parsed with `PIL.Image.open(...).verify()`, then re-saved through Pillow. Anything that isn't a real, parseable image is rejected; the persisted file is always Pillow's canonical re-encoding (EXIF/ICC stripped, polyglots broken).
+2. **Format whitelist** (decode-side, not Content-Type-side): PNG, JPEG, WebP, GIF. **SVG explicitly rejected** (XSS vector). BMP / TIFF / ICO rejected (decoder CVE history; not needed).
+3. **Size cap** — `max_upload_bytes` (default 2 MB). Read with `await file.read(max + 1)` so oversize aborts before the whole body lands in memory.
+4. **Dimension cap** — `max_image_dimension` (default 2048 px) per side.
+5. **Server-generated paths** — `data/uploads/avatars/{user_id}-{6-hex}.{ext}`. The extension is the decoded format, not the uploaded filename. No path-traversal surface.
+6. **Static serving** — FastAPI `StaticFiles` at `/uploads/`. Middleware adds `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'` so browsers can't reinterpret bytes as HTML/JS.
+7. **Approval gate preserved** — the upload returns a URL; the user still has to submit it via `/profile/display-picture-request`, which goes through the same Lvl 3+ approval workflow as a manually-pasted URL.
 
 ## Mock data seeder
 

@@ -176,6 +176,23 @@
     }
     .field-banner--ok { border: 1px solid var(--signal-ok); color: var(--signal-ok); background: rgba(74,222,128,0.06); }
     .field-banner--err { border: 1px solid var(--signal-crit); color: var(--signal-crit); background: rgba(239,68,68,0.06); }
+    .upload-hint {
+      margin: var(--space-2) 0 var(--space-3);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+    }
+    .upload-meta {
+      margin-bottom: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      border: 1px dashed var(--rule-mid);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-secondary);
+    }
+    .upload-meta-sep { margin: 0 var(--space-2); color: var(--ink-tertiary); }
     .logout-row {
       margin-top: var(--space-8);
       padding: var(--space-5);
@@ -361,6 +378,16 @@
               <div class="inline-form" id="form-display_picture">
                 <div class="inline-form-row">
                   <input class="input input--mono" type="url" id="display-picture-input" placeholder="https://…/avatar.png" />
+                  <button class="btn btn--sm" type="button" id="display-picture-browse">Browse…</button>
+                </div>
+                <input type="file" id="display-picture-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                <div class="upload-meta" id="display-picture-meta" style="display:none">
+                  <span id="display-picture-filename"></span>
+                  <span class="upload-meta-sep">·</span>
+                  <span id="display-picture-filesize"></span>
+                </div>
+                <div class="upload-hint">Max 2 MB · PNG, JPEG, WebP, or GIF. Files are sanitized on upload (metadata stripped, re-encoded).</div>
+                <div class="inline-form-row">
                   <button class="btn btn--sm" data-action="cancel" data-target="display_picture">Cancel</button>
                   <button class="btn btn--primary btn--sm" data-action="save" data-target="display_picture">Request</button>
                 </div>

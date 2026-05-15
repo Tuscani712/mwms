@@ -1,8 +1,11 @@
 """Profile router — read identity + edit settings + approval workflow."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from wms.core.config import get_settings
 from wms.core.deps import get_current_user, get_session
 from wms.models import User, UserProfileField
 from wms.schemas.profile import (
@@ -17,6 +20,7 @@ from wms.schemas.profile import (
 )
 from wms.services import password_policy as policy_svc
 from wms.services import profile as svc
+from wms.services import uploads as upload_svc
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 admin_router = APIRouter(prefix="/admin/profile", tags=["admin-profile"])
@@ -97,6 +101,35 @@ def request_display_name(
     _ensure_editable(db, user, "display_name")
     req = svc.submit_change_request(db, user, "display_name", payload.requested_value)
     return req
+
+
+@router.post("/picture/upload")
+async def upload_picture(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Store an avatar file and return its public URL — does NOT yet apply to the
+    user record. The URL is meant to be passed to /profile/display-picture-request,
+    so the existing approval workflow still gates the change.
+    """
+    _ensure_editable(db, user, "display_picture")
+    settings = get_settings()
+    # Read with one extra byte so we can detect overruns without slurping
+    # an arbitrarily large body into memory.
+    data = await file.read(settings.max_upload_bytes + 1)
+    upload_dir = Path(settings.upload_dir) / "avatars"
+    try:
+        url, _ = upload_svc.save_avatar(
+            data,
+            user_id=user.id,
+            upload_dir=upload_dir,
+            max_bytes=settings.max_upload_bytes,
+            max_dim=settings.max_image_dimension,
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return {"url": url, "size_bytes": len(data)}
 
 
 @router.post("/display-picture-request", response_model=ChangeRequestOut)

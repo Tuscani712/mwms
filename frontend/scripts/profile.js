@@ -117,14 +117,68 @@
         await WMS_API.request('/profile/display-name-request', { method: 'POST', body: { requested_value: v } });
         setBanner('display_name', 'ok', 'Request submitted — awaiting approval');
       } else if (field === 'display_picture') {
-        const v = document.getElementById('display-picture-input').value.trim();
-        await WMS_API.request('/profile/display-picture-request', { method: 'POST', body: { requested_value: v } });
+        let requestedUrl = document.getElementById('display-picture-input').value.trim();
+        const fileInput = document.getElementById('display-picture-file');
+        const chosen = fileInput && fileInput.files && fileInput.files[0];
+
+        if (chosen) {
+          // Upload first → server returns sanitized URL → submit that for approval
+          setBanner('display_picture', 'ok', `Uploading ${chosen.name}…`);
+          const fd = new FormData();
+          fd.append('file', chosen);
+          const token = WMS_API.getToken();
+          const upRes = await fetch(`${WMS_API.BASE}/profile/picture/upload`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: fd,
+          });
+          if (!upRes.ok) {
+            const detail = (await upRes.json().catch(() => ({}))).detail || `HTTP ${upRes.status}`;
+            throw new Error(`Upload rejected — ${detail}`);
+          }
+          const up = await upRes.json();
+          requestedUrl = up.url;
+          // Reflect uploaded URL in the URL field so the user sees what they're submitting
+          document.getElementById('display-picture-input').value = requestedUrl;
+          fileInput.value = '';
+          const meta = document.getElementById('display-picture-meta');
+          if (meta) meta.style.display = 'none';
+        }
+
+        if (!requestedUrl) throw new Error('Pick a file or paste a URL first');
+        await WMS_API.request('/profile/display-picture-request', { method: 'POST', body: { requested_value: requestedUrl } });
         setBanner('display_picture', 'ok', 'Upload request submitted — awaiting approval');
       }
       setTimeout(loadProfile, 700);
     } catch (err) {
       setBanner(field, 'err', err.message);
     }
+  }
+
+  // ── Browse button → file picker, with preview meta ───────────────────
+  const browseBtn = document.getElementById('display-picture-browse');
+  const fileInput = document.getElementById('display-picture-file');
+  if (browseBtn && fileInput) {
+    browseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      const meta = document.getElementById('display-picture-meta');
+      if (!f) { if (meta) meta.style.display = 'none'; return; }
+      const nameEl = document.getElementById('display-picture-filename');
+      const sizeEl = document.getElementById('display-picture-filesize');
+      if (nameEl) nameEl.textContent = f.name;
+      if (sizeEl) {
+        const kb = f.size / 1024;
+        sizeEl.textContent = kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(2)} MB`;
+      }
+      if (meta) meta.style.display = '';
+      // Client-side guardrail (real validation is server-side)
+      if (f.size > 2 * 1024 * 1024) {
+        setBanner('display_picture', 'err', 'File exceeds 2 MB — pick something smaller');
+      } else {
+        setBanner('display_picture', null, null);
+      }
+    });
   }
 
   document.addEventListener('click', (e) => {

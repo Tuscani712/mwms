@@ -66,6 +66,15 @@
   - Admin recovery: `POST /admin/policy/mfa-reset {user_id}` — Level 4+ at the same site clears MFA for a lost-device user.
 - 10 new pytest tests covering: enrollment + verify, challenge flow, backup-code single-use, policy-driven gating, admin reset, non-admin denial — **all 37 tests green, ruff clean.**
 
+### ✅ Profile Picture Browse + Sanitized Upload
+- New **"Browse…"** button on the profile picture row (`profile.html`) opens a native file picker scoped to `image/png,image/jpeg,image/webp,image/gif`.
+- Selected file shows filename + size pre-upload; client-side 2 MB guardrail mirrors server cap.
+- Backend `POST /profile/picture/upload`: **server never trusts the client.** Bytes are parsed by Pillow (`verify()` then `Image.open(...).load()`), format-checked against a decode-side whitelist (PNG/JPEG/WebP/GIF — SVG/BMP/TIFF rejected), capped at 2 MB and 2048 px/side, then **re-encoded** through Pillow so EXIF/ICC metadata is stripped and polyglot payloads (e.g., HTML/JS appended after a valid PNG) are silently dropped.
+- Saved as `data/uploads/avatars/{user_id}-{6-hex}.{decoded_ext}` — server-generated path, no traversal surface.
+- Static-served at `/uploads/` with `X-Content-Type-Options: nosniff` + `Content-Security-Policy: default-src 'none'` so browsers can't reinterpret bytes as executable.
+- The returned URL still flows through the existing `/profile/display-picture-request` approval queue — Lvl 3+ approval gate is intact.
+- 10 new pytest tests covering: PNG/JPEG/WebP acceptance, SVG rejection, fake-PNG-actually-text rejection, oversize, oversized dimensions, polyglot strip, path-traversal filename, and full upload→approval flow.
+
 ### ✅ Local Dev Launcher (`./start.sh`)
 - One-shot environment check + boot:
   - Detects Python 3, creates `backend/.venv` if missing

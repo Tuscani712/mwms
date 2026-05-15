@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     cors_origins: str = "http://localhost:8765,http://127.0.0.1:8765"
     site_id_default: str = "WHS-001"
+    upload_dir: str = "./data/uploads"
+    max_upload_bytes: int = 2 * 1024 * 1024
+    max_image_dimension: int = 2048
 
     @property
     def cors_origins_list(self) -> list[str]:

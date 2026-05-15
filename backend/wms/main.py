@@ -1,7 +1,12 @@
 """FastAPI application entrypoint."""
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 # Import models so all tables register on Base.metadata before create_all.
 import wms.models  # noqa: F401
@@ -43,6 +48,23 @@ def create_app() -> FastAPI:
     app.include_router(policy.router, prefix=api_prefix)
     app.include_router(mfa.router, prefix=api_prefix)
     app.include_router(mfa.auth_router, prefix=api_prefix)
+
+    upload_root = Path(settings.upload_dir)
+    (upload_root / "avatars").mkdir(parents=True, exist_ok=True)
+
+    class NoSniffMiddleware(BaseHTTPMiddleware):
+        """Defense-in-depth: prevent browsers from MIME-sniffing uploads
+        into something executable (e.g., a crafted image being treated as HTML)."""
+
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/uploads/"):
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["Content-Security-Policy"] = "default-src 'none'"
+            return response
+
+    app.add_middleware(NoSniffMiddleware)
+    app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 
     return app
 
