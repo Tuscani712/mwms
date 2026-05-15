@@ -66,6 +66,18 @@
   - Admin recovery: `POST /admin/policy/mfa-reset {user_id}` — Level 4+ at the same site clears MFA for a lost-device user.
 - 10 new pytest tests covering: enrollment + verify, challenge flow, backup-code single-use, policy-driven gating, admin reset, non-admin denial — **all 37 tests green, ruff clean.**
 
+### ✅ Security Audit + Pre-Staged Fixes (SCO-38 + SCO-39/40/41)
+- **Red-team audit** of the codebase + docs produced `SECURITY_AUDIT.md` with 26 findings (1 critical, 6 high, 8 medium, 7 low, 5 info), each annotated with attack scenario, suggested fix, and stage-now/defer judgement. Seven follow-up tickets proposed (SEC-1..SEC-7).
+- **Seven fixes pre-staged**, each chosen because scaffolding now is cheaper than retrofitting later:
+  - **C-1** — `Settings.assert_secure_for_env()` refuses to boot prod with the dev sentinel `secret_key`.
+  - **H-2** — `POST /profile/mfa/disable` requires `{current_password}` (XSS-stolen tokens can no longer disable MFA).
+  - **H-4 prep** — `login_attempts` schema in place for SEC-1's future rate-limiter (saves a second migration).
+  - **M-4** — Generic "Invalid or expired challenge token" (removes signature-vs-expiry oracle).
+  - **L-4** — `get_current_user` rejects tokens for sites with `is_online=False`.
+  - **L-7** — `User.__repr__` scrubs `hashed_password` (debug-print safe).
+  - **M-6** — Email format regex on admin user payloads (blocks `<script>` and obvious garbage).
+- 15 regression tests across `test_security_audit_fixes.py` + `test_security_audit_quickwins.py`. **94/94 pytest green**, ruff clean.
+
 ### ✅ Admin User Management (SCO-33: SCO-35 + SCO-36 + SCO-37)
 - **Backend CRUD** (SCO-35) — `POST/GET/PUT/DELETE /api/v1/admin/users` + `/reactivate`. Paginated list with `site_id`, `role`, `level_min/max`, `q` search, `include_inactive`. Soft-delete via `is_active=false`.
 - **Permission model** layered: Lvl 3+ entry; **strict outrank** rule (Lvl 3 cannot edit another Lvl 3); **cross-site requires MCS Lvl 4+**; cannot self-deactivate.

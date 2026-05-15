@@ -1,3 +1,7 @@
+# WMS Security Audit · v1.1 · 2026-05-15
+
+> **Update 2026-05-15 (later same day):** Three more quick-win fixes pre-staged: **L-4** (offline site enforcement), **L-7** (`User.__repr__` scrubs hashed_password), **M-6** (email format validation). See "Pre-staged fixes" section. Findings tables updated with strikethrough on resolved items.
+
 # WMS Security Audit · v1 · 2026-05-15
 
 > Red-team review of the WMS codebase + docs at commit `107b84b`. Findings sorted by severity. The "Pre-stage now?" column flags items where adding the scaffolding *today* is cheaper than retrofitting against a larger codebase later.
@@ -38,7 +42,7 @@
 | M-3 | **Inconsistent HTML escaping in frontend `innerHTML` calls.** `users.js` escapes; `receiving.js`, `shipping.js`, `dashboard.js`, the `empty-state` setter in `users.js` itself, and `profile.js` set strings via `innerHTML` without a consistent escape helper. Today the data is server-controlled, but `display_name`/`department`/`shift` are user-controlled and *will* land in these views. | `frontend/scripts/{receiving,shipping,dashboard}.js`, `users.js:91` | Stored XSS: an operator sets `display_name = '<img onerror=fetch(...) src=x>'` (no server-side allow-list); a supervisor opens the approval queue or the operator dashboard; their token leaks (see H-3). | Centralize `escapeHtml()` in `api.js` or a tiny `dom.js` helper. Lint rule: any `.innerHTML =` on a non-literal must call the helper. | Defer (touches 5 files). Pre-stage the helper in one place? **Tracker-only for now** — fully addressing this is its own ticket. |
 | M-4 | **Error messages leak JWT decode internals.** `f"Invalid challenge token: {e}"` returns the `JWTError` string to the client. | `wms/api/v1/mfa.py:51` | Attackers can probe expiry vs. signature vs. malformed differences to refine token forgery. | Return a generic `"Invalid or expired challenge token"`. Log the detail server-side. | ✅ **Pre-staged** — message generified. |
 | M-5 | **No global request-size cap on JSON endpoints.** Uploads are capped at 2 MB; everything else is whatever Starlette accepts (default unlimited). | `wms/main.py` | DoS via 1 GB JSON body to `PUT /admin/users/{id}` — server allocates the body before pydantic gets a chance. | Add `BodySizeLimitMiddleware` (1 MB cap for JSON). | Defer. ~30 LOC. Mostly a deployment-tier concern (nginx body limit). |
-| M-6 | **`email` field has no format validation** (we removed `EmailStr` to accept `.local` TLDs in dev). Stored as-is in the DB and surfaced via `/admin/users`. | `wms/api/v1/admin_users.py:23` | Operator stores `<script>` in email → rendered into the admin table → XSS if escaping regresses (see M-3). Operator stores 50 KB string → bloat. | Add a regex/length check (we already have `min_length=3, max_length=180`; add `@.*\.` regex). | Pre-stage? Defer (1 line, but coupled to M-3). |
+| ~~M-6~~ | ~~**`email` field has no format validation**~~ **(✅ fixed 2026-05-15, SCO-41)** — permissive `[^\s<>"']+@[^\s<>"']+\.[^\s<>"']+` regex now applied at both `UserCreate` and `UserUpdate`. Rejects garbage and script-tag payloads without re-inheriting EmailStr's `.local` strictness. | `wms/api/v1/admin_users.py:13` (`EMAIL_PATTERN`) | — | — | ✅ Pre-staged |
 | M-7 | **Approval-workflow URL is unvalidated.** A user can request `display_picture_url = "http://evil.example.com/log?token=…"` and an approver may rubber-stamp it. The URL is then loaded as an `<img>` (or similar) cross-origin — leaking the Referer header. | `wms/services/profile.py:82` (`submit_change_request`) | Approver session leaks via Referer. Or worse, a `data:` URI is approved and rendered inline. | Enforce that `display_picture_url` either starts with `/uploads/` (our sanitized output) or matches a whitelisted external pattern. | Defer. ~5 LOC. Track. |
 | M-8 | **MFA backup codes have no regeneration UX.** A user with 1 unused code today and a lost device tomorrow is locked out without admin involvement. | `wms/services/mfa.py:71` (`begin_enrollment`) | Operational risk, not attack risk. Increases load on the admin MFA-reset endpoint, which itself only fires for Lvl 4+. | `POST /profile/mfa/regenerate-codes` (requires password). | Defer. Quality-of-life. |
 
@@ -49,10 +53,10 @@
 | L-1 | **No security-relevant logging.** No record of who logged in, who got 403'd, who reset MFA, who changed a password. | (codebase-wide) | Forensic blindness post-incident. Compliance gap. | Add a `python logging` config + an `audit_log` writer for auth events. | Defer. |
 | L-2 | **Dependency versions unpinned upper-bound** (`bcrypt>=4.1`, `Pillow>=10.3`, etc.). | `backend/pyproject.toml` | Future breaking release lands in CI/CD without a review window. | Add upper bounds OR commit a `requirements.lock`. | Defer. |
 | L-3 | **JWT subjects are predictable** (`WHS-001-001` ascending). | `wms/seeders/seed.py` | Username enumeration via `?q=` search is trivial. Combined with H-1 → effective brute-force. | Out of scope (employee codes are operationally useful). Mitigate at H-1 (rate limit). | n/a |
-| L-4 | **`Site.is_active` not enforced at JWT validation.** If a site is marked offline (`is_online=False`), users at that site can still authenticate. | `wms/core/deps.py:34` (`get_current_user`) | A "rolled-back" site's users keep operating after the rollback. | Add `Site.is_online` check to `get_current_user`. | Defer — depends on the rollback policy you want. |
+| ~~L-4~~ | ~~**`Site.is_active` not enforced at JWT validation.**~~ **(✅ fixed 2026-05-15, SCO-39)** — `get_current_user` now rejects with 401 "Site is offline" when the user's site row has `is_online=False`. Maintenance windows / incident-response toggles now reach the auth layer. | `wms/core/deps.py:34` (`get_current_user`) | — | — | ✅ Pre-staged |
 | L-5 | **Token TTL of 8 hours with no refresh-token rotation.** Stolen tokens are valid the full shift. | `wms/core/config.py:20` | A pickpocketed phone = 8 hours of access. | Shorten to 1h + add `/auth/refresh` with rotation. | Defer (UX-affecting). |
 | L-6 | **No CSRF token on cookie-auth fallback.** Today we use the Authorization header (CSRF-resistant), but `api.js`'s `clear()` path silently strips on 401 and could mask a future cookie-auth migration regression. | `frontend/scripts/api.js` | None today. Future-proofing. | Comment + lint rule. | Defer. |
-| L-7 | **`hashed_password` reachable on ORM** even though no schema returns it. A future endpoint might accidentally serialize a `User` SQLAlchemy object directly. | `wms/models/core.py:40` | Accidental leak through a future code change. | Add a `__repr__` that omits the field; pydantic `UserAdminOut` already excludes it. | Defer. Low pain to fix later. |
+| ~~L-7~~ | ~~**`hashed_password` reachable on ORM**~~ **(✅ fixed 2026-05-15, SCO-40)** — `User.__repr__` now scrubs the field. A debug-print or accidental f-string with a User instance shows only the safe identity tuple. Regression test asserts neither the field name nor a bcrypt prefix appears in `repr(user)`. | `wms/models/core.py:55` | — | — | ✅ Pre-staged |
 
 ### ℹ️ INFO
 
@@ -66,9 +70,22 @@
 
 ---
 
-## Pre-staged fixes (applied in this commit)
+## Pre-staged fixes (applied)
 
-Three fixes were cheap enough to scaffold *now* — each takes longer to retrofit than to write today. They are deliberately minimal:
+Seven fixes were cheap enough to scaffold up-front. The first four landed with the initial audit; the next three landed later the same day as quick-win cleanup (SCO-39/40/41). Each is intentionally minimal — bigger items remain on the SEC-1..SEC-7 follow-up list.
+
+### Follow-up batch (2026-05-15 later · SCO-39/40/41)
+
+#### 5. Offline-site enforcement at auth (L-4)
+`get_current_user` now rejects 401 "Site is offline" when the user's site row has `is_online=False`. Taking a site offline for maintenance/incident now actually pulls its users' tokens. ~3 lines in `wms/core/deps.py`.
+
+#### 6. `User.__repr__` scrubs `hashed_password` (L-7)
+`<User id=… code=… site=… level=… active=…>` — deliberately omits the hash. Debug print, ORM `str()`, or accidental f-string interpolation can no longer leak the bcrypt digest. ~5 lines in `wms/models/core.py`.
+
+#### 7. Email format validation on admin payloads (M-6)
+`UserCreate.email` and `UserUpdate.email` now require `[^\s<>"']+@[^\s<>"']+\.[^\s<>"']+`. Rejects obvious garbage and `<script>`-style payloads (the literal `<` and `>` are excluded by the character class) without re-adopting EmailStr's `.local` strictness. ~3 lines in `wms/api/v1/admin_users.py`.
+
+### Initial batch
 
 ### 1. Refuse to start with the default secret key (C-1)
 
@@ -112,3 +129,14 @@ New `LoginAttempt` table — `user_id`, `attempted_at`, `success`, `ip`, `user_a
 - Did not validate `display_picture_url` against an allowlist (M-7) — UX implications around external avatars need a product decision first.
 
 Each is tracked above so nothing is "audited and forgotten".
+
+---
+
+## Test footprint after pre-stage
+
+| Audit ID | Test file | Cases |
+|---|---|---|
+| C-1, H-2, M-4, I-1 | `tests/test_security_audit_fixes.py` | 7 |
+| L-4, L-7, M-6 | `tests/test_security_audit_quickwins.py` | 8 |
+
+15 regression tests guarding the 7 pre-staged fixes. Total suite: **94/94 green**.

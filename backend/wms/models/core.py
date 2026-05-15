@@ -52,6 +52,14 @@ class User(Base):
 
     site: Mapped[Site] = relationship(back_populates="users")
 
+    def __repr__(self) -> str:
+        # SECURITY_AUDIT.md L-7: defensive — scrub hashed_password so an
+        # accidental f"got {user}" in a log line cannot leak the bcrypt hash.
+        return (
+            f"<User id={self.id} code={self.employee_code!r} site={self.site_id!r} "
+            f"level={self.permission_level} active={self.is_active}>"
+        )
+
 
 class UserProfileField(Base):
     """Field visibility/editability rules — resolves per (user, role, site, global)."""

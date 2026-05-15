@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from wms.core.security import decode_token
 from wms.db.session import get_db
-from wms.models import User
+from wms.models import Site, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -38,6 +38,11 @@ def get_current_user(
     )
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or inactive")
+    # SECURITY_AUDIT.md L-4: reject tokens for sites that have been taken offline
+    # (e.g., maintenance window, security incident, decommission).
+    site = db.query(Site).filter(Site.id == user.site_id).first()
+    if site is not None and not site.is_online:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Site is offline")
     return user
 
 

@@ -11,12 +11,17 @@ from wms.models import User
 from wms.services import hierarchy as hier_svc
 from wms.services import users_admin as svc
 
+# SECURITY_AUDIT.md M-6: permissive but real format check — rejects obvious
+# garbage and script-tag payloads without inheriting EmailStr's TLD strictness
+# (which previously broke our .local dev domains).
+EMAIL_PATTERN = r"^[^\s<>\"']+@[^\s<>\"']+\.[^\s<>\"']+$"
+
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 
 class UserCreate(BaseModel):
     employee_code: str = Field(min_length=2, max_length=20)
-    email: str = Field(min_length=3, max_length=180)
+    email: str = Field(min_length=3, max_length=180, pattern=EMAIL_PATTERN)
     full_name: str = Field(min_length=1, max_length=120)
     role: str = Field(default="operator", max_length=40)
     permission_level: int = Field(ge=1, le=5, default=1)
@@ -27,7 +32,7 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: str | None = None
+    email: str | None = Field(default=None, max_length=180, pattern=EMAIL_PATTERN)
     full_name: str | None = Field(default=None, max_length=120)
     role: str | None = Field(default=None, max_length=40)
     permission_level: int | None = Field(default=None, ge=1, le=5)
