@@ -11,7 +11,17 @@ from starlette.requests import Request
 # Import models so all tables register on Base.metadata before create_all.
 import wms.models  # noqa: F401
 from wms import __version__
-from wms.api.v1 import auth, health, mfa, policy, profile, receiving, shipping, sites
+from wms.api.v1 import (
+    admin_users,
+    auth,
+    health,
+    mfa,
+    policy,
+    profile,
+    receiving,
+    shipping,
+    sites,
+)
 from wms.core.config import get_settings
 from wms.db.base import Base
 from wms.db.session import engine
@@ -48,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(policy.router, prefix=api_prefix)
     app.include_router(mfa.router, prefix=api_prefix)
     app.include_router(mfa.auth_router, prefix=api_prefix)
+    app.include_router(admin_users.router, prefix=api_prefix)
 
     upload_root = Path(settings.upload_dir)
     (upload_root / "avatars").mkdir(parents=True, exist_ok=True)
