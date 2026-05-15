@@ -40,17 +40,13 @@
     }
   } catch (_) { /* ignore */ }
 
-  // Sign-out: clicking the user chip clears the session and returns to login.
+  // User chip navigates to the profile page (where logout now lives).
   const userChip = document.getElementById('user-chip');
   if (userChip) {
     userChip.addEventListener('click', () => {
-      if (confirm('Sign out and clock off?')) {
-        localStorage.removeItem('wms.token');
-        localStorage.removeItem('wms.user');
-        localStorage.removeItem('wms.activeSiteLabel');
-        window.location.href = 'login.html';
-      }
+      window.location.href = 'profile.html';
     });
+    userChip.title = 'View profile';
   }
 
   // ── LIVE CLOCK ─────────────────────────────────────────────────────

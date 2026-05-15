@@ -85,17 +85,15 @@
     }
   } catch (_) { /* ignore */ }
 
-  // ── SIGN-OUT (click user chip) ──────────────────────────────────────
+  // ── USER CHIP → PROFILE PAGE ────────────────────────────────────────
+  // Click the chip to navigate to the profile page (where logout lives).
+  // Profile page itself overrides this handler so clicking the chip there is a no-op.
   const userChip = document.getElementById('user-chip');
   if (userChip) {
     userChip.addEventListener('click', () => {
-      if (confirm('Sign out and clock off?')) {
-        localStorage.removeItem('wms.token');
-        localStorage.removeItem('wms.user');
-        localStorage.removeItem('wms.activeSiteLabel');
-        window.location.href = 'login.html';
-      }
+      window.location.href = 'profile.html';
     });
+    userChip.title = 'View profile';
   }
 
 })();

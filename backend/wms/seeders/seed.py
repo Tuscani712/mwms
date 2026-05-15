@@ -25,6 +25,7 @@ from wms.models import (
     Shipment,
     Site,
     User,
+    UserProfileField,
 )
 
 random.seed(42)
@@ -97,6 +98,16 @@ def seed_sites(db: Session) -> None:
     db.commit()
 
 
+DEPARTMENTS = {
+    "operator": ["Receiving", "Shipping", "Production", "Quality", "Inventory"],
+    "lead": ["Receiving", "Shipping", "Production", "Quality"],
+    "supervisor": ["Operations", "Quality"],
+    "manager": ["Operations"],
+    "admin": ["Administration"],
+}
+SHIFTS = ["A · 06:00-14:00", "B · 14:00-22:00", "C · 22:00-06:00"]
+
+
 def seed_users(db: Session) -> None:
     for site in db.query(Site).all():
         if site.id == "MCS":
@@ -108,6 +119,8 @@ def seed_users(db: Session) -> None:
                     full_name="Corporate Admin",
                     role="admin",
                     permission_level=5,
+                    department="Administration",
+                    shift="A · 06:00-14:00",
                     hashed_password=hash_password("admin1234"),
                 )
             )
@@ -124,10 +137,23 @@ def seed_users(db: Session) -> None:
                         full_name=f"{role.title()} {idx}",
                         role=role,
                         permission_level=level,
+                        department=random.choice(DEPARTMENTS[role]),
+                        shift=random.choice(SHIFTS),
                         hashed_password=hash_password("password123"),
                     )
                 )
                 idx += 1
+    db.commit()
+
+
+def seed_profile_field_policy(db: Session) -> None:
+    """Baseline field visibility rules. Defaults allow everything; explicit rows override."""
+    # Global: theme is visible but not editable (Coming Soon)
+    db.add(UserProfileField(scope_type="global", scope_value=None, field_name="theme",
+                            visible=True, editable=False))
+    # Example role override: operators can't change their email (must go through supervisor)
+    db.add(UserProfileField(scope_type="role", scope_value="operator", field_name="email",
+                            visible=True, editable=False))
     db.commit()
 
 
@@ -315,6 +341,7 @@ def run() -> None:
     try:
         seed_sites(db)
         seed_users(db)
+        seed_profile_field_policy(db)
         seed_skus_locations(db)
         seed_lots(db)
         seed_asns(db)

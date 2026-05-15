@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+  <style>
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+    @media (max-width: 1000px) {
+      .profile-grid { grid-template-columns: 1fr; }
+    }
+    .identity-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      padding: var(--space-6);
+      border: 1px solid var(--rule-mid);
+      background: var(--bg-elevated);
+      position: relative;
+    }
+    .identity-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber), transparent);
+    }
+    .identity-portrait {
+      display: flex;
+      align-items: center;
+      gap: var(--space-5);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--rule-mid);
+    }
+    .portrait-avatar {
+      width: 72px; height: 72px;
+      display: grid; place-items: center;
+      border: 1px solid var(--amber);
+      background: rgba(255, 107, 26, 0.08);
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: 36px;
+      color: var(--amber);
+      letter-spacing: -0.02em;
+    }
+    .portrait-name {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-style: italic;
+      line-height: 1.1;
+    }
+    .portrait-sub {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-tertiary);
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .identity-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4) var(--space-5);
+    }
+    .identity-field { display: flex; flex-direction: column; gap: 4px; }
+    .identity-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-tertiary);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+    }
+    .identity-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--ink-primary);
+    }
+    .identity-value em {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-base);
+      color: var(--amber);
+      font-weight: 500;
+    }
+    .read-only-banner {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-tertiary);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--rule-mid);
+      align-self: flex-start;
+    }
+    .settings-stack { display: flex; flex-direction: column; gap: 0; }
+    .setting-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-5) 0;
+      border-bottom: 1px solid var(--rule-mid);
+    }
+    .setting-row:first-child { padding-top: 0; }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      margin-bottom: 4px;
+    }
+    .setting-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--ink-primary);
+    }
+    .setting-value--placeholder { color: var(--ink-tertiary); font-style: italic; }
+    .setting-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-tertiary);
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .setting-row[data-disabled="true"] { opacity: 0.42; }
+    .setting-row[data-pending="true"] .setting-title::after {
+      content: ' · awaiting approval';
+      color: var(--amber);
+    }
+    .setting-row[data-coming-soon="true"] .setting-title::after {
+      content: ' · coming soon';
+      color: var(--ink-tertiary);
+    }
+    .inline-form {
+      display: none;
+      grid-column: 1 / -1;
+      margin-top: var(--space-3);
+      padding: var(--space-4);
+      background: var(--bg-deepest);
+      border: 1px solid var(--rule-mid);
+    }
+    .inline-form[data-open="true"] { display: block; }
+    .inline-form-row {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+      margin-bottom: var(--space-3);
+    }
+    .inline-form-row:last-child { margin-bottom: 0; }
+    .inline-form .input { flex: 1; }
+    .field-banner {
+      margin-top: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      border-radius: 2px;
+    }
+    .field-banner--ok { border: 1px solid var(--signal-ok); color: var(--signal-ok); background: rgba(74,222,128,0.06); }
+    .field-banner--err { border: 1px solid var(--signal-crit); color: var(--signal-crit); background: rgba(239,68,68,0.06); }
+    .logout-row {
+      margin-top: var(--space-8);
+      padding: var(--space-5);
+      border: 1px solid var(--rule-mid);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-5);
+    }
+    .logout-row .logout-text {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-tertiary);
+      letter-spacing: var(--tracking-wide);
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="production.html" class="topnav-item">Production</a>
+        <a href="quality.html" class="topnav-item">Quality</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip" id="user-chip" title="Already on your profile"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="status-ticker">
+    <div class="status-ticker-inner">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">SESSION ▸ <strong data-bind="session-tag">active</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">REQUESTS PENDING ▸ <strong data-bind="pending-count">0</strong></span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Profile</span>
+    </div>
+    <h1 class="page-title"><em>Profile</em></h1>
+    <p class="page-lede">Your identity at this site, and the settings you control.</p>
+  </div>
+
+  <main class="page">
+
+    <div class="profile-grid">
+
+      <!-- ── READ ONLY IDENTITY ────────────────────────────────────── -->
+      <section class="identity-card">
+        <div class="identity-portrait">
+          <div class="portrait-avatar" data-bind="user-initial">—</div>
+          <div>
+            <div class="portrait-name" data-bind="full-name"><em>—</em></div>
+            <div class="portrait-sub"><span data-bind="role-label">—</span> · LVL <span data-bind="level-label">—</span></div>
+          </div>
+        </div>
+        <span class="read-only-banner">● Read-only · managed by your site admin</span>
+        <div class="identity-fields">
+          <div class="identity-field">
+            <span class="identity-label">Real Name</span>
+            <span class="identity-value"><em data-bind="full-name">—</em></span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Employee ID</span>
+            <span class="identity-value" data-bind="employee-code">—</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Site</span>
+            <span class="identity-value" data-bind="site-id">—</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Department</span>
+            <span class="identity-value" data-bind="department">—</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Role</span>
+            <span class="identity-value" data-bind="role-label">—</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Shift</span>
+            <span class="identity-value" data-bind="shift">—</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Permission Level</span>
+            <span class="identity-value">LVL <strong data-bind="level-label">—</strong> / 5</span>
+          </div>
+          <div class="identity-field">
+            <span class="identity-label">Status</span>
+            <span class="identity-value"><span class="dot dot--ok"></span> Active</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── EDITABLE SETTINGS ─────────────────────────────────────── -->
+      <section>
+        <div class="section-head">
+          <div class="section-head-left">
+            <span class="section-eyebrow">Account Settings</span>
+            <h2 class="section-title">Account <em>settings</em></h2>
+          </div>
+          <span class="section-meta" data-bind="settings-status">Loading…</span>
+        </div>
+
+        <div class="settings-stack" id="settings-stack">
+
+          <div class="setting-row" data-field="email" id="row-email">
+            <div>
+              <div class="setting-title">Email address</div>
+              <div class="setting-value" data-bind="email">—</div>
+              <div class="setting-meta" data-bind="email-policy"></div>
+              <div class="inline-form" id="form-email">
+                <div class="inline-form-row">
+                  <input class="input input--mono" type="email" id="email-input" placeholder="name@warehouse.io" />
+                  <button class="btn btn--sm" data-action="cancel" data-target="email">Cancel</button>
+                  <button class="btn btn--primary btn--sm" data-action="save" data-target="email">Save</button>
+                </div>
+                <div class="field-banner" id="email-banner" style="display:none"></div>
+              </div>
+            </div>
+            <button class="btn btn--sm btn-arrow" data-action="edit" data-target="email"><span>Edit</span></button>
+          </div>
+
+          <div class="setting-row" data-field="password" id="row-password">
+            <div>
+              <div class="setting-title">Password</div>
+              <div class="setting-value setting-value--placeholder">••••••••</div>
+              <div class="setting-meta" data-bind="password-policy"></div>
+              <div class="inline-form" id="form-password">
+                <div class="inline-form-row">
+                  <input class="input input--mono" type="password" id="password-current" placeholder="Current password" autocomplete="current-password" />
+                </div>
+                <div class="inline-form-row">
+                  <input class="input input--mono" type="password" id="password-new" placeholder="New password (min 4 chars)" autocomplete="new-password" />
+                  <button class="btn btn--sm" data-action="cancel" data-target="password">Cancel</button>
+                  <button class="btn btn--primary btn--sm" data-action="save" data-target="password">Save</button>
+                </div>
+                <div class="field-banner" id="password-banner" style="display:none"></div>
+              </div>
+            </div>
+            <button class="btn btn--sm btn-arrow" data-action="edit" data-target="password"><span>Change</span></button>
+          </div>
+
+          <div class="setting-row" data-field="display_name" id="row-display_name">
+            <div>
+              <div class="setting-title">Chat display name</div>
+              <div class="setting-value" data-bind="display-name">—</div>
+              <div class="setting-meta" data-bind="display_name-policy"></div>
+              <div class="inline-form" id="form-display_name">
+                <div class="inline-form-row">
+                  <input class="input input--mono" type="text" id="display-name-input" placeholder="How you'll appear in chat" maxlength="40" />
+                  <button class="btn btn--sm" data-action="cancel" data-target="display_name">Cancel</button>
+                  <button class="btn btn--primary btn--sm" data-action="save" data-target="display_name">Request</button>
+                </div>
+                <div class="field-banner" id="display_name-banner" style="display:none"></div>
+              </div>
+            </div>
+            <button class="btn btn--sm btn-arrow" data-action="edit" data-target="display_name"><span>Request</span></button>
+          </div>
+
+          <div class="setting-row" data-field="display_picture" id="row-display_picture">
+            <div>
+              <div class="setting-title">Display picture</div>
+              <div class="setting-value" data-bind="display-picture-url">—</div>
+              <div class="setting-meta" data-bind="display_picture-policy"></div>
+              <div class="inline-form" id="form-display_picture">
+                <div class="inline-form-row">
+                  <input class="input input--mono" type="url" id="display-picture-input" placeholder="https://…/avatar.png" />
+                  <button class="btn btn--sm" data-action="cancel" data-target="display_picture">Cancel</button>
+                  <button class="btn btn--primary btn--sm" data-action="save" data-target="display_picture">Request</button>
+                </div>
+                <div class="field-banner" id="display_picture-banner" style="display:none"></div>
+              </div>
+            </div>
+            <button class="btn btn--sm btn-arrow" data-action="edit" data-target="display_picture"><span>Request</span></button>
+          </div>
+
+          <div class="setting-row" data-field="theme" id="row-theme" data-coming-soon="true">
+            <div>
+              <div class="setting-title">Theme</div>
+              <div class="setting-value" data-bind="theme">dark</div>
+              <div class="setting-meta">Light theme stub already exists in tokens.css; user selection arrives next sprint.</div>
+            </div>
+            <button class="btn btn--sm" disabled><span>Soon</span></button>
+          </div>
+
+        </div>
+
+        <!-- ── LOGOUT ───────────────────────────────────────────── -->
+        <div class="logout-row">
+          <div>
+            <div class="setting-title">Session</div>
+            <div class="logout-text">End your shift cleanly — your token will be cleared.</div>
+          </div>
+          <button class="btn btn--primary btn-arrow" id="logout-btn"><span>Sign out</span></button>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>Warehouse Operations Console · v0.1.0</span>
+      <span><span class="dot dot--ok"></span> All systems nominal</span>
+    </div>
+  </footer>
+
+  <script src="scripts/shell.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/profile.js"></script>
+</body>
+</html>

@@ -57,6 +57,7 @@ window.WMS_API = (() => {
     setSession,
     getUser,
     clear,
+    request,
     isAuthed: () => Boolean(getToken()),
     login: (employee_code, password, site_id) =>
       request('/auth/login', { method: 'POST', body: { employee_code, password, site_id }, auth: false }),

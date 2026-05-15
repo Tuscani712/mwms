@@ -43,6 +43,15 @@
 - Login form shows inline error banner on 401 (no more silent dashboard redirect)
 - "Backend unreachable" vs "Bad credentials" surfaced as distinct error messages
 
+### ✅ User Management — Profile Layer
+- New `profile.html` page reached in **3 clicks max** from anywhere: click the user chip in the topbar.
+- **Read-only identity panel**: Real Name, Employee ID, Site, Department, Role, Shift, Permission Level, Active status.
+- **Editable settings panel**: Email, Password, Chat Display Name (approval-gated), Display Picture (approval-gated), Theme (Coming Soon stub), Logout.
+- **Field-level visibility/editability** resolved per request with precedence **user > role > site > global**. Client can disable/enable any field at any scope via a single row in `user_profile_fields`.
+- **Approval workflow**: `display_name` and `display_picture` create `ProfileChangeRequest` rows; Level 3+ users (or in future, direct supervisors) decide via `/admin/profile/requests/{id}/decide`.
+- Operator-role default policy seeded: email visible but not editable (forces request to supervisor); theme visible but not editable (coming soon).
+- 7 new pytest tests covering: identity readout, email gate, password current-password check, request submission, user-scope override of role-scope, admin approval applying the change.
+
 ### ✅ Local Dev Launcher (`./start.sh`)
 - One-shot environment check + boot:
   - Detects Python 3, creates `backend/.venv` if missing

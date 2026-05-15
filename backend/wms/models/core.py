@@ -42,4 +42,42 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Profile fields
+    department: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    shift: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    display_picture_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    supervisor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    theme: Mapped[str] = mapped_column(String(20), default="dark")
+
     site: Mapped[Site] = relationship(back_populates="users")
+
+
+class UserProfileField(Base):
+    """Field visibility/editability rules — resolves per (user, role, site, global)."""
+
+    __tablename__ = "user_profile_fields"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    scope_value: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    field_name: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    visible: Mapped[bool] = mapped_column(Boolean, default=True)
+    editable: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class ProfileChangeRequest(Base):
+    """Pending approval for display_name / display_picture changes (Level 3+ or supervisor)."""
+
+    __tablename__ = "profile_change_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    field_name: Mapped[str] = mapped_column(String(40), nullable=False)
+    requested_value: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    decision_notes: Mapped[str | None] = mapped_column(String(500), nullable=True)

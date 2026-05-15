@@ -62,6 +62,7 @@ frontend/
 | `reports.html` | Quick-report tiles (genealogy, supplier, outliers, aging), run history table |
 | `admin.html` | Subnav, admin tiles (users/titles/templates/sites/branding/audit), pending approvals, audit tail |
 | `admin-branding.html` | Drag-drop logo upload, facility name + site ID, live preview |
+| `profile.html` | **User profile** — read-only identity (Name, Site, Department, Role, Shift, Employee ID, Permission Level) + editable settings (Email, Password, Chat Display Name, Display Picture, Theme stub, Logout). Reachable in one click from the user chip; field-level visibility/editability resolved per request from the API. |
 
 ---
 

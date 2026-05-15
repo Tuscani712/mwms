@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models. Importing this package registers all tables on Base.metadata."""
 
-from wms.models.core import Site, User
+from wms.models.core import ProfileChangeRequest, Site, User, UserProfileField
 from wms.models.inventory import SKU, Location, Lot, LotGenealogy
 from wms.models.ops import (
     ASN,
@@ -23,6 +23,7 @@ __all__ = [
     "Order",
     "OrderLine",
     "Pick",
+    "ProfileChangeRequest",
     "QCHold",
     "Receipt",
     "ReceiptLine",
@@ -30,4 +31,5 @@ __all__ = [
     "Shipment",
     "Site",
     "User",
+    "UserProfileField",
 ]

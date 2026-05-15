@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Import models so all tables register on Base.metadata before create_all.
 import wms.models  # noqa: F401
 from wms import __version__
-from wms.api.v1 import auth, health, receiving, shipping, sites
+from wms.api.v1 import auth, health, profile, receiving, shipping, sites
 from wms.core.config import get_settings
 from wms.db.base import Base
 from wms.db.session import engine
@@ -38,6 +38,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=api_prefix)
     app.include_router(receiving.router, prefix=api_prefix)
     app.include_router(shipping.router, prefix=api_prefix)
+    app.include_router(profile.router, prefix=api_prefix)
+    app.include_router(profile.admin_router, prefix=api_prefix)
 
     return app
 

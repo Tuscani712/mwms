@@ -25,6 +25,42 @@ Per-site identity. **Same employee can have rows at multiple sites with differen
 | `email`, `full_name`, `role`, `permission_level` | | role ∈ operator/lead/supervisor/manager/admin |
 | `hashed_password` | str | bcrypt |
 | `is_active`, `last_login_at` | | |
+| `department`, `shift` | str (nullable) | Read-only on profile page; client-managed |
+| `display_name` | str (nullable) | Chat-only; requires Lvl 3+ approval to change |
+| `display_picture_url` | str (nullable) | Avatar URL; requires Lvl 3+ approval to change |
+| `supervisor_id` | FK → users (nullable) | For future supervisor-approval routing |
+| `theme` | str | UI theme preference ("dark" default, light theme stub in tokens.css) |
+
+### `user_profile_fields`
+Visibility/editability rules for profile fields. **Resolved at request time** with precedence
+`user > role > site > global` — first match wins, defaults applied otherwise.
+
+| Column | Notes |
+|---|---|
+| `scope_type` | one of: `global`, `site`, `role`, `user` |
+| `scope_value` | NULL for global; site_id / role / employee_code otherwise |
+| `field_name` | one of: `email`, `password`, `display_name`, `display_picture`, `theme` |
+| `visible`, `editable` | booleans |
+
+A client locking down email edits for all operators at WHS-001:
+```
+INSERT INTO user_profile_fields (scope_type, scope_value, field_name, visible, editable)
+VALUES ('role', 'operator', 'email', true, false);
+```
+
+### `profile_change_requests`
+Approval queue for fields gated by `APPROVAL_REQUIRED` in `services/profile.py` —
+currently `display_name` and `display_picture`.
+
+| Column | Notes |
+|---|---|
+| `user_id` | who requested |
+| `field_name`, `requested_value` | the proposed change |
+| `status` | `pending` / `approved` / `rejected` |
+| `decided_by`, `decided_at`, `decision_notes` | filled in by approver (Lvl 3+) |
+
+Approve endpoint: `POST /api/v1/admin/profile/requests/{id}/decide`. Approver must be at the
+same site (or MCS). On approval, the requested value is written to the user row.
 
 ### `skus`, `locations`, `lots`, `lot_genealogy`
 Inventory primitives.
@@ -76,6 +112,16 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | POST | `/api/v1/shipping/picks` | Assign picks across lots |
 | POST | `/api/v1/shipping/truck-load` | Load picked order, update truck weight budget |
 | GET | `/api/v1/shipping/packing-slip/{order_id}` | Generate slip |
+| GET | `/api/v1/profile` | Current user identity + per-field visibility/editability + pending requests |
+| PUT | `/api/v1/profile/email` | Update email (rejected with 403 if field policy says not editable) |
+| PUT | `/api/v1/profile/password` | Update password (requires current_password) |
+| POST | `/api/v1/profile/display-name-request` | Submit display-name change → pending |
+| POST | `/api/v1/profile/display-picture-request` | Submit display-picture change → pending |
+| GET | `/api/v1/profile/requests` | My own change requests (history) |
+| GET | `/api/v1/admin/profile/requests` | Pending requests visible to approver (Lvl 3+) |
+| POST | `/api/v1/admin/profile/requests/{id}/decide` | Approve or reject |
+| GET | `/api/v1/admin/profile/field-visibility` | List field-policy rows |
+| PUT | `/api/v1/admin/profile/field-visibility` | Upsert a policy row (Lvl 3+) |
 
 ## FEFO trigger
 
@@ -91,7 +137,7 @@ A line uses FEFO instead of FIFO when **either**:
 - Order list, consolidation plan, pick assignment, insufficient-inventory error, truck load, packing slip
 - Health endpoints
 
-16 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+23 tests · in-memory SQLite (StaticPool) · zero file artifacts.
 
 ## Mock data seeder
 
