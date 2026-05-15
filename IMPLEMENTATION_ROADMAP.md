@@ -66,6 +66,15 @@
   - Admin recovery: `POST /admin/policy/mfa-reset {user_id}` — Level 4+ at the same site clears MFA for a lost-device user.
 - 10 new pytest tests covering: enrollment + verify, challenge flow, backup-code single-use, policy-driven gating, admin reset, non-admin denial — **all 37 tests green, ruff clean.**
 
+### ✅ Admin User Management (SCO-33: SCO-35 + SCO-36 + SCO-37)
+- **Backend CRUD** (SCO-35) — `POST/GET/PUT/DELETE /api/v1/admin/users` + `/reactivate`. Paginated list with `site_id`, `role`, `level_min/max`, `q` search, `include_inactive`. Soft-delete via `is_active=false`.
+- **Permission model** layered: Lvl 3+ entry; **strict outrank** rule (Lvl 3 cannot edit another Lvl 3); **cross-site requires MCS Lvl 4+**; cannot self-deactivate.
+- **Hierarchy layer** (SCO-36) — 5-tier ladder (Corp → Site Mgr → Site/Dept Supervisor → Dept/Position Leader → Operator) with `GET /admin/users/tiers/labels` reference endpoint.
+- **Supervisor invariants** enforced server-side: strict outrank, same-site (unless MCS), no cycles, no self-supervision. Cycle detection walks the supervisor chain on every assignment.
+- **Assignment endpoints** — `/admin/users/{id}/{supervisor,department,shift}` plus `/subordinates` listing direct reports (active only).
+- **Admin frontend** (SCO-37) — new `users.html` reachable in 3 clicks (Dashboard → Admin → Manage users tile). Filterable table with role/tier pills, search-as-you-type (250ms debounce), pagination, deactivate/reactivate inline, edit modal with dynamically-filtered supervisor picker (auto-refreshes when target tier changes), client-side HTML escaping on every rendered field.
+- **30 new tests** (16 CRUD + 14 hierarchy + 2 end-to-end). Total **79 pytest tests, all green**. Ruff clean.
+
 ### ✅ Profile Picture Browse + Sanitized Upload
 - New **"Browse…"** button on the profile picture row (`profile.html`) opens a native file picker scoped to `image/png,image/jpeg,image/webp,image/gif`.
 - Selected file shows filename + size pre-upload; client-side 2 MB guardrail mirrors server cap.

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Users · Admin · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+  <style>
+    .users-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+      align-items: flex-end;
+    }
+    .users-toolbar .input,
+    .users-toolbar .select { min-width: 160px; }
+    .users-toolbar > * { flex: 0 1 auto; }
+    .users-toolbar > .users-toolbar-grow { flex: 1 1 200px; }
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .users-table th, .users-table td {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--rule-mid);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .users-table th {
+      font-size: 10px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      background: var(--surface-2);
+    }
+    .users-table tr[data-inactive="true"] { opacity: 0.45; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--rule-mid);
+      border-radius: 999px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+    .pill--tier-5 { border-color: var(--signal-warn); color: var(--signal-warn); }
+    .pill--tier-4 { border-color: var(--accent-amber); color: var(--accent-amber); }
+    .pill--tier-3 { border-color: var(--signal-ok); color: var(--signal-ok); }
+    .pill--tier-2 { border-color: var(--ink-secondary); color: var(--ink-secondary); }
+    .pill--tier-1 { border-color: var(--ink-tertiary); color: var(--ink-tertiary); }
+    .pill--inactive { border-color: var(--signal-crit); color: var(--signal-crit); }
+    .row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .btn--xs { padding: 2px 8px; font-size: 10px; letter-spacing: var(--tracking-wide); }
+    .users-pagination {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+      margin-top: var(--space-4);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-secondary);
+    }
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 80px 16px;
+      z-index: 100;
+    }
+    .modal-backdrop[data-open="true"] { display: flex; }
+    .modal {
+      background: var(--surface-1);
+      border: 1px solid var(--rule-mid);
+      padding: var(--space-6);
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    .modal h2 { margin: 0 0 var(--space-4); font-family: var(--font-serif); }
+    .modal-form { display: grid; gap: var(--space-3); }
+    .modal-form label {
+      display: grid; gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+    }
+    .modal-footer {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: flex-end;
+      margin-top: var(--space-4);
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: var(--space-3) var(--space-4);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      z-index: 200;
+      display: none;
+    }
+    .toast[data-open="true"] { display: block; }
+    .toast--ok { border: 1px solid var(--signal-ok); color: var(--signal-ok); background: rgba(74,222,128,0.08); }
+    .toast--err { border: 1px solid var(--signal-crit); color: var(--signal-crit); background: rgba(239,68,68,0.08); }
+    .empty-state {
+      padding: var(--space-8);
+      text-align: center;
+      color: var(--ink-tertiary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="production.html" class="topnav-item">Production</a>
+        <a href="quality.html" class="topnav-item">Quality</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item topnav-item--active">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="status-ticker">
+    <div class="status-ticker-inner">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">USERS ▸ <strong id="ticker-total">0</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">FILTERED ▸ <strong id="ticker-filtered">0</strong></span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <a href="admin.html">Admin</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Users</span>
+    </div>
+    <h1 class="page-title"><em>User</em> management</h1>
+    <p class="page-lede">
+      Create, edit, deactivate. Assign supervisors, departments, and shifts. All actions are gated by your permission level.
+    </p>
+  </div>
+
+  <main class="page">
+
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Roster</span>
+          <h2 class="section-title">All <em>users</em></h2>
+        </div>
+        <button class="btn btn--primary" id="btn-new-user">+ New user</button>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="users-toolbar">
+        <div class="users-toolbar-grow">
+          <input class="input" id="filter-search" type="search" placeholder="Search by code, name, or email…" />
+        </div>
+        <select class="select" id="filter-role">
+          <option value="">Any role</option>
+        </select>
+        <select class="select" id="filter-level">
+          <option value="">Any tier</option>
+        </select>
+        <label style="display:flex;gap:6px;align-items:center;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--ink-secondary)">
+          <input type="checkbox" id="filter-inactive" />
+          Include inactive
+        </label>
+      </div>
+
+      <!-- Table -->
+      <div id="users-table-wrap">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Tier</th>
+              <th>Role</th>
+              <th>Dept</th>
+              <th>Shift</th>
+              <th>Supervisor</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none">No users match the current filters.</div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="users-pagination">
+        <button class="btn btn--sm" id="page-prev">← Prev</button>
+        <span id="page-info">Page 1</span>
+        <button class="btn btn--sm" id="page-next">Next →</button>
+        <span style="margin-left:auto">Showing <strong id="page-count">0</strong> of <strong id="page-total">0</strong></span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Edit / Create modal -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <h2 id="modal-title">Edit user</h2>
+      <form class="modal-form" id="user-form">
+        <input type="hidden" id="form-user-id" />
+        <label>Employee code
+          <input class="input input--mono" type="text" id="form-employee_code" required minlength="2" maxlength="20" />
+        </label>
+        <label>Full name
+          <input class="input" type="text" id="form-full_name" required maxlength="120" />
+        </label>
+        <label>Email
+          <input class="input" type="text" id="form-email" required />
+        </label>
+        <label>Role
+          <input class="input input--mono" type="text" id="form-role" maxlength="40" placeholder="operator / lead / supervisor / manager / admin" />
+        </label>
+        <label>Permission level (tier)
+          <select class="select" id="form-permission_level"></select>
+        </label>
+        <label>Department
+          <input class="input" type="text" id="form-department" maxlength="60" />
+        </label>
+        <label>Shift
+          <input class="input input--mono" type="text" id="form-shift" maxlength="20" placeholder="1st / 2nd / 3rd / Graveyard" />
+        </label>
+        <label id="form-password-row">Initial password
+          <input class="input" type="password" id="form-password" minlength="4" maxlength="128" />
+        </label>
+        <label>Supervisor
+          <select class="select" id="form-supervisor_id"><option value="">— None —</option></select>
+        </label>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn--primary" id="modal-save">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast toast--ok" id="toast"></div>
+
+  <script src="scripts/api.js"></script>
+  <script src="scripts/shell.js"></script>
+  <script src="scripts/users.js"></script>
+</body>
+</html>

@@ -174,6 +174,17 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | POST | `/api/v1/auth/mfa/verify` | Step 2 of login — exchange challenge token + code for an access token |
 | POST | `/api/v1/profile/picture/upload` | Multipart avatar upload — sanitizes + re-encodes via Pillow, returns sanitized URL |
 | GET  | `/uploads/avatars/{file}` | Static-served avatars, `Content-Security-Policy: default-src 'none'` + `nosniff` |
+| GET  | `/api/v1/admin/users` | Paginated user list. Filters: `site_id`, `role`, `level_min/max`, `q`, `include_inactive`, `limit`, `offset`. Same-site only for non-MCS. |
+| POST | `/api/v1/admin/users` | Create user (Lvl 3+, strict outrank-only; MCS Lvl 4+ for cross-site). Returns 201. |
+| GET  | `/api/v1/admin/users/{id}` | Fetch one (same-site for non-MCS) |
+| PUT  | `/api/v1/admin/users/{id}` | Update mutable fields (email/full_name/role/permission_level/department/shift) |
+| DELETE | `/api/v1/admin/users/{id}` | Soft-delete via `is_active=false`. Cannot self-delete. |
+| POST | `/api/v1/admin/users/{id}/reactivate` | Restore an inactive user |
+| PUT  | `/api/v1/admin/users/{id}/supervisor` | Set/clear supervisor; enforces 5-tier outrank + same-site (or MCS) + cycle detection |
+| PUT  | `/api/v1/admin/users/{id}/department` | Transfer department |
+| PUT  | `/api/v1/admin/users/{id}/shift` | Change shift |
+| GET  | `/api/v1/admin/users/{id}/subordinates` | Direct reports, active only |
+| GET  | `/api/v1/admin/users/tiers/labels` | 5-tier ladder reference data for UI pickers |
 
 ## FEFO trigger
 
@@ -191,8 +202,31 @@ A line uses FEFO instead of FIFO when **either**:
 - Password policy resolution + complexity enforcement at the change-password endpoint
 - MFA enrollment, TOTP verification, login-challenge flow, backup-code consumption, admin reset
 - Avatar upload: format whitelist (PNG/JPEG/WebP/GIF), size + dimension caps, SVG rejection, polyglot strip via re-encode, server-generated filenames
+- Admin user CRUD: permission gates at every entrypoint, same-site scoping, level-bound promotion, self-delete refusal, soft-delete + reactivate, role/search/pagination
+- Hierarchy: tier labels endpoint, supervisor outrank invariant, same-site requirement (with MCS exception), self-supervisor refusal, cycle detection (A→B→C→A), dept/shift assignments, direct-reports listing excluding inactive
+- End-to-end: full admin lifecycle (create → list → edit → assign supervisor → deactivate → reactivate) and paginated-search-then-supervisor-swap flows
 
-47 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+79 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+
+## Org hierarchy & permission model
+
+5-tier ladder is the load-bearing decision for every admin operation:
+
+| Level | Tier |
+|---|---|
+| 5 | Corporate (Corp) |
+| 4 | Site Manager |
+| 3 | Site / Department Supervisor |
+| 2 | Department / Position Leader |
+| 1 | Operator |
+
+Permission rules in `services/users_admin.py` and `services/hierarchy.py`:
+
+1. **Entry gate** — caller must be Level 3+ OR any MCS user to access `/admin/users`.
+2. **Cross-site ops** — require the caller to be at the MCS site **and** Level 4+.
+3. **Strict outrank** — caller can only modify users *below* their own level. Lvl 3 cannot touch another Lvl 3; promote-at-or-above-self is blocked.
+4. **No self-deactivation** — lockout-prevention guardrail.
+5. **Supervisor invariants** — supervisor must outrank (strict), be at the same site (or be MCS), can't be the user themselves, can't create cycles.
 
 ## File uploads
 
