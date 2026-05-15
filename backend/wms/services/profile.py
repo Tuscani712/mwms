@@ -8,6 +8,25 @@ from wms.core.security import hash_password, verify_password
 from wms.models import ProfileChangeRequest, User, UserProfileField
 from wms.schemas.profile import PROFILE_FIELDS, FieldPolicy
 
+# SECURITY_AUDIT.md M-7: conservative allowlist for display_picture URLs.
+# Only accept relative paths produced by our sanitized upload pipeline.
+# External http(s) / data: / javascript: / file: are all rejected — Referer
+# leakage and inline-script vectors are off the table until product decides
+# whether external avatars should be reopened (and with which allowlist).
+_ALLOWED_PICTURE_PREFIXES = ("/uploads/avatars/",)
+
+
+def _validate_picture_url(value: str) -> None:
+    v = value.strip()
+    if not v.startswith(_ALLOWED_PICTURE_PREFIXES):
+        raise ValueError(
+            "display_picture URL must be a relative /uploads/avatars/ path "
+            "produced by the upload endpoint"
+        )
+    # Defense-in-depth: even within /uploads/, forbid traversal-style segments.
+    if ".." in v or "//" in v[1:]:
+        raise ValueError("display_picture URL contains invalid path segments")
+
 DEFAULT_POLICY = {
     "email": FieldPolicy(visible=True, editable=True),
     "password": FieldPolicy(visible=True, editable=True),
@@ -84,6 +103,8 @@ def submit_change_request(
 ) -> ProfileChangeRequest:
     if field_name not in APPROVAL_REQUIRED:
         raise ValueError(f"{field_name} does not require approval — update directly")
+    if field_name == "display_picture":
+        _validate_picture_url(requested_value)
     req = ProfileChangeRequest(
         user_id=user.id, field_name=field_name, requested_value=requested_value
     )

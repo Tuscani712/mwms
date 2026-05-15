@@ -66,7 +66,7 @@
   - Admin recovery: `POST /admin/policy/mfa-reset {user_id}` — Level 4+ at the same site clears MFA for a lost-device user.
 - 10 new pytest tests covering: enrollment + verify, challenge flow, backup-code single-use, policy-driven gating, admin reset, non-admin denial — **all 37 tests green, ruff clean.**
 
-### ✅ Security Audit + Pre-Staged Fixes (SCO-38 + SCO-39/40/41)
+### ✅ Security Audit + Pre-Staged Fixes (SCO-38 + SCO-39/40/41 + SCO-42/43/44 + SCO-45/46/47/48)
 - **Red-team audit** of the codebase + docs produced `SECURITY_AUDIT.md` with 26 findings (1 critical, 6 high, 8 medium, 7 low, 5 info), each annotated with attack scenario, suggested fix, and stage-now/defer judgement. Seven follow-up tickets proposed (SEC-1..SEC-7).
 - **Seven fixes pre-staged**, each chosen because scaffolding now is cheaper than retrofitting later:
   - **C-1** — `Settings.assert_secure_for_env()` refuses to boot prod with the dev sentinel `secret_key`.
@@ -79,7 +79,11 @@
 - **M-1** — bcrypt byte-length validator on `PasswordUpdate.new_password` and `UserCreate.password` (rejects UTF-8 > 72 bytes with 422 before bcrypt silently truncates).
 - **M-5** — `BodySizeLimitMiddleware` caps JSON bodies at 1 MB (returns 413); upload endpoint exempt because it has a stricter content-aware cap.
 - **L-2** — Compat upper bounds on every runtime + dev dependency in `pyproject.toml`.
-- 24 regression tests across three audit-fix test files. **103/103 pytest green**, ruff clean.
+- **M-7** — `display_picture_url` conservative allowlist (`/uploads/avatars/` only); rejects `http(s)://`, `data:`, `javascript:`, `file:`, traversal, protocol-relative paths.
+- **M-8** — `POST /profile/mfa/regenerate-codes` (password-gated). Rotates the backup-code set; old codes immediately fail verification.
+- **I-4** — `ApprovalDecision.notes` capped at `max_length=500` in schema (DB column was already 500; client now gets a clean 422).
+- **L-1 (partial)** — `audit_log` table + `wms/services/audit_log.py` writer. Wired to login success/failure, password change, MFA disable, and MFA backup-code regeneration. SEC-6 still owns shipping/alerting/retention.
+- 46 regression tests across four audit-fix test files. **125/125 pytest green**, ruff clean.
 
 ### ✅ Admin User Management (SCO-33: SCO-35 + SCO-36 + SCO-37)
 - **Backend CRUD** (SCO-35) — `POST/GET/PUT/DELETE /api/v1/admin/users` + `/reactivate`. Paginated list with `site_id`, `role`, `level_min/max`, `q` search, `include_inactive`. Soft-delete via `is_active=false`.

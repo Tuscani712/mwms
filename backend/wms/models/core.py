@@ -126,6 +126,27 @@ class LoginAttempt(Base):
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
+class AuditLog(Base):
+    """Security-relevant event trail — login, MFA changes, password changes, admin user ops.
+
+    SECURITY_AUDIT.md L-1: schema + writer scaffolded so SEC-6 (full audit-log
+    rollout, log shipping, alerting) doesn't need a second migration. No
+    alerting or external sink yet — just the durable trail.
+    """
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    site_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, index=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    detail_json: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+
+
 class ProfileChangeRequest(Base):
     """Pending approval for display_name / display_picture changes (Level 3+ or supervisor)."""
 

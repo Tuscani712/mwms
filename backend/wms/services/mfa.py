@@ -131,6 +131,26 @@ def verify_user_code(db: Session, user: User, code: str) -> bool:
     return False
 
 
+def regenerate_backup_codes(db: Session, user: User) -> list[str]:
+    """SECURITY_AUDIT.md M-8: issue a fresh set of one-time backup codes.
+
+    Requires MFA already enabled (you can't regenerate codes for a profile that
+    hasn't completed enrollment). Replaces *all* existing unused codes — they
+    won't be valid after this call. Returns plaintext codes once.
+    """
+    row = (
+        db.query(UserMFA)
+        .filter(UserMFA.user_id == user.id, UserMFA.enabled.is_(True))
+        .one_or_none()
+    )
+    if row is None:
+        raise ValueError("MFA is not enabled for this account")
+    codes = _new_backup_codes()
+    row.backup_codes_json = json.dumps([hash_password(c) for c in codes])
+    db.commit()
+    return codes
+
+
 def disable_mfa(db: Session, user_id: int) -> None:
     """Hard reset: removes the row so the user must re-enroll."""
     row = db.query(UserMFA).filter(UserMFA.user_id == user_id).one_or_none()

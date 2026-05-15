@@ -1,5 +1,7 @@
-# WMS Security Audit · v1.2 · 2026-05-15
+# WMS Security Audit · v1.3 · 2026-05-15
 
+> **Update 2026-05-15 (fourth batch, same day):** Four more fixes pre-staged: **M-7** (display_picture URL allowlist), **M-8** (MFA backup-code regeneration), **I-4** (decision_notes 500-char cap), **L-1** (AuditLog scaffold + writer wired to login / MFA disable / password change / MFA code regen). Total pre-staged: **14 of 26 findings**.
+>
 > **Update 2026-05-15 (third batch, same day):** Three more quick-win fixes pre-staged: **M-1** (password byte-length cap), **M-5** (JSON body size middleware), **L-2** (dependency upper bounds). Total pre-staged: **10 of 26 findings**.
 >
 > **Update 2026-05-15 (second batch, same day):** Three more quick-win fixes pre-staged: **L-4** (offline site enforcement), **L-7** (`User.__repr__` scrubs hashed_password), **M-6** (email format validation).
@@ -45,14 +47,14 @@
 | M-4 | **Error messages leak JWT decode internals.** `f"Invalid challenge token: {e}"` returns the `JWTError` string to the client. | `wms/api/v1/mfa.py:51` | Attackers can probe expiry vs. signature vs. malformed differences to refine token forgery. | Return a generic `"Invalid or expired challenge token"`. Log the detail server-side. | ✅ **Pre-staged** — message generified. |
 | ~~M-5~~ | ~~**No global request-size cap on JSON endpoints.**~~ **(✅ fixed 2026-05-15, SCO-43)** — `BodySizeLimitMiddleware` checks `Content-Length` against `settings.max_json_body_bytes` (default 1 MB) and returns 413 on oversize. Multipart `/picture/upload` and `/uploads/*` are explicitly exempted — they have their own stricter, content-aware cap (2 MB) that runs *after* the bytes are decoded by Pillow. Both bypass-paths are covered by tests. | `wms/main.py:60` (`BodySizeLimitMiddleware`) | — | — | ✅ Pre-staged |
 | ~~M-6~~ | ~~**`email` field has no format validation**~~ **(✅ fixed 2026-05-15, SCO-41)** — permissive `[^\s<>"']+@[^\s<>"']+\.[^\s<>"']+` regex now applied at both `UserCreate` and `UserUpdate`. Rejects garbage and script-tag payloads without re-inheriting EmailStr's `.local` strictness. | `wms/api/v1/admin_users.py:13` (`EMAIL_PATTERN`) | — | — | ✅ Pre-staged |
-| M-7 | **Approval-workflow URL is unvalidated.** A user can request `display_picture_url = "http://evil.example.com/log?token=…"` and an approver may rubber-stamp it. The URL is then loaded as an `<img>` (or similar) cross-origin — leaking the Referer header. | `wms/services/profile.py:82` (`submit_change_request`) | Approver session leaks via Referer. Or worse, a `data:` URI is approved and rendered inline. | Enforce that `display_picture_url` either starts with `/uploads/` (our sanitized output) or matches a whitelisted external pattern. | Defer. ~5 LOC. Track. |
-| M-8 | **MFA backup codes have no regeneration UX.** A user with 1 unused code today and a lost device tomorrow is locked out without admin involvement. | `wms/services/mfa.py:71` (`begin_enrollment`) | Operational risk, not attack risk. Increases load on the admin MFA-reset endpoint, which itself only fires for Lvl 4+. | `POST /profile/mfa/regenerate-codes` (requires password). | Defer. Quality-of-life. |
+| ~~M-7~~ | ~~**Approval-workflow URL is unvalidated.**~~ **(✅ fixed 2026-05-15, SCO-45)** — `_validate_picture_url()` in `wms/services/profile.py` enforces a conservative `/uploads/avatars/` allowlist on `display_picture` change requests. `http(s)://`, `data:`, `javascript:`, `file:`, traversal segments (`..`) and protocol-relative `//` are all rejected. External avatars can be reopened later via a product-decided allowlist without revisiting the call site. | `wms/services/profile.py` | — | — | ✅ Pre-staged |
+| ~~M-8~~ | ~~**MFA backup codes have no regeneration UX.**~~ **(✅ fixed 2026-05-15, SCO-46)** — `POST /profile/mfa/regenerate-codes` requires `{current_password}`, replaces the existing hashed code set, and emits an `auth.mfa.backup_codes_regenerated` audit event. Old codes immediately fail verification. | `wms/api/v1/mfa.py`, `wms/services/mfa.py` (`regenerate_backup_codes`) | — | — | ✅ Pre-staged |
 
 ### 🔵 LOW
 
 | # | Finding | Location | Attack | Fix | Pre-stage? |
 |---|---|---|---|---|---|
-| L-1 | **No security-relevant logging.** No record of who logged in, who got 403'd, who reset MFA, who changed a password. | (codebase-wide) | Forensic blindness post-incident. Compliance gap. | Add a `python logging` config + an `audit_log` writer for auth events. | Defer. |
+| ~~L-1~~ | ~~**No security-relevant logging.**~~ **(🟡 partially staged 2026-05-15, SCO-48)** — `audit_log` table + `wms/services/audit_log.py` writer now durably record `auth.login.{success,failure}`, `auth.password.changed`, `auth.mfa.disabled`, `auth.mfa.backup_codes_regenerated`. No alerting / log shipping yet — SEC-6 still owns dashboards, retention, and shipping. The schema landing now is the expensive part; turning it on for the rest of the call sites is one line each. | `wms/models/core.py` (`AuditLog`), `wms/services/audit_log.py` | — | — | 🟡 Partially staged |
 | ~~L-2~~ | ~~**Dependency versions unpinned upper-bound**~~ **(✅ fixed 2026-05-15, SCO-44)** — every runtime and dev dep in `pyproject.toml` now has a compat upper bound (e.g., `bcrypt>=4.1,<6`, `Pillow>=10.3,<13`, `pytest>=8.0,<10`). A breaking major release can no longer land silently — it requires an intentional bound bump. | `backend/pyproject.toml:7-29` | — | — | ✅ Pre-staged |
 | L-3 | **JWT subjects are predictable** (`WHS-001-001` ascending). | `wms/seeders/seed.py` | Username enumeration via `?q=` search is trivial. Combined with H-1 → effective brute-force. | Out of scope (employee codes are operationally useful). Mitigate at H-1 (rate limit). | n/a |
 | ~~L-4~~ | ~~**`Site.is_active` not enforced at JWT validation.**~~ **(✅ fixed 2026-05-15, SCO-39)** — `get_current_user` now rejects with 401 "Site is offline" when the user's site row has `is_online=False`. Maintenance windows / incident-response toggles now reach the auth layer. | `wms/core/deps.py:34` (`get_current_user`) | — | — | ✅ Pre-staged |
@@ -67,14 +69,33 @@
 | I-1 | **Tests don't cover token-after-deactivate.** No test verifies that a deactivated user's existing JWT stops working on the next request. The code does check `is_active.is_(True)` in `get_current_user`, so behavior is correct — but it's untested. | Add a test in `test_admin_users.py`. |
 | I-2 | **`Base.metadata.create_all` runs at startup** — fine for dev, but means production isn't using Alembic migrations yet. | Already flagged in `IMPLEMENTATION_ROADMAP.md`. |
 | I-3 | **MFA enrollment exposes `secret` plaintext** in the setup response. This is intentional (so users can manually enter the key if QR rendering fails), but worth flagging in a threat model. | If users' setup requests are logged, the secret is in logs. Don't log request bodies. |
-| I-4 | **Approval queue notes have no length cap on `decision_notes`.** | Cap at 500 chars (already `String(500)` in model; just enforce in schema). |
+| ~~I-4~~ | ~~**Approval queue notes have no length cap on `decision_notes`.**~~ **(✅ fixed 2026-05-15, SCO-47)** — `ApprovalDecision.notes` now `max_length=500` in pydantic, returning 422 instead of bubbling a DB length error. | — |
 | I-5 | **Seed data uses uniform `password123`** for all non-admin users. | Documented in `BACKEND_SCHEMA.md`. Acceptable for dev seed. |
 
 ---
 
 ## Pre-staged fixes (applied)
 
-Seven fixes were cheap enough to scaffold up-front. The first four landed with the initial audit; the next three landed later the same day as quick-win cleanup (SCO-39/40/41). Each is intentionally minimal — bigger items remain on the SEC-1..SEC-7 follow-up list.
+Fourteen fixes have been scaffolded across four batches the same day. Each is intentionally minimal — bigger items remain on the SEC-1..SEC-7 follow-up list.
+
+### Fourth batch (2026-05-15 later still · SCO-45/46/47/48)
+
+#### 11. `display_picture` URL allowlist (M-7)
+`_validate_picture_url()` in `wms/services/profile.py` enforces a conservative `/uploads/avatars/` allowlist. `http(s)://`, `data:`, `javascript:`, `file:`, `..` traversal, and protocol-relative `//` all return 400. The check runs at the service layer so both the API entrypoint and any future programmatic caller go through the same gate. External avatars (if product later decides to support them) can be reopened by extending the allowlist tuple without revisiting consumers.
+
+#### 12. MFA backup-code regeneration (M-8)
+`POST /profile/mfa/regenerate-codes` accepts `{current_password}` (password-gated like M-8's sibling H-2 disable), issues a fresh set of 8 backup codes, replaces the stored hashed set, and emits an `auth.mfa.backup_codes_regenerated` audit event. Old codes immediately fail `verify_user_code`. Requires MFA to already be enabled (regenerating codes on a half-enrolled profile is a 400, not a silent no-op).
+
+#### 13. `decision_notes` 500-char cap (I-4)
+`ApprovalDecision.notes` is now `Field(default=None, max_length=500)`. DB column was already `String(500)`, so previously the client got a database-driven 500. Now they get a clean 422 with the offending field named.
+
+#### 14. AuditLog scaffold + writer (L-1, partial)
+New `audit_log` table (`event_type`, `user_id`, `actor_id`, `site_id`, `ip`, `user_agent`, `occurred_at`, `detail_json`). New `wms/services/audit_log.py` exposes `audit.record(...)` and stable event-type constants. Wired into:
+- `auth.login.success` / `auth.login.failure` (in `auth.py`)
+- `auth.password.changed` (in `profile.py`)
+- `auth.mfa.disabled` / `auth.mfa.backup_codes_regenerated` (in `mfa.py`)
+
+This is intentionally a foundation — SEC-6 still owns alerting, log shipping, retention policy, and extending to the admin-user CRUD paths. The pattern matches the H-4 `LoginAttempt` pre-stage: schema lands now so the bigger ticket doesn't need a second migration.
 
 ### Third batch (2026-05-15 later · SCO-42/43/44)
 
@@ -152,5 +173,6 @@ Each is tracked above so nothing is "audited and forgotten".
 | C-1, H-2, M-4, I-1 | `tests/test_security_audit_fixes.py` | 7 |
 | L-4, L-7, M-6 | `tests/test_security_audit_quickwins.py` | 8 |
 | M-1, M-5 | `tests/test_security_audit_batch2.py` | 9 |
+| M-7, M-8, I-4, L-1 | `tests/test_security_audit_batch3.py` | 22 |
 
-24 regression tests guarding the 10 pre-staged fixes. Total suite: **103/103 green**.
+46 regression tests guarding the 14 pre-staged fixes. Total suite: **125/125 green**.

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from wms.core.config import get_settings
@@ -18,6 +18,7 @@ from wms.schemas.profile import (
     PasswordUpdate,
     ProfileOut,
 )
+from wms.services import audit_log as audit
 from wms.services import password_policy as policy_svc
 from wms.services import profile as svc
 from wms.services import uploads as upload_svc
@@ -71,6 +72,7 @@ def update_email(
 @router.put("/password")
 def update_password(
     payload: PasswordUpdate,
+    request: Request,
     db: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> dict:
@@ -81,6 +83,13 @@ def update_password(
         svc.update_password(db, user, payload.current_password, payload.new_password)
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    audit.record(
+        db,
+        event_type=audit.EVT_PASSWORD_CHANGED,
+        user_id=user.id,
+        site_id=user.site_id,
+        request=request,
+    )
     return {"ok": True, "policy_source": policy["_source"]}
 
 
@@ -139,7 +148,10 @@ def request_display_picture(
     user: User = Depends(get_current_user),
 ) -> ChangeRequestOut:
     _ensure_editable(db, user, "display_picture")
-    req = svc.submit_change_request(db, user, "display_picture", payload.requested_value)
+    try:
+        req = svc.submit_change_request(db, user, "display_picture", payload.requested_value)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
     return req
 
 

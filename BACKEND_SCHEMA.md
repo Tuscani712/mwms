@@ -170,7 +170,8 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | GET | `/api/v1/profile/mfa/status` | Whether the calling user is enrolled in MFA |
 | POST | `/api/v1/profile/mfa/setup` | Begin enrollment — returns secret, otpauth URI, backup codes |
 | POST | `/api/v1/profile/mfa/verify` | Activate MFA by submitting a valid TOTP code |
-| DELETE | `/api/v1/profile/mfa/disable` | User-initiated MFA removal |
+| POST | `/api/v1/profile/mfa/disable` | User-initiated MFA removal (requires `{current_password}`) |
+| POST | `/api/v1/profile/mfa/regenerate-codes` | Rotate MFA backup codes (requires `{current_password}`); old codes invalidated |
 | POST | `/api/v1/auth/mfa/verify` | Step 2 of login — exchange challenge token + code for an access token |
 | POST | `/api/v1/profile/picture/upload` | Multipart avatar upload — sanitizes + re-encodes via Pillow, returns sanitized URL |
 | GET  | `/uploads/avatars/{file}` | Static-served avatars, `Content-Security-Policy: default-src 'none'` + `nosniff` |
@@ -206,7 +207,15 @@ A line uses FEFO instead of FIFO when **either**:
 - Hierarchy: tier labels endpoint, supervisor outrank invariant, same-site requirement (with MCS exception), self-supervisor refusal, cycle detection (A→B→C→A), dept/shift assignments, direct-reports listing excluding inactive
 - End-to-end: full admin lifecycle (create → list → edit → assign supervisor → deactivate → reactivate) and paginated-search-then-supervisor-swap flows
 
-79 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+125 tests · in-memory SQLite (StaticPool) · zero file artifacts. 46 of those tests are dedicated audit-fix regressions across `tests/test_security_audit_{fixes,quickwins,batch2,batch3}.py`.
+
+## Audit log
+
+Security-relevant events go to the `audit_log` table (`event_type`, `user_id`, `actor_id`, `site_id`, `ip`, `user_agent`, `occurred_at`, `detail_json`). Written by `wms/services/audit_log.py:record()`. Current emitters: `auth.login.{success,failure}`, `auth.password.changed`, `auth.mfa.disabled`, `auth.mfa.backup_codes_regenerated`. Log shipping, retention, and dashboards land with SEC-6.
+
+## File uploads & avatar URL allowlist
+
+`display_picture_url` accepts only paths under `/uploads/avatars/` produced by the sanitized upload pipeline. `http(s)://`, `data:`, `javascript:`, `file:`, traversal segments (`..`), and protocol-relative `//` paths are rejected with 400 at request-submission time. To open external avatars later, extend `_ALLOWED_PICTURE_PREFIXES` in `wms/services/profile.py`.
 
 ## Org hierarchy & permission model
 

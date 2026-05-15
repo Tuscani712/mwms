@@ -76,7 +76,9 @@ class ChangeRequestOut(BaseModel):
 
 class ApprovalDecision(BaseModel):
     approve: bool
-    notes: str | None = None
+    # SECURITY_AUDIT.md I-4: cap at 500 chars to match the DB column and return
+    # a clean 422 instead of letting the DB raise a 500-equivalent.
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class FieldVisibilityRule(BaseModel):

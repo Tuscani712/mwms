@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from wms.core.deps import get_current_user, get_session
 from wms.core.security import create_access_token, decode_token, verify_password
 from wms.models import User, UserMFA
 from wms.schemas.auth import MFAChallenge, MFAEnrollVerify, TokenResponse
+from wms.services import audit_log as audit
 from wms.services import mfa as mfa_svc
 
 MFA_CHALLENGE_TTL_SECONDS = 300
@@ -94,9 +95,42 @@ class MFADisableRequest(BaseModel):
     current_password: str
 
 
+class RegenerateBackupCodesRequest(BaseModel):
+    current_password: str
+
+
+class RegenerateBackupCodesResponse(BaseModel):
+    backup_codes: list[str]
+
+
+@router.post("/regenerate-codes", response_model=RegenerateBackupCodesResponse)
+def regenerate_backup_codes(
+    payload: RegenerateBackupCodesRequest,
+    request: Request,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> RegenerateBackupCodesResponse:
+    """M-8: password-gated rotation of MFA backup codes. Old codes are invalidated."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
+    try:
+        codes = mfa_svc.regenerate_backup_codes(db, user)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    audit.record(
+        db,
+        event_type=audit.EVT_MFA_CODES_REGENERATED,
+        user_id=user.id,
+        site_id=user.site_id,
+        request=request,
+    )
+    return RegenerateBackupCodesResponse(backup_codes=codes)
+
+
 @router.post("/disable", response_model=MFAStatus)
 def disable_mfa(
     payload: MFADisableRequest,
+    request: Request,
     db: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> MFAStatus:
@@ -105,6 +139,13 @@ def disable_mfa(
     if not verify_password(payload.current_password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
     mfa_svc.disable_mfa(db, user.id)
+    audit.record(
+        db,
+        event_type=audit.EVT_MFA_DISABLED,
+        user_id=user.id,
+        site_id=user.site_id,
+        request=request,
+    )
     return MFAStatus(enrolled=False, has_pending_enrollment=False)
 
 

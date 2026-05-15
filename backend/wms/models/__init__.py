@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models. Importing this package registers all tables on Base.metadata."""
 
 from wms.models.core import (
+    AuditLog,
     LoginAttempt,
     PasswordPolicy,
     ProfileChangeRequest,
@@ -25,6 +26,7 @@ from wms.models.ops import (
 __all__ = [
     "ASN",
     "ASNLine",
+    "AuditLog",
     "Location",
     "LoginAttempt",
     "Lot",
