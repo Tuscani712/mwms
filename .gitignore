@@ -87,3 +87,6 @@ SCRATCH/
 NOTES_INTERNAL/
 *.scratch.md
 FIXES_INTERNAL.md
+
+# ── Runtime state (PIDs, logs from start.sh) ──────────────────────
+.run/
