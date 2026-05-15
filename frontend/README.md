@@ -166,7 +166,7 @@ A light-theme override (`[data-theme="light"]`) is stubbed in for future client 
 
 ## To View
 
-Server running on port 8765:
+Frontend server (port 8765):
 
 ```bash
 cd /home/tuscani712/Desktop/SCO_MCP/Projects/WMS_Software/frontend
@@ -174,7 +174,30 @@ python3 -m http.server 8765
 # then open http://localhost:8765/login.html
 ```
 
-Login → click "Sign in & clock on" → Dashboard. From there every module is one click away via the top nav.
+Backend server (port 8000) — for live data:
+
+```bash
+cd /home/tuscani712/Desktop/SCO_MCP/Projects/WMS_Software/backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m wms.seeders.seed
+uvicorn wms.main:app --reload --port 8000
+```
+
+Login as `WHS-001-001` / `password123` (or any seeded operator). The Receiving and Shipping pages
+will then show **live data** from the API. With no auth or backend down, pages gracefully fall
+back to the rendered demo content.
+
+## Frontend ↔ Backend wiring
+
+- `scripts/api.js` — auth-aware fetch wrapper. Exposes `window.WMS_API` with `login`, `me`, `sites`,
+  `receiving.*`, `shipping.*`, `health`, `ping`.
+- `scripts/receiving.js` / `scripts/shipping.js` — page-specific loaders that populate
+  `[data-bind="receiving-inbound-rows"]` and `[data-bind="shipping-orders-rows"]`.
+- JWT token persists in `localStorage.wms.token`; user metadata in `localStorage.wms.user`.
+
+The login form submits to `POST /api/v1/auth/login`. The selected `site_id` (from the site picker)
+is sent with the credentials — same employee code at a different site = different login.
 
 ---
 

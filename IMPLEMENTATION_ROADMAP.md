@@ -6,6 +6,45 @@
 
 ---
 
+## Current Status (2026-05-15)
+
+### ✅ Frontend Scaffold (v0.1)
+- 10 pages live (Dashboard, Login w/ multi-site picker, Receiving, Shipping, Production, Quality, Inventory, Reports, Admin, Admin-Branding)
+- Industrial Editorial design system: tokens.css, base.css, components.css, page.css, dashboard.css
+- Live clock, uptime ticker, ping pill (Green ≤74ms · Yellow 75-149ms · Red ≥150ms)
+- Client logo upload + brand-mark swap via localStorage
+
+### ✅ Backend Scaffold (v0.1)
+- FastAPI + SQLAlchemy 2.0 + SQLite (Postgres-portable), Pydantic v2
+- JWT auth with per-site claims, bcrypt password hashing
+- Schema: Sites, Users, SKUs, Locations, Lots, LotGenealogy, ASNs, Receipts, Orders, Picks, Shipments, QCHolds
+- Mock seeder: 141 users, 128 SKUs, 535 lots, 48 ASNs, 60 orders, 12 shipments across 5 sites
+- 16 pytest tests covering auth, receiving flow, shipping flow, health
+- Ruff lint clean
+
+### ✅ Receiving Module (Core endpoints + Frontend wired)
+- `GET /receiving/inbound` — open ASNs
+- `POST /receiving/check-in` — assign dock door
+- `POST /receiving/receipts` — record receipt + variance + auto-create Lot
+- `GET /receiving/putaway-suggestions/{asn_id}` — FIFO primary + overflow
+- Frontend table populates live when authed; falls back to mock on demo
+
+### ✅ Shipping Module (Core endpoints + Frontend wired)
+- `GET /shipping/orders` — orders list
+- `GET /shipping/consolidation/{order_id}/{line_id}` — FIFO/FEFO multi-lot plan
+- `POST /shipping/picks` — assign picks across lots (decrements lot qty)
+- `POST /shipping/truck-load` — load order onto shipment, track weight
+- `GET /shipping/packing-slip/{order_id}` — generate slip from picks
+
+### 🔜 Next Up
+- Inventory module backend (search, KPIs, safety-stock alerts)
+- Quality module backend (QC hold workflow, escalation tiers)
+- Production module backend (work orders, recipe BOM, genealogy)
+- Alembic migrations (currently using `create_all` for dev convenience)
+- Multi-site federation (per-site DBs, MCS service)
+
+---
+
 ## PHASE 1: CORE MVP (Foundational)
 
 ### Priority 1 - CRITICAL PATH (Foundation)

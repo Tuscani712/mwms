@@ -104,8 +104,25 @@
           <span class="section-eyebrow">Pick Queue</span>
           <h2 class="section-title">Pick <em>queue</em></h2>
         </div>
-        <span class="section-meta">Sorted · ship-by</span>
+        <span class="section-meta" data-bind="shipping-data-status">Demo data · sign in for live</span>
       </div>
+
+      <!-- LIVE API FEED -->
+      <table class="data-table" style="margin-bottom: var(--space-6);">
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Customer</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Lines</th>
+            <th>Ship By</th>
+          </tr>
+        </thead>
+        <tbody data-bind="shipping-orders-rows">
+          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load live order data</td></tr>
+        </tbody>
+      </table>
 
       <div class="filter-bar">
         <input class="input" placeholder="Search order #, customer, SKU, lot…" />
@@ -309,5 +326,7 @@
   </aside>
 
   <script src="scripts/shell.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/shipping.js"></script>
 </body>
 </html>

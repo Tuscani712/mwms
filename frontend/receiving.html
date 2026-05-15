@@ -108,8 +108,25 @@
           <span class="section-eyebrow">Inbound Queue</span>
           <h2 class="section-title">Inbound <em>queue</em></h2>
         </div>
-        <span class="section-meta">Updated · live</span>
+        <span class="section-meta" data-bind="receiving-data-status">Demo data · sign in for live</span>
       </div>
+
+      <!-- LIVE API FEED (shows when authenticated; mock dock table remains below) -->
+      <table class="data-table" style="margin-bottom: var(--space-6);">
+        <thead>
+          <tr>
+            <th>ASN</th>
+            <th>Supplier</th>
+            <th>Dock</th>
+            <th>Status</th>
+            <th>Lines</th>
+            <th>ETA</th>
+          </tr>
+        </thead>
+        <tbody data-bind="receiving-inbound-rows">
+          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load live inbound data</td></tr>
+        </tbody>
+      </table>
 
       <div class="filter-bar">
         <input class="input" placeholder="Search by ASN, PO, supplier, lot…" />
@@ -339,5 +356,7 @@
   </aside>
 
   <script src="scripts/shell.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/receiving.js"></script>
 </body>
 </html>

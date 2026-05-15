@@ -48,8 +48,42 @@ coverage/
 # is committed for default behavior.
 frontend/assets/clients/
 
-# ── Local DB / runtime data (future backend) ──────────────────────
+# ── Local DB / runtime data ───────────────────────────────────────
 *.sqlite
 *.sqlite3
 *.db
 data/local/
+backend/data/
+backend/wms.db*
+
+# ── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.python-version
+*.egg-info/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+.tox/
+
+# ── Alembic compiled ──────────────────────────────────────────────
+backend/alembic/versions/__pycache__/
+
+# ── Internal / scratch (never push) ───────────────────────────────
+SCRATCH/
+NOTES_INTERNAL/
+*.scratch.md
+FIXES_INTERNAL.md
