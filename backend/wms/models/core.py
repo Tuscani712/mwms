@@ -67,6 +67,38 @@ class UserProfileField(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class PasswordPolicy(Base):
+    """Password complexity + MFA rules — resolved per (user, role, site, global)."""
+
+    __tablename__ = "password_policies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    scope_value: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    min_length: Mapped[int] = mapped_column(default=4)
+    require_uppercase: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_lowercase: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_digit: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_special: Mapped[bool] = mapped_column(Boolean, default=False)
+    require_mfa: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class UserMFA(Base):
+    """Per-user TOTP enrollment + hashed backup codes."""
+
+    __tablename__ = "user_mfa"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
+    secret: Mapped[str] = mapped_column(String(64), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    backup_codes_json: Mapped[str] = mapped_column(String(1200), default="[]")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class ProfileChangeRequest(Base):
     """Pending approval for display_name / display_picture changes (Level 3+ or supervisor)."""
 

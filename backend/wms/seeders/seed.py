@@ -21,6 +21,7 @@ from wms.models import (
     Lot,
     Order,
     OrderLine,
+    PasswordPolicy,
     QCHold,
     Shipment,
     Site,
@@ -143,6 +144,21 @@ def seed_users(db: Session) -> None:
                     )
                 )
                 idx += 1
+    db.commit()
+
+
+def seed_password_policy(db: Session) -> None:
+    """Demonstrative password rules — client can edit at any scope."""
+    # Global baseline: 4 chars, no special requirements (keeps demo passwords working)
+    db.add(PasswordPolicy(scope_type="global", scope_value=None, min_length=4))
+    # Lvl 3+ roles: stronger
+    db.add(PasswordPolicy(scope_type="role", scope_value="supervisor",
+                          min_length=8, require_digit=True, require_special=True))
+    db.add(PasswordPolicy(scope_type="role", scope_value="manager",
+                          min_length=10, require_digit=True, require_special=True, require_mfa=True))
+    db.add(PasswordPolicy(scope_type="role", scope_value="admin",
+                          min_length=12, require_uppercase=True, require_digit=True,
+                          require_special=True, require_mfa=True))
     db.commit()
 
 
@@ -342,6 +358,7 @@ def run() -> None:
         seed_sites(db)
         seed_users(db)
         seed_profile_field_policy(db)
+        seed_password_policy(db)
         seed_skus_locations(db)
         seed_lots(db)
         seed_asns(db)

@@ -15,6 +15,7 @@ from wms.schemas.profile import (
     PasswordUpdate,
     ProfileOut,
 )
+from wms.services import password_policy as policy_svc
 from wms.services import profile as svc
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -70,11 +71,21 @@ def update_password(
     user: User = Depends(get_current_user),
 ) -> dict:
     _ensure_editable(db, user, "password")
+    policy = policy_svc.resolve_password_policy(db, user)
     try:
+        policy_svc.validate_password(payload.new_password, policy)
         svc.update_password(db, user, payload.current_password, payload.new_password)
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
-    return {"ok": True}
+    return {"ok": True, "policy_source": policy["_source"]}
+
+
+@router.get("/password-policy")
+def my_password_policy(
+    db: Session = Depends(get_session), user: User = Depends(get_current_user)
+) -> dict:
+    """Return the password policy that applies to the calling user."""
+    return policy_svc.resolve_password_policy(db, user)
 
 
 @router.post("/display-name-request", response_model=ChangeRequestOut)

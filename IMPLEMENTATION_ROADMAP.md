@@ -52,6 +52,20 @@
 - Operator-role default policy seeded: email visible but not editable (forces request to supervisor); theme visible but not editable (coming soon).
 - 7 new pytest tests covering: identity readout, email gate, password current-password check, request submission, user-scope override of role-scope, admin approval applying the change.
 
+### ✅ Password Policy + MFA Enforcement (security layer)
+- New `password_policies` table — client-configurable rules with the **same precedence ladder as profile fields** (`user > role > site > global`). One row per scope; first match wins.
+- Configurable per scope: `min_length`, `require_uppercase`, `require_lowercase`, `require_digit`, `require_special`, `require_mfa`.
+- Validator runs at `PUT /profile/password` — rejects weak passwords with a structured error naming the failing rule (`"Password must contain a special character"`, etc.).
+- `GET /profile/password-policy` lets the frontend render the *active* rules for the calling user (e.g., "Must be 12+ chars with a digit and special").
+- Admin endpoints (`/admin/policy/password` GET/PUT) — Level 3+ can author rules for any scope.
+- **TOTP MFA (RFC 6238)** — stdlib-only implementation, no extra deps:
+  - `POST /profile/mfa/setup` returns `{secret, otpauth_uri, backup_codes}` (8 one-time codes shown once; stored bcrypt-hashed).
+  - `POST /profile/mfa/verify` activates the enrollment after the user proves the authenticator works.
+  - When `require_mfa` resolves true and the user IS enrolled, login returns `{access_token: null, mfa_required: true, mfa_challenge_token}` instead of a token; client posts to `POST /auth/mfa/verify {challenge_token, code}` to complete login. Accepts TOTP **or** a one-time backup code (consumed on use).
+  - When `require_mfa` resolves true but the user is NOT enrolled, login returns a token with `mfa_enrolled: false` so the frontend redirects to forced enrollment.
+  - Admin recovery: `POST /admin/policy/mfa-reset {user_id}` — Level 4+ at the same site clears MFA for a lost-device user.
+- 10 new pytest tests covering: enrollment + verify, challenge flow, backup-code single-use, policy-driven gating, admin reset, non-admin denial — **all 37 tests green, ruff clean.**
+
 ### ✅ Local Dev Launcher (`./start.sh`)
 - One-shot environment check + boot:
   - Detects Python 3, creates `backend/.venv` if missing
@@ -63,6 +77,8 @@
 - Graceful CTRL+C via `trap shutdown INT TERM`
 
 ### 🔜 Next Up
+- Frontend wiring for MFA enrollment UI on `/profile.html` (QR code render, backup-code display, "Set up MFA" CTA when policy says required)
+- Frontend wiring for the 2-step login challenge (post password → if `mfa_challenge_token` present, show 6-digit input)
 - Inventory module backend (search, KPIs, safety-stock alerts)
 - Quality module backend (QC hold workflow, escalation tiers)
 - Production module backend (work orders, recipe BOM, genealogy)

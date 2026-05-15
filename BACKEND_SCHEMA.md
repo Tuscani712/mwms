@@ -62,6 +62,47 @@ currently `display_name` and `display_picture`.
 Approve endpoint: `POST /api/v1/admin/profile/requests/{id}/decide`. Approver must be at the
 same site (or MCS). On approval, the requested value is written to the user row.
 
+### `password_policies`
+Per-scope password complexity + MFA rules. **Same resolution pattern as `user_profile_fields`** —
+walks `user > role > site > global`, first row wins, sensible defaults if no row matches.
+
+| Column | Notes |
+|---|---|
+| `scope_type` | one of: `global`, `site`, `role`, `user` |
+| `scope_value` | NULL for global; site_id / role / employee_code otherwise |
+| `min_length` | int, default 4 (validator floor) |
+| `require_uppercase`, `require_lowercase`, `require_digit`, `require_special` | bools |
+| `require_mfa` | bool — if true, a TOTP second factor is enforced at login for any matching user |
+
+Example: lock down all level-3+ users to 12+ characters with MFA:
+```
+INSERT INTO password_policies (scope_type, scope_value, min_length, require_uppercase,
+                               require_digit, require_special, require_mfa)
+VALUES ('role', 'supervisor', 12, true, true, true, true);
+```
+
+### `user_mfa`
+TOTP enrollment per user — RFC 6238, SHA1, 6 digits, 30-second window, ±1 step drift tolerance.
+
+| Column | Notes |
+|---|---|
+| `user_id` | FK → users (unique — one MFA row per user) |
+| `secret` | base32-encoded 160-bit secret, shown once at setup |
+| `enabled` | false during pending enrollment, true after verify |
+| `backup_codes_json` | JSON array of bcrypt-hashed one-time codes (8 codes generated at setup, consumed on use) |
+| `verified_at`, `last_used_at` | audit timestamps |
+
+Enrollment flow: `POST /profile/mfa/setup` (returns secret + otpauth URI + plaintext backup codes,
+last time they're visible) → user scans QR → `POST /profile/mfa/verify` with 6-digit code → enabled.
+
+Login flow when `require_mfa=true` for the resolved policy and the user is enrolled:
+1. `POST /auth/login` returns `{access_token: null, mfa_required: true, mfa_challenge_token: "..."}`
+2. Client prompts for TOTP / backup code
+3. `POST /auth/mfa/verify` with `{challenge_token, code}` → full access token
+
+Lost-device recovery: `POST /admin/policy/mfa-reset {user_id}` requires Level 4+ admin at the
+same site (or MCS). Clears the row so the user re-enrolls on next login.
+
 ### `skus`, `locations`, `lots`, `lot_genealogy`
 Inventory primitives.
 - **SKU** carries `requires_qc`, `shelf_life_days`, `reorder_point`, `safety_stock`, `unit_weight_kg`.
@@ -122,6 +163,15 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | POST | `/api/v1/admin/profile/requests/{id}/decide` | Approve or reject |
 | GET | `/api/v1/admin/profile/field-visibility` | List field-policy rows |
 | PUT | `/api/v1/admin/profile/field-visibility` | Upsert a policy row (Lvl 3+) |
+| GET | `/api/v1/profile/password-policy` | Resolved password policy for the calling user |
+| GET | `/api/v1/admin/policy/password` | List all password policy rows (Lvl 3+) |
+| PUT | `/api/v1/admin/policy/password` | Upsert a password policy row (Lvl 3+) |
+| POST | `/api/v1/admin/policy/mfa-reset` | Clear a user's MFA enrollment (Lvl 4+) |
+| GET | `/api/v1/profile/mfa/status` | Whether the calling user is enrolled in MFA |
+| POST | `/api/v1/profile/mfa/setup` | Begin enrollment — returns secret, otpauth URI, backup codes |
+| POST | `/api/v1/profile/mfa/verify` | Activate MFA by submitting a valid TOTP code |
+| DELETE | `/api/v1/profile/mfa/disable` | User-initiated MFA removal |
+| POST | `/api/v1/auth/mfa/verify` | Step 2 of login — exchange challenge token + code for an access token |
 
 ## FEFO trigger
 
@@ -136,8 +186,10 @@ A line uses FEFO instead of FIFO when **either**:
 - ASN inbound list, check-in flow, receipt with variance, putaway suggestions
 - Order list, consolidation plan, pick assignment, insufficient-inventory error, truck load, packing slip
 - Health endpoints
+- Password policy resolution + complexity enforcement at the change-password endpoint
+- MFA enrollment, TOTP verification, login-challenge flow, backup-code consumption, admin reset
 
-23 tests · in-memory SQLite (StaticPool) · zero file artifacts.
+37 tests · in-memory SQLite (StaticPool) · zero file artifacts.
 
 ## Mock data seeder
 

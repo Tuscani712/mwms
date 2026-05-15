@@ -5,10 +5,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from wms.api.v1.mfa import create_mfa_challenge_token
 from wms.core.deps import get_current_user, get_session
 from wms.core.security import create_access_token, verify_password
 from wms.models import User
 from wms.schemas.auth import LoginRequest, TokenResponse, UserOut
+from wms.services import mfa as mfa_svc
+from wms.services import password_policy as policy_svc
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,6 +30,22 @@ def login(payload: LoginRequest, db: Session = Depends(get_session)) -> TokenRes
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials or site")
 
+    resolved = policy_svc.resolve_password_policy(db, user)
+    enrolled = mfa_svc.is_enrolled(db, user.id)
+
+    if resolved.get("require_mfa") and enrolled:
+        # Password is correct, but the user must present a second factor.
+        return TokenResponse(
+            access_token=None,
+            site_id=user.site_id,
+            role=user.role,
+            full_name=user.full_name,
+            permission_level=user.permission_level,
+            mfa_required=True,
+            mfa_enrolled=True,
+            mfa_challenge_token=create_mfa_challenge_token(user.employee_code, user.site_id),
+        )
+
     token = create_access_token(subject=user.employee_code, site_id=user.site_id, role=user.role)
     user.last_login_at = datetime.now(UTC)
     db.commit()
@@ -37,6 +56,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_session)) -> TokenRes
         role=user.role,
         full_name=user.full_name,
         permission_level=user.permission_level,
+        mfa_required=False,
+        # If policy requires MFA but user isn't enrolled, the frontend treats this
+        # as a forced-enrollment session (token is valid for /profile/mfa/setup).
+        mfa_enrolled=enrolled,
     )
 
 
