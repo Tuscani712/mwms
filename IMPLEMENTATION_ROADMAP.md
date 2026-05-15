@@ -36,10 +36,28 @@
 - `POST /shipping/truck-load` — load order onto shipment, track weight
 - `GET /shipping/packing-slip/{order_id}` — generate slip from picks
 
+### ✅ Session UX (operator layer · in progress)
+- Active site label (`WHS-002 · HOU`) persists in `localStorage.wms.activeSiteLabel` at login
+- All pages auto-bind `data-bind="site-name"` / `data-bind="user-name"` / `data-bind="user-initial"` to the live session
+- User chip (top-right) is a click-to-sign-out trigger — confirm dialog clears token + session keys → back to login
+- Login form shows inline error banner on 401 (no more silent dashboard redirect)
+- "Backend unreachable" vs "Bad credentials" surfaced as distinct error messages
+
+### ✅ Local Dev Launcher (`./start.sh`)
+- One-shot environment check + boot:
+  - Detects Python 3, creates `backend/.venv` if missing
+  - Installs deps only when imports fail (cache-friendly)
+  - Seeds DB only when `backend/data/wms.db` is absent
+  - Detects port collisions on 8000 / 8765, interactively offers to kill occupants
+  - Tracks PIDs in `.run/{backend,frontend}.pid`, logs in same dir
+- Post-launch menu: status, tail logs, restart, open browser, quit
+- Graceful CTRL+C via `trap shutdown INT TERM`
+
 ### 🔜 Next Up
 - Inventory module backend (search, KPIs, safety-stock alerts)
 - Quality module backend (QC hold workflow, escalation tiers)
 - Production module backend (work orders, recipe BOM, genealogy)
+- MCS / corporate-rollup layer (admin-scoped endpoints + view)
 - Alembic migrations (currently using `create_all` for dev convenience)
 - Multi-site federation (per-site DBs, MCS service)
 

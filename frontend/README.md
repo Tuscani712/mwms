@@ -166,27 +166,30 @@ A light-theme override (`[data-theme="light"]`) is stubbed in for future client 
 
 ## To View
 
-Frontend server (port 8765):
+**Recommended — single command from project root:**
 
 ```bash
-cd /home/tuscani712/Desktop/SCO_MCP/Projects/WMS_Software/frontend
-python3 -m http.server 8765
-# then open http://localhost:8765/login.html
+./start.sh
 ```
 
-Backend server (port 8000) — for live data:
+This handles env, deps, DB seeding, port collisions, PID tracking, and clean shutdown via CTRL+C.
+Interactive menu after launch: `[s]` status, `[b]/[f]` tail logs, `[r]` restart, `[o]` open browser, `[q]` quit.
+
+**Manual two-terminal fallback:**
 
 ```bash
-cd /home/tuscani712/Desktop/SCO_MCP/Projects/WMS_Software/backend
-python3 -m venv .venv && source .venv/bin/activate
+# Terminal 1 — frontend
+cd frontend && python3 -m http.server 8765
+
+# Terminal 2 — backend
+cd backend && python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 python -m wms.seeders.seed
 uvicorn wms.main:app --reload --port 8000
 ```
 
-Login as `WHS-001-001` / `password123` (or any seeded operator). The Receiving and Shipping pages
-will then show **live data** from the API. With no auth or backend down, pages gracefully fall
-back to the rendered demo content.
+Login as `WHS-001-001` / `password123` (or any seeded `WHS-00X-001`). Receiving and Shipping pages
+fetch live data from the API on successful login.
 
 ## Frontend ↔ Backend wiring
 
@@ -194,10 +197,37 @@ back to the rendered demo content.
   `receiving.*`, `shipping.*`, `health`, `ping`.
 - `scripts/receiving.js` / `scripts/shipping.js` — page-specific loaders that populate
   `[data-bind="receiving-inbound-rows"]` and `[data-bind="shipping-orders-rows"]`.
-- JWT token persists in `localStorage.wms.token`; user metadata in `localStorage.wms.user`.
+- JWT token in `localStorage.wms.token`; user metadata in `localStorage.wms.user`;
+  active site display label in `localStorage.wms.activeSiteLabel`.
 
 The login form submits to `POST /api/v1/auth/login`. The selected `site_id` (from the site picker)
-is sent with the credentials — same employee code at a different site = different login.
+is sent with credentials — same employee code at a different site = rejected with HTTP 401.
+
+## Session UX
+
+The active session is surfaced consistently across pages via `data-bind` attributes that
+`shell.js` (module pages) and `dashboard.js` (dashboard) populate on load:
+
+| Attribute | What gets injected |
+|---|---|
+| `data-bind="site-name"` | `wms.activeSiteLabel` (e.g., "WHS-002 · HOU") |
+| `data-bind="user-name"` | `user.full_name` from the JWT login response |
+| `data-bind="user-initial"` | First letter of full name, uppercase |
+| `data-bind="brand-logo"` / `data-bind="brand-mark"` | Client logo swap from `wms.clientLogo` |
+
+The top-right user chip (`#user-chip`) is the **sign-out** trigger — click → confirm → clears
+`wms.token`, `wms.user`, `wms.activeSiteLabel` → redirects to login. This is the fastest way to
+switch sites or users without leaving the browser.
+
+## Login error handling
+
+The login form distinguishes three outcomes:
+
+- **HTTP 200** → JWT stored, redirect to dashboard
+- **HTTP 401** → red inline banner: "Login rejected. User X is not assigned to site Y, or password is incorrect."
+- **Network error** → "Backend unreachable" banner with a hint to start the server
+
+A failed login never silently navigates away. The submit button shows "Signing in…" during the request.
 
 ---
 

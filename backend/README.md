@@ -4,6 +4,18 @@ FastAPI + SQLAlchemy 2.0 + SQLite (Postgres-portable) backend for the Warehouse 
 
 ## Quick start
 
+**Recommended — from project root, one command:**
+
+```bash
+./start.sh
+```
+
+`start.sh` checks Python, creates the venv if missing, installs deps only when imports fail,
+seeds the DB only when absent, detects port collisions, launches both the backend and the
+frontend, and shuts down cleanly on CTRL+C.
+
+**Manual path (if you want backend only):**
+
 ```bash
 cd backend
 python3 -m venv .venv
@@ -77,6 +89,25 @@ backend/
 Every JWT carries `{sub: employee_code, site_id, role}`. The `get_current_user`
 dependency loads the user **only** when both `employee_code` and `site_id` match
 an active row — a stolen token from WHS-001 cannot authenticate against WHS-002.
+
+The same rule applies at **login time**: the request body includes `site_id`, and we look up
+the user with `employee_code AND site_id AND is_active`. A WHS-002 operator who selects WHS-001
+at the login picker gets HTTP 401 because the row lookup returns nothing. The frontend surfaces
+this as an inline error banner — no silent dashboard redirect.
+
+Quick verification with curl:
+
+```bash
+# Wrong site → 401
+curl -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" \
+  -d '{"employee_code":"WHS-002-001","password":"password123","site_id":"WHS-001"}'
+#  → 401 {"detail":"Invalid credentials or site"}
+
+# Right site → 200
+curl -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" \
+  -d '{"employee_code":"WHS-002-001","password":"password123","site_id":"WHS-002"}'
+#  → 200 {"access_token":"…", "site_id":"WHS-002", "role":"operator", …}
+```
 
 ## Testing
 
