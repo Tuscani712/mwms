@@ -76,6 +76,37 @@ def create_app() -> FastAPI:
                 response.headers["Content-Security-Policy"] = "default-src 'none'"
             return response
 
+    class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+        """SECURITY_AUDIT.md M-5: cap JSON bodies. Multipart uploads bypass
+        this — they're capped separately by `max_upload_bytes` after the
+        sanitizer parses the leading bytes."""
+
+        async def dispatch(self, request: Request, call_next):
+            # Don't double-cap the upload endpoint; it has stricter, content-aware
+            # limits and may legitimately receive bodies up to max_upload_bytes.
+            path = request.url.path
+            if path.startswith("/uploads/") or path.endswith("/picture/upload"):
+                return await call_next(request)
+
+            content_length = request.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    if int(content_length) > settings.max_json_body_bytes:
+                        from fastapi.responses import JSONResponse
+
+                        return JSONResponse(
+                            status_code=413,
+                            content={
+                                "detail": (
+                                    f"Request body exceeds {settings.max_json_body_bytes} bytes"
+                                )
+                            },
+                        )
+                except ValueError:
+                    pass  # malformed header — let downstream handle it
+            return await call_next(request)
+
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(NoSniffMiddleware)
     app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 

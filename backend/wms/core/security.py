@@ -8,10 +8,31 @@ from jose import JWTError, jwt
 
 from wms.core.config import get_settings
 
+BCRYPT_MAX_BYTES = 72
+
 
 def _to_bytes(value: str) -> bytes:
-    """bcrypt only accepts up to 72 bytes — silently truncate longer inputs."""
-    return value.encode("utf-8")[:72]
+    """bcrypt only accepts up to 72 bytes.
+
+    Historical behaviour: silent truncation. As of SCO-42 / SECURITY_AUDIT.md M-1
+    the API layer rejects >72-byte inputs upstream via `assert_password_bcrypt_safe`,
+    so anything reaching here is already safe. Truncation is kept as belt-and-
+    suspenders against direct service-layer callers.
+    """
+    return value.encode("utf-8")[:BCRYPT_MAX_BYTES]
+
+
+def assert_password_bcrypt_safe(password: str) -> None:
+    """Raise ValueError if `password` would be silently truncated by bcrypt.
+
+    Pydantic schemas should call this from a field_validator so the user sees a
+    clear 422 instead of a successful login that only validates the first 72 bytes.
+    """
+    if len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError(
+            f"Password must not exceed {BCRYPT_MAX_BYTES} bytes when UTF-8 encoded "
+            "(bcrypt limit). Use a shorter passphrase."
+        )
 
 
 def hash_password(plain: str) -> str:

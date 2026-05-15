@@ -2,7 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from wms.core.security import assert_password_bcrypt_safe
 
 PROFILE_FIELDS = ["email", "password", "display_name", "display_picture", "theme"]
 
@@ -45,6 +47,13 @@ class EmailUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     current_password: str = Field(min_length=1)
     new_password: str = Field(min_length=4, max_length=72)
+
+    @field_validator("new_password")
+    @classmethod
+    def _bcrypt_byte_limit(cls, v: str) -> str:
+        # SECURITY_AUDIT.md M-1: reject UTF-8 > 72 bytes instead of silent truncation.
+        assert_password_bcrypt_safe(v)
+        return v
 
 
 class DisplayChangeRequest(BaseModel):

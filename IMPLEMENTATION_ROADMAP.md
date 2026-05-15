@@ -76,7 +76,10 @@
   - **L-4** — `get_current_user` rejects tokens for sites with `is_online=False`.
   - **L-7** — `User.__repr__` scrubs `hashed_password` (debug-print safe).
   - **M-6** — Email format regex on admin user payloads (blocks `<script>` and obvious garbage).
-- 15 regression tests across `test_security_audit_fixes.py` + `test_security_audit_quickwins.py`. **94/94 pytest green**, ruff clean.
+- **M-1** — bcrypt byte-length validator on `PasswordUpdate.new_password` and `UserCreate.password` (rejects UTF-8 > 72 bytes with 422 before bcrypt silently truncates).
+- **M-5** — `BodySizeLimitMiddleware` caps JSON bodies at 1 MB (returns 413); upload endpoint exempt because it has a stricter content-aware cap.
+- **L-2** — Compat upper bounds on every runtime + dev dependency in `pyproject.toml`.
+- 24 regression tests across three audit-fix test files. **103/103 pytest green**, ruff clean.
 
 ### ✅ Admin User Management (SCO-33: SCO-35 + SCO-36 + SCO-37)
 - **Backend CRUD** (SCO-35) — `POST/GET/PUT/DELETE /api/v1/admin/users` + `/reactivate`. Paginated list with `site_id`, `role`, `level_min/max`, `q` search, `include_inactive`. Soft-delete via `is_active=false`.

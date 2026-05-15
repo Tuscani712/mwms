@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     max_upload_bytes: int = 2 * 1024 * 1024
     max_image_dimension: int = 2048
+    # SECURITY_AUDIT.md M-5: JSON body cap. Bigger payloads should go through
+    # the multipart upload pipeline, which has its own 2 MB cap.
+    max_json_body_bytes: int = 1 * 1024 * 1024
 
     @property
     def cors_origins_list(self) -> list[str]:

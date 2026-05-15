@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
+from wms.core.security import assert_password_bcrypt_safe
 from wms.models import User
 from wms.services import hierarchy as hier_svc
 from wms.services import users_admin as svc
@@ -29,6 +30,13 @@ class UserCreate(BaseModel):
     site_id: str | None = None  # defaults to caller's site
     department: str | None = None
     shift: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def _bcrypt_byte_limit(cls, v: str) -> str:
+        # SECURITY_AUDIT.md M-1: reject UTF-8 > 72 bytes instead of silent truncation.
+        assert_password_bcrypt_safe(v)
+        return v
 
 
 class UserUpdate(BaseModel):

@@ -1,6 +1,8 @@
-# WMS Security Audit · v1.1 · 2026-05-15
+# WMS Security Audit · v1.2 · 2026-05-15
 
-> **Update 2026-05-15 (later same day):** Three more quick-win fixes pre-staged: **L-4** (offline site enforcement), **L-7** (`User.__repr__` scrubs hashed_password), **M-6** (email format validation). See "Pre-staged fixes" section. Findings tables updated with strikethrough on resolved items.
+> **Update 2026-05-15 (third batch, same day):** Three more quick-win fixes pre-staged: **M-1** (password byte-length cap), **M-5** (JSON body size middleware), **L-2** (dependency upper bounds). Total pre-staged: **10 of 26 findings**.
+>
+> **Update 2026-05-15 (second batch, same day):** Three more quick-win fixes pre-staged: **L-4** (offline site enforcement), **L-7** (`User.__repr__` scrubs hashed_password), **M-6** (email format validation).
 
 # WMS Security Audit · v1 · 2026-05-15
 
@@ -37,11 +39,11 @@
 
 | # | Finding | Location | Attack | Fix | Pre-stage? |
 |---|---|---|---|---|---|
-| M-1 | **bcrypt 72-byte silent truncation.** Passwords over 72 bytes are silently chopped. Users with passphrases think they're using 100 chars; only the first 72 are validated. | `wms/core/security.py:13` | A user pastes a 100-char passphrase. Attacker who learns the first 72 chars (e.g., from a different breach) logs in successfully. | Pre-hash with SHA-256 before bcrypt: `bcrypt.hashpw(hashlib.sha256(pw.encode()).digest()[:72], salt)` — uniform 32-byte input. Migrate on next password change. | Defer (migration cost). Doc-only mitigation for now. |
+| ~~M-1~~ | ~~**bcrypt 72-byte silent truncation.**~~ **(✅ fixed 2026-05-15, SCO-42)** — `assert_password_bcrypt_safe()` runs as a pydantic `field_validator` on both `PasswordUpdate.new_password` and `UserCreate.password`. Rejects `UTF-8 bytes > 72` with 422 *before* the value reaches bcrypt. No migration needed: anyone with a longer current password was effectively only using the first 72 bytes anyway, and the dev seed is well under the cap. The legacy truncation in `_to_bytes()` stays as a belt-and-suspenders fallback for direct service callers. | `wms/core/security.py:11` (`BCRYPT_MAX_BYTES`, `assert_password_bcrypt_safe`) | — | — | ✅ Pre-staged |
 | M-2 | **No password history.** Users can rotate to `password123` → `password124` → `password123`. | `wms/services/profile.py:74` (`update_password`) | Compliance gap. Defeats forced-rotation policies. | Add `password_history` table (user_id, hashed_password, changed_at). Reject if new password matches any of the last N. | Pre-stage table-only? Defer. Table without enforcement is misleading; ship together. |
 | M-3 | **Inconsistent HTML escaping in frontend `innerHTML` calls.** `users.js` escapes; `receiving.js`, `shipping.js`, `dashboard.js`, the `empty-state` setter in `users.js` itself, and `profile.js` set strings via `innerHTML` without a consistent escape helper. Today the data is server-controlled, but `display_name`/`department`/`shift` are user-controlled and *will* land in these views. | `frontend/scripts/{receiving,shipping,dashboard}.js`, `users.js:91` | Stored XSS: an operator sets `display_name = '<img onerror=fetch(...) src=x>'` (no server-side allow-list); a supervisor opens the approval queue or the operator dashboard; their token leaks (see H-3). | Centralize `escapeHtml()` in `api.js` or a tiny `dom.js` helper. Lint rule: any `.innerHTML =` on a non-literal must call the helper. | Defer (touches 5 files). Pre-stage the helper in one place? **Tracker-only for now** — fully addressing this is its own ticket. |
 | M-4 | **Error messages leak JWT decode internals.** `f"Invalid challenge token: {e}"` returns the `JWTError` string to the client. | `wms/api/v1/mfa.py:51` | Attackers can probe expiry vs. signature vs. malformed differences to refine token forgery. | Return a generic `"Invalid or expired challenge token"`. Log the detail server-side. | ✅ **Pre-staged** — message generified. |
-| M-5 | **No global request-size cap on JSON endpoints.** Uploads are capped at 2 MB; everything else is whatever Starlette accepts (default unlimited). | `wms/main.py` | DoS via 1 GB JSON body to `PUT /admin/users/{id}` — server allocates the body before pydantic gets a chance. | Add `BodySizeLimitMiddleware` (1 MB cap for JSON). | Defer. ~30 LOC. Mostly a deployment-tier concern (nginx body limit). |
+| ~~M-5~~ | ~~**No global request-size cap on JSON endpoints.**~~ **(✅ fixed 2026-05-15, SCO-43)** — `BodySizeLimitMiddleware` checks `Content-Length` against `settings.max_json_body_bytes` (default 1 MB) and returns 413 on oversize. Multipart `/picture/upload` and `/uploads/*` are explicitly exempted — they have their own stricter, content-aware cap (2 MB) that runs *after* the bytes are decoded by Pillow. Both bypass-paths are covered by tests. | `wms/main.py:60` (`BodySizeLimitMiddleware`) | — | — | ✅ Pre-staged |
 | ~~M-6~~ | ~~**`email` field has no format validation**~~ **(✅ fixed 2026-05-15, SCO-41)** — permissive `[^\s<>"']+@[^\s<>"']+\.[^\s<>"']+` regex now applied at both `UserCreate` and `UserUpdate`. Rejects garbage and script-tag payloads without re-inheriting EmailStr's `.local` strictness. | `wms/api/v1/admin_users.py:13` (`EMAIL_PATTERN`) | — | — | ✅ Pre-staged |
 | M-7 | **Approval-workflow URL is unvalidated.** A user can request `display_picture_url = "http://evil.example.com/log?token=…"` and an approver may rubber-stamp it. The URL is then loaded as an `<img>` (or similar) cross-origin — leaking the Referer header. | `wms/services/profile.py:82` (`submit_change_request`) | Approver session leaks via Referer. Or worse, a `data:` URI is approved and rendered inline. | Enforce that `display_picture_url` either starts with `/uploads/` (our sanitized output) or matches a whitelisted external pattern. | Defer. ~5 LOC. Track. |
 | M-8 | **MFA backup codes have no regeneration UX.** A user with 1 unused code today and a lost device tomorrow is locked out without admin involvement. | `wms/services/mfa.py:71` (`begin_enrollment`) | Operational risk, not attack risk. Increases load on the admin MFA-reset endpoint, which itself only fires for Lvl 4+. | `POST /profile/mfa/regenerate-codes` (requires password). | Defer. Quality-of-life. |
@@ -51,7 +53,7 @@
 | # | Finding | Location | Attack | Fix | Pre-stage? |
 |---|---|---|---|---|---|
 | L-1 | **No security-relevant logging.** No record of who logged in, who got 403'd, who reset MFA, who changed a password. | (codebase-wide) | Forensic blindness post-incident. Compliance gap. | Add a `python logging` config + an `audit_log` writer for auth events. | Defer. |
-| L-2 | **Dependency versions unpinned upper-bound** (`bcrypt>=4.1`, `Pillow>=10.3`, etc.). | `backend/pyproject.toml` | Future breaking release lands in CI/CD without a review window. | Add upper bounds OR commit a `requirements.lock`. | Defer. |
+| ~~L-2~~ | ~~**Dependency versions unpinned upper-bound**~~ **(✅ fixed 2026-05-15, SCO-44)** — every runtime and dev dep in `pyproject.toml` now has a compat upper bound (e.g., `bcrypt>=4.1,<6`, `Pillow>=10.3,<13`, `pytest>=8.0,<10`). A breaking major release can no longer land silently — it requires an intentional bound bump. | `backend/pyproject.toml:7-29` | — | — | ✅ Pre-staged |
 | L-3 | **JWT subjects are predictable** (`WHS-001-001` ascending). | `wms/seeders/seed.py` | Username enumeration via `?q=` search is trivial. Combined with H-1 → effective brute-force. | Out of scope (employee codes are operationally useful). Mitigate at H-1 (rate limit). | n/a |
 | ~~L-4~~ | ~~**`Site.is_active` not enforced at JWT validation.**~~ **(✅ fixed 2026-05-15, SCO-39)** — `get_current_user` now rejects with 401 "Site is offline" when the user's site row has `is_online=False`. Maintenance windows / incident-response toggles now reach the auth layer. | `wms/core/deps.py:34` (`get_current_user`) | — | — | ✅ Pre-staged |
 | L-5 | **Token TTL of 8 hours with no refresh-token rotation.** Stolen tokens are valid the full shift. | `wms/core/config.py:20` | A pickpocketed phone = 8 hours of access. | Shorten to 1h + add `/auth/refresh` with rotation. | Defer (UX-affecting). |
@@ -74,7 +76,18 @@
 
 Seven fixes were cheap enough to scaffold up-front. The first four landed with the initial audit; the next three landed later the same day as quick-win cleanup (SCO-39/40/41). Each is intentionally minimal — bigger items remain on the SEC-1..SEC-7 follow-up list.
 
-### Follow-up batch (2026-05-15 later · SCO-39/40/41)
+### Third batch (2026-05-15 later · SCO-42/43/44)
+
+#### 8. bcrypt byte-length validator on password fields (M-1)
+`assert_password_bcrypt_safe()` runs as a pydantic `field_validator` on both `PasswordUpdate.new_password` and `UserCreate.password`. Rejects UTF-8 inputs > 72 bytes with 422 before bcrypt gets a chance to silently truncate. Defended against ASCII (73 chars rejected, 72 accepted), emoji (`"🙂" * 19` = 76 bytes rejected), and end-to-end via the password-change endpoint. The legacy `_to_bytes()` truncation stays as a belt-and-suspenders fallback for any direct service caller.
+
+#### 9. Global JSON body size middleware (M-5)
+`BodySizeLimitMiddleware` rejects 413 when `Content-Length > settings.max_json_body_bytes` (default 1 MB). Explicitly bypassed for `/uploads/*` and `*/picture/upload` so the multipart pipeline's stricter, content-aware 2 MB cap is the one that matters there. Tests assert both the cap and the bypass.
+
+#### 10. Upper-bound version pins on dependencies (L-2)
+Every runtime and dev dep in `pyproject.toml` now has a compat upper bound: `bcrypt>=4.1,<6`, `Pillow>=10.3,<13`, `pydantic>=2.6,<3`, etc. A breaking major release can no longer land silently — it requires an intentional bound bump.
+
+### Second batch (2026-05-15 later · SCO-39/40/41)
 
 #### 5. Offline-site enforcement at auth (L-4)
 `get_current_user` now rejects 401 "Site is offline" when the user's site row has `is_online=False`. Taking a site offline for maintenance/incident now actually pulls its users' tokens. ~3 lines in `wms/core/deps.py`.
@@ -123,7 +136,7 @@ New `LoginAttempt` table — `user_id`, `attempted_at`, `success`, `ip`, `user_a
 
 ## What I did NOT change (intentionally)
 
-- Did not introduce a global request-size middleware (M-5) — coupled to deployment tier, easier to do with nginx.
+- ~~Did not introduce a global request-size middleware (M-5) — coupled to deployment tier, easier to do with nginx.~~ **(superseded — added in SCO-43)**
 - Did not migrate `python-jose` → `PyJWT` (H-5) — works fine today; deserves its own PR.
 - Did not roll out CSP (H-6) — first-time CSP always breaks something; needs a careful incremental rollout, not a drive-by.
 - Did not validate `display_picture_url` against an allowlist (M-7) — UX implications around external avatars need a product decision first.
@@ -138,5 +151,6 @@ Each is tracked above so nothing is "audited and forgotten".
 |---|---|---|
 | C-1, H-2, M-4, I-1 | `tests/test_security_audit_fixes.py` | 7 |
 | L-4, L-7, M-6 | `tests/test_security_audit_quickwins.py` | 8 |
+| M-1, M-5 | `tests/test_security_audit_batch2.py` | 9 |
 
-15 regression tests guarding the 7 pre-staged fixes. Total suite: **94/94 green**.
+24 regression tests guarding the 10 pre-staged fixes. Total suite: **103/103 green**.
