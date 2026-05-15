@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Branding · WMS</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+
+  <style>
+    /* Page-specific composition for Admin → Branding */
+    .crumb {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+      margin-bottom: var(--space-4);
+    }
+    .crumb a { color: var(--ink-tertiary); }
+    .crumb a:hover { color: var(--amber); }
+    .crumb-sep { color: var(--ink-muted); }
+    .crumb-current { color: var(--ink-primary); }
+
+    .page-head {
+      max-width: var(--grid-max);
+      margin: 0 auto;
+      padding: var(--space-12) var(--space-6) var(--space-8);
+      border-bottom: 1px solid var(--rule-subtle);
+    }
+
+    .page-title {
+      font-family: var(--font-display);
+      font-size: var(--text-5xl);
+      line-height: 1;
+      letter-spacing: var(--tracking-tightest);
+      margin-bottom: var(--space-3);
+    }
+
+    .page-title em { font-style: italic; color: var(--amber); }
+
+    .page-lede {
+      font-size: var(--text-lg);
+      color: var(--ink-secondary);
+      max-width: 60ch;
+      line-height: var(--leading-snug);
+    }
+
+    .branding-grid {
+      max-width: var(--grid-max);
+      margin: 0 auto;
+      padding: var(--space-10) var(--space-6);
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+
+    @media (max-width: 1000px) {
+      .branding-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── UPLOAD ZONE ──────────────────────────────────────────── */
+    .upload-zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+      min-height: 320px;
+      padding: var(--space-8);
+      border: 2px dashed var(--rule-default);
+      background: var(--inset);
+      cursor: pointer;
+      transition: all var(--dur-default) var(--ease-out);
+    }
+
+    .upload-zone:hover,
+    .upload-zone.is-dragover {
+      border-color: var(--amber);
+      background: var(--amber-glow);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-glyph {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--rule-default);
+      border-radius: 50%;
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-2xl);
+      color: var(--amber);
+    }
+
+    .upload-headline {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-2xl);
+      color: var(--ink-primary);
+    }
+
+    .upload-sub {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-tertiary);
+      text-align: center;
+      max-width: 36ch;
+    }
+
+    .upload-rules {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: var(--space-2);
+    }
+
+    .upload-rule {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+      padding: var(--space-1) var(--space-2);
+      border: 1px solid var(--rule-faint);
+    }
+
+    /* ── PREVIEW PANEL ────────────────────────────────────────── */
+    .preview-stage {
+      position: sticky;
+      top: 80px;
+    }
+
+    .preview-frame {
+      position: relative;
+      aspect-ratio: 4 / 5;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 35%, rgba(255, 107, 26, 0.08), transparent 60%),
+        var(--canvas);
+      border: 1px solid var(--rule-default);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+      padding: var(--space-8);
+      overflow: hidden;
+    }
+
+    .preview-frame::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--rule-faint) 1px, transparent 1px),
+        linear-gradient(90deg, var(--rule-faint) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.5;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black, transparent 80%);
+      pointer-events: none;
+    }
+
+    .preview-logo {
+      width: 60%;
+      max-width: 220px;
+      aspect-ratio: 1;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 24px rgba(255, 107, 26, 0.18));
+      position: relative;
+    }
+
+    .preview-name {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-2xl);
+      color: var(--ink-primary);
+      position: relative;
+    }
+
+    .preview-label {
+      position: absolute;
+      top: var(--space-3);
+      left: var(--space-3);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar (re-using dashboard component) -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="#" class="topnav-item">Receiving</a>
+        <a href="#" class="topnav-item">Shipping</a>
+        <a href="#" class="topnav-item">Production</a>
+        <a href="#" class="topnav-item">Quality</a>
+        <a href="#" class="topnav-item">Reports</a>
+        <a href="#" class="topnav-item topnav-item--active">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <button class="user-chip" aria-label="Account">
+          <span class="user-avatar">M</span>
+          <span class="user-name">M. Tuscani</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Page Head -->
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Admin</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Branding</span>
+    </div>
+
+    <h1 class="page-title"><em>Branding</em></h1>
+
+    <p class="page-lede">
+      Upload your company logo and set the facility name. These appear on the login page, packing slips, and exported reports.
+    </p>
+  </div>
+
+  <!-- Branding form -->
+  <div class="branding-grid">
+
+    <!-- ── LEFT · Upload & form ─────────────────────────────── -->
+    <form id="branding-form" onsubmit="event.preventDefault(); saveBranding();">
+
+      <div class="section-head" style="margin-bottom: var(--space-5);">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Logo</span>
+          <h2 class="section-title">Company <em>logo</em></h2>
+        </div>
+      </div>
+
+      <label class="upload-zone" id="upload-zone" for="logo-file">
+        <span class="upload-glyph">↑</span>
+        <span class="upload-headline">Drop logo or <em>click to browse</em></span>
+        <span class="upload-sub">SVG, PNG, or JPG. ≤ 2MB. Square aspect.</span>
+        <div class="upload-rules">
+          <span class="upload-rule">SVG · PNG · JPG</span>
+          <span class="upload-rule">≤ 2MB</span>
+          <span class="upload-rule">Square aspect</span>
+        </div>
+        <input type="file" id="logo-file" accept="image/svg+xml,image/png,image/jpeg" />
+      </label>
+
+      <div style="height: var(--space-8);"></div>
+
+      <div class="section-head" style="margin-bottom: var(--space-5);">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Facility identity</span>
+          <h2 class="section-title">Facility <em>identity</em></h2>
+        </div>
+      </div>
+
+      <div style="display: grid; gap: var(--space-4);">
+        <div class="field">
+          <label class="field-label" for="client-name-input">Display Name</label>
+          <input class="input" type="text" id="client-name-input" placeholder="e.g., Northwind Foods · Dallas" value="Your Facility" />
+          <span style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 4px;">
+            Appears under your logo on the login screen.
+          </span>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="site-name-input">Site Name / Number</label>
+          <input class="input input--mono" type="text" id="site-name-input" placeholder="e.g., WHS-001 · DAL  |  PLANT-04  |  ROCKLAND-WAREHOUSE" value="WHS-001 · DAL" />
+          <span style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 4px;">
+            Whatever identifier your team uses — code, name, or both. Shown in the login status strip and on all reports.
+          </span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: var(--space-3); margin-top: var(--space-8);">
+        <button class="btn btn--primary btn-arrow" type="submit">
+          <span>Save changes</span>
+        </button>
+        <button class="btn" type="button" onclick="resetBranding();">
+          <span>Reset to default</span>
+        </button>
+      </div>
+
+      <p style="margin-top: var(--space-5); font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);">
+        ▴ Changes apply to all operators on next sign-in.
+      </p>
+    </form>
+
+    <!-- ── RIGHT · Live preview ─────────────────────────────── -->
+    <div class="preview-stage">
+      <div class="section-head" style="margin-bottom: var(--space-5);">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Live Preview</span>
+          <h2 class="section-title">Login <em>preview</em></h2>
+        </div>
+        <span class="section-meta">Updates as you type</span>
+      </div>
+
+      <div class="preview-frame">
+        <span class="preview-label">
+          <span class="dot dot--amber"></span>
+          Login Page
+        </span>
+        <img src="assets/client-logo.svg" alt="Logo preview" class="preview-logo" id="preview-logo" />
+        <span class="preview-name" id="preview-name"><em>Your Facility</em></span>
+      </div>
+
+      <div class="preview-actions">
+        <a href="login.html" target="_blank" class="btn btn--ghost btn-arrow">
+          <span>Open login page</span>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('logo-file');
+    const dropZone = document.getElementById('upload-zone');
+    const nameInput = document.getElementById('client-name-input');
+    const siteInput = document.getElementById('site-name-input');
+    const previewLogo = document.getElementById('preview-logo');
+    const previewName = document.getElementById('preview-name');
+
+    // Load any previously saved
+    (() => {
+      const storedLogo = localStorage.getItem('wms.clientLogo');
+      const storedName = localStorage.getItem('wms.clientName');
+      const storedSite = localStorage.getItem('wms.siteName');
+      if (storedLogo) previewLogo.src = storedLogo;
+      if (storedName) {
+        nameInput.value = storedName;
+        previewName.innerHTML = `<em>${storedName}</em>`;
+      }
+      if (storedSite) siteInput.value = storedSite;
+    })();
+
+    // Live update name preview
+    nameInput.addEventListener('input', (e) => {
+      const v = e.target.value.trim() || 'Your Facility';
+      previewName.innerHTML = `<em>${v}</em>`;
+    });
+
+    // File handling
+    function handleFile(file) {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File exceeds 2MB. Please choose a smaller file.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewLogo.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+    // Drag and drop
+    ['dragenter', 'dragover'].forEach(ev => {
+      dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('is-dragover');
+      });
+    });
+    dropZone.addEventListener('drop', (e) => {
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    function saveBranding() {
+      localStorage.setItem('wms.clientLogo', previewLogo.src);
+      localStorage.setItem('wms.clientName', nameInput.value.trim());
+      localStorage.setItem('wms.siteName', siteInput.value.trim());
+      // TODO: replace with API POST /api/branding once backend wired
+      const btn = document.querySelector('button[type="submit"]');
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<span>✓ Saved</span>';
+      setTimeout(() => { btn.innerHTML = orig; }, 1800);
+    }
+
+    function resetBranding() {
+      localStorage.removeItem('wms.clientLogo');
+      localStorage.removeItem('wms.clientName');
+      localStorage.removeItem('wms.siteName');
+      previewLogo.src = 'assets/client-logo.svg';
+      nameInput.value = 'Your Facility';
+      siteInput.value = 'WHS-001 · DAL';
+      previewName.innerHTML = '<em>Your Facility</em>';
+    }
+  </script>
+
+</body>
+</html>

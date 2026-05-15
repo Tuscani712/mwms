@@ -1,0 +1,351 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WMS PAGE — Shared page-level structure for all module pages
+   Used by: receiving, shipping, production, quality, inventory, reports, admin
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── PAGE HEAD ─────────────────────────────────────────────────────── */
+
+.page-head {
+  max-width: var(--grid-max);
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-6) var(--space-6);
+  border-bottom: 1px solid var(--rule-subtle);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  margin-bottom: var(--space-4);
+}
+.crumb a { color: var(--ink-tertiary); transition: color var(--dur-quick) var(--ease-out); }
+.crumb a:hover { color: var(--amber); }
+.crumb-sep { color: var(--ink-muted); }
+.crumb-current { color: var(--ink-primary); }
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 5vw, 4.25rem);
+  line-height: 1;
+  letter-spacing: var(--tracking-tightest);
+  margin-bottom: var(--space-3);
+  color: var(--ink-primary);
+}
+.page-title em { font-style: italic; color: var(--amber); }
+
+.page-lede {
+  font-size: var(--text-lg);
+  color: var(--ink-secondary);
+  max-width: 60ch;
+  line-height: var(--leading-snug);
+}
+
+.page-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  flex-wrap: wrap;
+}
+
+/* ── PAGE GRID — Flexible layout container ─────────────────────────── */
+
+.page {
+  max-width: var(--grid-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.page-row {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.page-row--2 { grid-template-columns: 1fr 1fr; }
+.page-row--3 { grid-template-columns: repeat(3, 1fr); }
+.page-row--4 { grid-template-columns: repeat(4, 1fr); }
+.page-row--sidebar-left  { grid-template-columns: 320px 1fr; }
+.page-row--sidebar-right { grid-template-columns: 1fr 380px; }
+.page-row--main-aside    { grid-template-columns: 1.6fr 1fr; }
+
+@media (max-width: 1100px) {
+  .page-row--2,
+  .page-row--3,
+  .page-row--4,
+  .page-row--sidebar-left,
+  .page-row--sidebar-right,
+  .page-row--main-aside { grid-template-columns: 1fr; }
+}
+
+/* ── KPI ROW (compact, for sub-headers) ─────────────────────────────── */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--rule-subtle);
+  border: 1px solid var(--rule-subtle);
+}
+
+.kpi-row .kpi {
+  border: none;
+  padding: var(--space-5);
+}
+
+.kpi-row .kpi-value {
+  font-size: var(--text-3xl);
+}
+
+/* ── DATA TABLE ────────────────────────────────────────────────────── */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  background: var(--surface);
+  border: 1px solid var(--rule-subtle);
+}
+
+.data-table thead {
+  background: var(--inset);
+}
+
+.data-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  font-weight: 500;
+  border-bottom: 1px solid var(--rule-default);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule-faint);
+  color: var(--ink-primary);
+  vertical-align: middle;
+}
+
+.data-table tbody tr {
+  transition: background var(--dur-quick) var(--ease-out);
+  cursor: pointer;
+}
+
+.data-table tbody tr:hover {
+  background: var(--rule-faint);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table .mono,
+.data-table .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+
+.data-table .num { text-align: right; }
+
+.data-table .col-status { width: 32px; text-align: center; }
+.data-table .col-action { width: 100px; text-align: right; }
+
+.data-table .row-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-base);
+  color: var(--ink-primary);
+}
+
+.data-table .row-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-tertiary);
+  margin-top: 2px;
+}
+
+/* ── FILTER BAR ────────────────────────────────────────────────────── */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--inset);
+  border: 1px solid var(--rule-subtle);
+  border-bottom: 0;
+}
+
+.filter-bar .input {
+  flex: 1;
+  min-width: 240px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.filter-bar .btn {
+  padding: var(--space-2) var(--space-3);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--rule-default);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: all var(--dur-quick) var(--ease-out);
+}
+
+.filter-chip:hover { border-color: var(--rule-strong); color: var(--ink-primary); }
+
+.filter-chip[data-active="true"] {
+  border-color: var(--amber);
+  background: var(--amber-glow);
+  color: var(--amber);
+}
+
+/* ── SUB NAV (for Admin sections, etc.) ────────────────────────────── */
+
+.subnav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--rule-subtle);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.subnav-item {
+  position: relative;
+  padding: var(--space-3) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  text-decoration: none;
+  transition: color var(--dur-quick) var(--ease-out);
+}
+
+.subnav-item:hover { color: var(--ink-primary); }
+
+.subnav-item[data-active="true"] {
+  color: var(--ink-primary);
+}
+
+.subnav-item[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: -1px;
+  height: 2px;
+  background: var(--amber);
+}
+
+/* ── EMPTY STATE ───────────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-16) var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--rule-subtle);
+  text-align: center;
+}
+
+.empty-glyph {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-5xl);
+  color: var(--ink-muted);
+  line-height: 1;
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-2xl);
+  color: var(--ink-primary);
+}
+
+.empty-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ink-tertiary);
+  max-width: 48ch;
+}
+
+/* ── PROGRESS / METER ──────────────────────────────────────────────── */
+
+.meter {
+  width: 100%;
+  height: 6px;
+  background: var(--inset);
+  border: 1px solid var(--rule-subtle);
+  overflow: hidden;
+  position: relative;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--amber);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.meter-fill--ok   { background: var(--signal-ok); }
+.meter-fill--warn { background: var(--signal-warn); }
+.meter-fill--crit { background: var(--signal-crit); }
+
+/* ── STAT CALLOUT (e.g., big numerical readout in card) ────────────── */
+
+.callout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--rule-subtle);
+}
+
+.callout-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.callout-value {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-4xl);
+  line-height: 1;
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+}

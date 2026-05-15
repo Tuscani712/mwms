@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS · Sign In</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+
+  <style>
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      position: relative;
+    }
+
+    @media (max-width: 900px) {
+      .login-shell { grid-template-columns: 1fr; }
+      .login-marquee { display: none; }
+    }
+
+    /* ── LEFT · Brand panel ────────────────────────────────────── */
+    .login-marquee {
+      position: relative;
+      padding: var(--space-10) var(--space-12);
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 35%, rgba(255, 107, 26, 0.08), transparent 60%),
+        var(--canvas);
+      border-right: 1px solid var(--rule-subtle);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: var(--space-8);
+      overflow: hidden;
+    }
+
+    .login-marquee::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--rule-faint) 1px, transparent 1px),
+        linear-gradient(90deg, var(--rule-faint) 1px, transparent 1px);
+      background-size: 64px 64px;
+      opacity: 0.5;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black, transparent 80%);
+      pointer-events: none;
+    }
+
+    .marquee-header {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+    }
+
+    .marquee-mark {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-2xl);
+      color: var(--ink-primary);
+      letter-spacing: var(--tracking-tight);
+    }
+    .marquee-mark .amp { color: var(--amber); }
+
+    .marquee-logo {
+      height: 36px;
+      width: auto;
+      max-width: 180px;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 1px 8px rgba(255, 107, 26, 0.15));
+    }
+    .marquee-logo[hidden] { display: none; }
+
+    .marquee-tag {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+      padding-left: var(--space-3);
+      border-left: 1px solid var(--rule-default);
+    }
+
+    /* ── CLIENT LOGO ───────────────────────────────────────────── */
+    .client-logo-stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-5);
+      padding: var(--space-8);
+    }
+
+    .client-logo-frame {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .client-logo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 24px rgba(255, 107, 26, 0.15));
+    }
+
+    .client-name {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-3xl);
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
+      line-height: 1;
+    }
+
+    /* ── BOTTOM STATUS STRIP ───────────────────────────────────── */
+    .status-strip {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: var(--space-5);
+      flex-wrap: wrap;
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--rule-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+    }
+
+    .status-item {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      white-space: nowrap;
+    }
+
+    .status-item strong {
+      color: var(--ink-primary);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-sep {
+      width: 1px;
+      height: 10px;
+      background: var(--rule-default);
+      flex-shrink: 0;
+    }
+
+    /* ── SITE SELECTOR ─────────────────────────────────────────── */
+    .site-trigger {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      margin: -4px -4px -4px -8px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-1);
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      color: var(--ink-tertiary);
+      cursor: pointer;
+      transition: all var(--dur-quick) var(--ease-out);
+    }
+
+    .site-trigger:hover {
+      border-color: var(--rule-default);
+      background: var(--inset);
+      color: var(--ink-primary);
+    }
+
+    .site-trigger[aria-expanded="true"] {
+      border-color: var(--amber);
+      background: var(--amber-glow);
+      color: var(--amber);
+    }
+
+    .site-trigger-caret {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--ink-tertiary);
+      transition: transform var(--dur-quick) var(--ease-out);
+    }
+
+    .site-trigger[aria-expanded="true"] .site-trigger-caret {
+      transform: rotate(180deg);
+      color: var(--amber);
+    }
+
+    /* Site picker popover — opens upward */
+    .site-picker {
+      position: absolute;
+      bottom: calc(100% + var(--space-3));
+      left: 0;
+      width: 380px;
+      max-width: calc(100vw - var(--space-8));
+      background: var(--elevated);
+      border: 1px solid var(--rule-default);
+      box-shadow: var(--shadow-3);
+      z-index: var(--z-overlay);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition:
+        opacity var(--dur-quick) var(--ease-out),
+        transform var(--dur-quick) var(--ease-out);
+    }
+
+    .site-picker[data-open="true"] {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .site-picker-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--rule-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+    }
+
+    .site-picker-list {
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .site-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--rule-faint);
+      cursor: pointer;
+      transition: background var(--dur-quick) var(--ease-out);
+      text-align: left;
+      width: 100%;
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      font: inherit;
+      color: inherit;
+    }
+
+    .site-row:last-child { border-bottom: none; }
+
+    .site-row:hover {
+      background: var(--rule-faint);
+    }
+
+    .site-row[data-active="true"] {
+      background: var(--amber-glow);
+    }
+
+    .site-row[data-active="true"]::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--amber);
+    }
+
+    .site-row { position: relative; }
+
+    .site-row-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .site-row-code {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-primary);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .site-row-name {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-sm);
+      color: var(--ink-secondary);
+      line-height: 1.2;
+    }
+
+    .site-row-meta {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-tertiary);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .site-row-ping {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      font-variant-numeric: tabular-nums;
+      padding: var(--space-1) var(--space-2);
+      border: 1px solid currentColor;
+      border-radius: var(--radius-pill);
+    }
+
+    .site-row-ping[data-tier="ok"]   { color: var(--signal-ok); }
+    .site-row-ping[data-tier="warn"] { color: var(--signal-warn); }
+    .site-row-ping[data-tier="crit"] { color: var(--signal-crit); }
+    .site-row-ping[data-tier="dead"] { color: var(--ink-tertiary); }
+
+    .site-mcs-badge {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      padding: 1px var(--space-1);
+      border: 1px solid var(--amber);
+      color: var(--amber);
+      border-radius: var(--radius-1);
+    }
+
+    .site-picker-foot {
+      padding: var(--space-2) var(--space-4);
+      border-top: 1px solid var(--rule-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-tertiary);
+      background: var(--surface);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* ── PING PILL ─────────────────────────────────────────────── */
+    .ping-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-pill);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      font-variant-numeric: tabular-nums;
+      transition: all var(--dur-default) var(--ease-out);
+      border: 1px solid currentColor;
+    }
+
+    .ping-pill[data-tier="ok"]   { color: var(--signal-ok);   background: var(--signal-ok-glow);   box-shadow: 0 0 12px var(--signal-ok-glow); }
+    .ping-pill[data-tier="warn"] { color: var(--signal-warn); background: var(--signal-warn-glow); box-shadow: 0 0 12px var(--signal-warn-glow); }
+    .ping-pill[data-tier="crit"] { color: var(--signal-crit); background: var(--signal-crit-glow); box-shadow: 0 0 14px var(--signal-crit-glow); animation: blink 1.6s ease-in-out infinite; }
+    .ping-pill[data-tier="dead"] { color: var(--ink-tertiary); background: transparent; box-shadow: none; }
+
+    .ping-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* ── RIGHT · Form ──────────────────────────────────────────── */
+    .login-form-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-12) var(--space-8);
+    }
+
+    .login-form {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+
+    .login-eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest);
+      text-transform: uppercase;
+      color: var(--amber);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .login-eyebrow::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .login-title {
+      font-family: var(--font-display);
+      font-size: var(--text-4xl);
+      line-height: 1;
+      letter-spacing: var(--tracking-tightest);
+      color: var(--ink-primary);
+    }
+    .login-title em { font-style: italic; }
+
+    .login-sub {
+      font-size: var(--text-sm);
+      color: var(--ink-secondary);
+      line-height: var(--leading-snug);
+    }
+
+    .signed-into {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--inset);
+      border: 1px solid var(--rule-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-secondary);
+      text-transform: uppercase;
+    }
+    .signed-into strong { color: var(--ink-primary); font-weight: 500; }
+
+    .login-fields { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-2); }
+
+    .login-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);
+    }
+    .login-row a:hover { color: var(--amber); }
+
+    .login-divider {
+      display: flex; align-items: center; gap: var(--space-3);
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-widest); text-transform: uppercase;
+      color: var(--ink-tertiary);
+    }
+    .login-divider::before,
+    .login-divider::after { content: ""; flex: 1; height: 1px; background: var(--rule-subtle); }
+
+    .login-foot {
+      text-align: center;
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);
+      padding-top: var(--space-6); border-top: 1px solid var(--rule-subtle);
+    }
+
+    /* Toast on site switch */
+    .site-toast {
+      position: fixed;
+      top: var(--space-6);
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      background: var(--elevated);
+      border: 1px solid var(--amber);
+      padding: var(--space-3) var(--space-5);
+      box-shadow: var(--shadow-3);
+      z-index: var(--z-toast);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-primary);
+      transition: transform var(--dur-default) var(--ease-snap);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .site-toast[data-show="true"] {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <main class="login-shell">
+
+    <aside class="login-marquee" aria-label="Facility identification">
+
+      <header class="marquee-header">
+        <img class="marquee-logo" data-bind="brand-logo" alt="" hidden />
+        <span class="marquee-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="marquee-tag">Warehouse Ops · Est. 2026</span>
+      </header>
+
+      <div class="client-logo-stage">
+        <div class="client-logo-frame">
+          <img src="assets/client-logo.svg" alt="" id="client-logo" />
+        </div>
+        <span class="client-name" id="client-name"><em>Your Facility</em></span>
+      </div>
+
+      <!-- Bottom status strip with site picker -->
+      <div class="status-strip" aria-label="System status">
+
+        <!-- SITE SELECTOR -->
+        <span class="status-item" style="position: relative;">
+          Site ·
+          <button class="site-trigger" id="site-trigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="site-picker">
+            <strong id="site-name-display">WHS-001 · DAL</strong>
+            <span class="site-trigger-caret">▼</span>
+          </button>
+
+          <!-- POPOVER -->
+          <div class="site-picker" id="site-picker" data-open="false" role="listbox">
+            <div class="site-picker-head">
+              <span>Select site</span>
+              <span style="color: var(--ink-tertiary);">5 sites</span>
+            </div>
+            <div class="site-picker-list" id="site-list">
+              <!-- populated via JS -->
+            </div>
+            <div class="site-picker-foot">
+              <span>Each site has its own users &amp; data</span>
+              <span style="color: var(--amber);">✱ Master</span>
+            </div>
+          </div>
+        </span>
+
+        <span class="status-sep"></span>
+        <span class="status-item">Build · <strong id="site-build">—</strong></span>
+
+        <span class="status-sep"></span>
+        <span class="status-item">Status · <strong id="sys-status">—</strong></span>
+
+        <span class="status-sep"></span>
+        <span class="status-item">Uptime · <strong id="sys-uptime">— · —</strong></span>
+
+        <span class="status-sep"></span>
+        <span class="status-item">
+          <span class="ping-pill" id="ping-pill" data-tier="dead">
+            <span class="ping-dot"></span>
+            <span>Ping · <strong id="ping-value">— ms</strong></span>
+          </span>
+        </span>
+      </div>
+
+    </aside>
+
+    <section class="login-form-wrap">
+      <form class="login-form" onsubmit="event.preventDefault(); window.location.href='index.html';">
+
+        <span class="login-eyebrow">Sign In · Console 01</span>
+        <h2 class="login-title">Welcome <em>back.</em></h2>
+
+        <p class="login-sub">
+          Enter your operator credentials. You will be authenticated against the selected site's user directory.
+        </p>
+
+        <div class="signed-into">
+          <span class="dot dot--amber"></span>
+          <span>Signing in to · <strong id="signing-into">WHS-001 · DAL</strong></span>
+        </div>
+
+        <div class="login-fields">
+          <div class="field">
+            <label class="field-label" for="email">Operator ID or Email</label>
+            <input class="input input--mono" type="text" id="email" placeholder="op-1004  |  name@warehouse.io" autocomplete="username" required>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="pin">PIN or Password</label>
+            <input class="input input--mono" type="password" id="pin" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+
+          <div class="login-row">
+            <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+              <input type="checkbox" style="accent-color: var(--amber);">
+              <span>Keep me signed in this shift</span>
+            </label>
+            <a href="#">Forgot PIN ↗</a>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--lg btn-arrow" type="submit" style="justify-content: space-between;">
+          <span>Sign in &amp; clock on</span>
+        </button>
+
+        <div class="login-divider">Or</div>
+
+        <button class="btn" type="button" style="justify-content: center;">
+          <span>Sign in with SSO</span>
+        </button>
+
+        <p class="login-foot">
+          By signing in, you agree to your facility's operating procedures.<br>
+          <span style="color: var(--ink-muted);">© 2026 · WMS</span>
+        </p>
+
+      </form>
+    </section>
+
+  </main>
+
+  <!-- Toast (hidden by default) -->
+  <div class="site-toast" id="site-toast">
+    <span class="dot dot--amber"></span>
+    <span>Switched to · <strong id="toast-site">—</strong></span>
+  </div>
+
+  <script>
+    /* ══════════════════════════════════════════════════════════════════════
+       SITE DIRECTORY
+       In production this list comes from the Master Control Site (MCS):
+         GET https://mcs.wms.example/api/sites
+       Each site has its own backend, user DB, and health endpoint.
+       ══════════════════════════════════════════════════════════════════════ */
+    const SITES = [
+      {
+        id: 'mcs',
+        code: 'MCS · CORP',
+        name: 'Master Control · Corporate',
+        host: window.location.origin,   // demo: all point to local
+        healthPath: '/assets/client-logo.svg',
+        build: 'v0.1.0',
+        bootOffsetMs: 64 * 86400000 + 4 * 3600000,
+        role: 'master',
+      },
+      {
+        id: 'whs-001-dal',
+        code: 'WHS-001 · DAL',
+        name: 'Dallas Distribution',
+        host: window.location.origin,
+        healthPath: '/assets/client-logo.svg',
+        build: 'v0.1.0',
+        bootOffsetMs: 42 * 86400000 + 18 * 3600000,
+      },
+      {
+        id: 'whs-002-hou',
+        code: 'WHS-002 · HOU',
+        name: 'Houston Plant',
+        host: window.location.origin,
+        healthPath: '/assets/client-logo.svg',
+        build: 'v0.1.0',
+        bootOffsetMs: 12 * 86400000 + 7 * 3600000,
+      },
+      {
+        id: 'whs-003-lax',
+        code: 'WHS-003 · LAX',
+        name: 'Los Angeles Cold Storage',
+        host: window.location.origin,
+        healthPath: '/assets/client-logo.svg',
+        build: 'v0.0.9',
+        bootOffsetMs: 3 * 3600000,
+      },
+      {
+        id: 'whs-004-nyc',
+        code: 'WHS-004 · NYC',
+        name: 'New York Reverse Logistics',
+        host: window.location.origin,
+        healthPath: '/assets/client-logo.svg',
+        build: 'v0.0.8',
+        bootOffsetMs: 0,   // simulate "just booted" or offline
+        offline: true,
+      },
+    ];
+
+    /* ── State ─────────────────────────────────────────────────────── */
+    let activeSiteId = localStorage.getItem('wms.activeSiteId') || 'whs-001-dal';
+    let activeSite = SITES.find(s => s.id === activeSiteId) || SITES[1];
+
+    /* ── DOM refs ──────────────────────────────────────────────────── */
+    const trigger      = document.getElementById('site-trigger');
+    const picker       = document.getElementById('site-picker');
+    const list         = document.getElementById('site-list');
+    const siteNameDisp = document.getElementById('site-name-display');
+    const buildEl      = document.getElementById('site-build');
+    const uptimeEl     = document.getElementById('sys-uptime');
+    const statusEl     = document.getElementById('sys-status');
+    const pingPill     = document.getElementById('ping-pill');
+    const pingValue    = document.getElementById('ping-value');
+    const signingInto  = document.getElementById('signing-into');
+    const toast        = document.getElementById('site-toast');
+    const toastSite    = document.getElementById('toast-site');
+
+    /* ── Branding (logo + facility name + brand mark swap) ─────────── */
+    (() => {
+      const logo = localStorage.getItem('wms.clientLogo');
+      const name = localStorage.getItem('wms.clientName');
+      if (logo) {
+        document.getElementById('client-logo').src = logo;
+        document.querySelectorAll('[data-bind="brand-logo"]').forEach(img => {
+          img.src = logo;
+          img.hidden = false;
+        });
+        document.querySelectorAll('[data-bind="brand-mark"]').forEach(el => {
+          el.style.display = 'none';
+        });
+      }
+      if (name) document.getElementById('client-name').innerHTML = `<em>${name}</em>`;
+    })();
+
+    /* ══════════════════════════════════════════════════════════════════════
+       UTILITIES
+       ══════════════════════════════════════════════════════════════════════ */
+    function tier(ms) {
+      if (ms === null) return 'dead';
+      if (ms <= 74)  return 'ok';
+      if (ms <= 149) return 'warn';
+      return 'crit';
+    }
+
+    function fmtUptime(bootMs) {
+      if (!bootMs) return 'offline';
+      const ms = Date.now() - bootMs;
+      const days = Math.floor(ms / 86400000);
+      const hrs  = Math.floor((ms % 86400000) / 3600000);
+      const mins = Math.floor((ms % 3600000) / 60000);
+      const secs = Math.floor((ms % 60000) / 1000);
+      return `${days}d · ${String(hrs).padStart(2,'0')}h ${String(mins).padStart(2,'0')}m ${String(secs).padStart(2,'0')}s`;
+    }
+
+    async function pingSite(site) {
+      if (site.offline) return null;
+      const t0 = performance.now();
+      try {
+        const url = `${site.host}${site.healthPath}?_=${Date.now()}`;
+        const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+        if (!res.ok) throw new Error('non-2xx');
+        return Math.round(performance.now() - t0);
+      } catch {
+        return null;
+      }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       SITE PICKER LIST RENDERING
+       ══════════════════════════════════════════════════════════════════════ */
+    function renderSiteList() {
+      list.innerHTML = '';
+      SITES.forEach(site => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'site-row';
+        row.setAttribute('role', 'option');
+        row.dataset.siteId = site.id;
+        row.dataset.active = String(site.id === activeSite.id);
+        row.innerHTML = `
+          <span class="dot dot--${site.offline ? 'crit' : 'ok'}"></span>
+          <div class="site-row-info">
+            <span class="site-row-code">
+              ${site.code}
+              ${site.role === 'master' ? '<span class="site-mcs-badge">Master</span>' : ''}
+            </span>
+            <span class="site-row-name">${site.name}</span>
+            <span class="site-row-meta">${site.build} · ${site.offline ? 'OFFLINE' : 'uptime ' + fmtUptimeCompact(Date.now() - site.bootOffsetMs)}</span>
+          </div>
+          <span class="site-row-ping" data-tier="dead" data-site-ping="${site.id}">— ms</span>
+        `;
+        row.addEventListener('click', () => switchSite(site.id));
+        list.appendChild(row);
+      });
+
+      // Probe each site for ping
+      SITES.forEach(async (site) => {
+        const ms = await pingSite(site);
+        const el = list.querySelector(`[data-site-ping="${site.id}"]`);
+        if (!el) return;
+        if (ms === null) {
+          el.dataset.tier = 'dead';
+          el.textContent = 'OFFLINE';
+        } else {
+          el.dataset.tier = tier(ms);
+          el.textContent = `${ms} ms`;
+        }
+      });
+    }
+
+    function fmtUptimeCompact(ms) {
+      const days = Math.floor(ms / 86400000);
+      const hrs  = Math.floor((ms % 86400000) / 3600000);
+      if (days > 0) return `${days}d ${hrs}h`;
+      const mins = Math.floor((ms % 3600000) / 60000);
+      return `${hrs}h ${mins}m`;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       SITE SWITCH — Updates UI + (would) redirect to that site's host
+       ══════════════════════════════════════════════════════════════════════ */
+    function switchSite(siteId) {
+      const next = SITES.find(s => s.id === siteId);
+      if (!next) return;
+      activeSite = next;
+      activeSiteId = siteId;
+      localStorage.setItem('wms.activeSiteId', siteId);
+
+      siteNameDisp.textContent = next.code;
+      buildEl.textContent = next.build;
+      signingInto.textContent = next.code;
+
+      list.querySelectorAll('.site-row').forEach(r => {
+        r.dataset.active = String(r.dataset.siteId === siteId);
+      });
+
+      closePicker();
+      showToast(next.code);
+      pingAndUpdateActive();
+
+      // In production: redirect to that site's host so subsequent auth hits that backend
+      // window.location.href = `${next.host}/login`;
+    }
+
+    function showToast(label) {
+      toastSite.textContent = label;
+      toast.dataset.show = 'true';
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => { toast.dataset.show = 'false'; }, 2200);
+    }
+
+    /* ── OPEN / CLOSE PICKER ───────────────────────────────────────── */
+    function openPicker() {
+      picker.dataset.open = 'true';
+      trigger.setAttribute('aria-expanded', 'true');
+      renderSiteList();
+      document.addEventListener('click', onOutside, true);
+    }
+    function closePicker() {
+      picker.dataset.open = 'false';
+      trigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onOutside, true);
+    }
+    function onOutside(e) {
+      if (!picker.contains(e.target) && !trigger.contains(e.target)) closePicker();
+    }
+    trigger.addEventListener('click', () => {
+      picker.dataset.open === 'true' ? closePicker() : openPicker();
+    });
+
+    /* ══════════════════════════════════════════════════════════════════════
+       ACTIVE SITE LIVE TICKERS
+       ══════════════════════════════════════════════════════════════════════ */
+    function tickUptime() {
+      if (activeSite.offline) {
+        uptimeEl.textContent = 'offline';
+        return;
+      }
+      uptimeEl.textContent = fmtUptime(Date.now() - activeSite.bootOffsetMs);
+    }
+
+    async function pingAndUpdateActive() {
+      if (activeSite.offline) {
+        pingPill.dataset.tier = 'dead';
+        pingValue.textContent = 'OFFLINE';
+        statusEl.textContent = 'Offline';
+        return;
+      }
+      const ms = await pingSite(activeSite);
+      if (ms === null) {
+        pingPill.dataset.tier = 'dead';
+        pingValue.textContent = 'OFFLINE';
+        statusEl.textContent = 'Offline';
+      } else {
+        const t = tier(ms);
+        pingPill.dataset.tier = t;
+        pingValue.textContent = `${ms} ms`;
+        statusEl.textContent = t === 'crit' ? 'Degraded' : 'Online';
+      }
+    }
+
+    // Initial paint
+    buildEl.textContent = activeSite.build;
+    siteNameDisp.textContent = activeSite.code;
+    signingInto.textContent = activeSite.code;
+    tickUptime();
+    pingAndUpdateActive();
+    setInterval(tickUptime, 1000);
+    setInterval(pingAndUpdateActive, 5000);
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,832 @@
+========================================
+WMS SYSTEM - MODULAR ARCHITECTURE WITH ROLE-BASED ACCESS CONTROL
+(Food Manufacturing & Distribution)
+========================================
+
+PERMISSION SYSTEM - CLIENT CONFIGURABLE
+========================================
+System supports FLEXIBLE, client-customizable roles + permissions (not rigid levels).
+
+DEFAULT STRUCTURE (Phase 1):
+├─ Level 1 (Picker/Operator): Operational execution - receive, ship, produce, scan, lookup
+├─ Level 2 (Lead/Supervisor): Team coordination - assign tasks, approve overrides, view team performance
+├─ Level 3 (Supervisor): Department management - cross-team visibility, modify procedures, master data
+├─ Level 4 (Manager): Strategic execution - cross-dept visibility, business logic configuration
+└─ Level 5 (Admin): System control - configuration, security, user management, integrations
+
+CUSTOMIZABLE ROLES (Phase 1 Foundation):
+Client can create custom TITLES with custom PERMISSION TEMPLATES:
+- Define roles: "Warehouse Manager", "Picker", "QA Inspector", "Production Lead", "Shipping Coordinator", etc.
+- Create permission templates per title (e.g., "Picking Template" = specific picking permissions)
+- Assign users to titles + optional permission overrides
+- Audit trail: who changed permissions, when, what changed
+
+PERMISSION GRANULARITY:
+Each function has individual permissions (can be granted/revoked per user/title):
+├─ Receiving: can_receive, can_qc, can_override_qc, can_approve_asn, can_assign_location, etc.
+├─ Shipping: can_pick, can_override_fifo, can_modify_order, can_approve_order_change, etc.
+├─ Production: can_create_work_order, can_override_ingredient_shortage, can_use_expired_ingredient, etc.
+├─ QA: can_hold_item, can_release_item, can_destroy_item, can_approve_destruction, etc.
+├─ Inventory: can_adjust_qty, can_transfer_warehouse, can_perform_cycle_count, etc.
+├─ Reports: can_view_cost_data, can_export_genealogy, can_view_audit_logs, etc.
+├─ Admin: can_manage_users, can_configure_system, can_change_permissions, etc.
+
+CLIENT CONTROL:
+Lvl 4+ (Admin) can:
+- Create new titles (custom role names)
+- Create permission templates (bundle permissions into reusable templates)
+- Assign templates to titles
+- Override permissions per user (grant/revoke individual permissions)
+- Audit all permission changes (who changed what, when)
+- Import/export permission configurations
+
+CRITICAL: All actions logged with audit trail (user, timestamp, action, reason for overrides, old→new values)
+
+UNITS OF MEASUREMENT (UOM) SUPPORT - GLOBALLY IMPLEMENTED
+==========================================================
+System supports multiple UOMs across all modules:
+- Units (individual items, each)
+- Weight (lbs, kg, oz, grams)
+- Volume (gallons, liters, ml)
+- Custom UOM per client configuration
+
+SKU can have multiple UOM support (e.g., flour = "lbs" or "50-lb bags")
+Storage location configured with max capacity in ANY UOM (e.g., max 2000 lbs OR max 50 units)
+Receiving/Shipping/Production track both UOM and quantity (100 lbs, 50 units, etc.)
+Automatic conversion tracking (if 50 lb bag = 1 unit, system converts)
+
+
+MODULE 1: RECEIVING
+==================
+Core Functions:
+
+    Receive Inventory Scan [Lvl 1]
+        - Scan inbound barcode/QR code (REC-MMDDYY-UID)
+        - Confirm QTY received vs expected (in configured UOM)
+        - Captures: Date, time, scanned by, UOM, quantity
+        - Data isolated to assigned receiving dock/area
+
+    ASN (Advanced Shipping Notice) Matching [Lvl 2+]
+        - Match PO → ASN → Physical receipt
+        - Variance threshold: >1% auto-notifies Lvl 2+ + requires approval (configurable per client)
+        - Variance types: QTY mismatch, wrong SKU, damaged goods, missing items
+        - Lvl 2 review + approval required for all variances >1%
+        - System blocks receipt completion until variance approved
+
+    Quality Check (Incoming) [Lvl 1] — MANDATORY, BLOCKING
+        - Operator checks QTY (count/weight) and CONDITION (damage, discoloration, odor, etc.)
+        - QC is ALWAYS mandatory, cannot be skipped
+        - Receipt held until QC complete
+        - Minor damage: auto-alert to Lvl 2+ (no QA hold, continues to inventory)
+        - Major damage: auto-alert to Lvl 3+, places on QA Hold (requires decision: accept/reject)
+        - Photo capture supported (attach to receipt)
+        - Operator notes + photo documentation required for all damage
+
+    Assign Location [Lvl 2]
+        - FIFO putaway strategy (oldest received first) - automatic
+        - System suggests FIFO location (nearest available, zone-based)
+        - Location max capacity: configurable by Lvl 3+ (50 units OR 2000 lbs, e.g.)
+        - UOM compatibility check (lbs location cannot receive units-only item)
+        - If primary location full: system suggests overflow location (client can declare overflow zones)
+        - Overflow locations tracked separately for future consolidation planning
+        - FIFO can be overridden by Lvl 2+ with documented reason (audit trail)
+        - Lvl 1 executes putaway to system-assigned location (primary or overflow)
+
+    Label Generation & Printing [Lvl 1]
+        - Print UID labels with QR/Barcode (REC-MMDDYY-UID)
+        - Captures: UID, lot/batch#, received date, location, SKU, UOM, quantity, supplier
+        - Apply to physical inventory immediately upon scan
+        - FIFO location sequence tracked on label (location hierarchy)
+
+    Generate Receiving Report [Lvl 2+]
+        - Lvl 2: View own shift/area reports
+        - Lvl 3: View department reports + supplier performance (on-time %, defect %)
+        - Lvl 4: View all receiving (by supplier, date, discrepancy rate, variance trending)
+        - Includes: Items received, QTY, UOM, dock utilization, variance rate
+
+
+MODULE 2: SHIPPING
+==================
+Core Functions:
+
+    View Available Inventory [Lvl 1+]
+        - Search by SKU, location, or lot/batch#
+        - Show: Available qty (NOT on QA hold), UOM, lot info, expiration date
+        - Inventory tiers visible to management: on-hand, available, reserved, QA_HOLD
+        - Lvl 1: See only assigned picking area
+        - Lvl 2+: See full warehouse
+
+    View Pending Orders [Lvl 2+]
+        - List orders pending shipment by due date
+        - Show inventory status: in-stock, partial-stock, backorder
+        - Calculate pick timing + dock capacity
+        - Lvl 2: Own shift only, Lvl 3+: All orders
+
+    Pick Task Assignment [Lvl 2]
+        - Assign picking tasks to Lvl 1 users
+        - View pick queue and status
+        - Reassign if user unable to complete
+        - Set pick priority (rush, normal, scheduled)
+
+    Execute Picking (FIFO/FEFO Logic) [Lvl 1]
+        - View assigned picking tasks with order details
+        - System displays: "Pick for [PRODUCTION / SHIPPING]"
+        - If picking for PRODUCTION: enforce FIFO (oldest lot first)
+        - If picking for SHIPPING: enforce FEFO if expiration < 7 days (configurable per client/warehouse)
+            * FEFO = pick expiring soon first, even if not oldest
+            * Notifies picker: "Lot A expires in 5 days, FEFO priority — pick this first"
+            * Items expiring < 7 days: CANNOT SHIP without Lvl 2+ approval (configurable threshold)
+            * System prevents shipment: "Lot A expires 2026-05-20, requires Lvl 2+ approval to ship"
+        - Scan location, then scan item UID (validates FIFO/FEFO)
+        - Confirm quantity picked in UOM
+        - Handheld/RF device support
+
+    Multi-Lot Shipment Support [Lvl 2]
+        - Single order can be shipped from multiple lots/batches
+        - System consolidates into SINGLE SHIPMENT (standard)
+        - All lots tracked in single packing slip with line-item breakdown
+        - Each line shows: Lot#, Expiration Date, Quantity, UOM
+
+    Packaging Slip Generation [Lvl 1]
+        - Auto-generate slip with:
+            * Order line items + quantities + UOM
+            * Lot/Batch# per line item (show if multiple lots: "Lot A: 60 units, Lot B: 40 units")
+            * Lot expiration dates (if applicable)
+            * Ship-to address
+            * UID barcode (SHIP-MMDDYY-UID)
+            * Pick verification checklist
+        - Print at pack station, verify before sealing carton
+
+    Order Modification [Lvl 2+]
+        - If unpicked items modified: Alert user, no approval needed (order already approved)
+        - If picked items modified: Requires Lvl 2+ approval (cost impact: restock labor, potential loss)
+        - If approved: System allows unpack/re-stock of picked items
+        - System updates inventory quantities + tracks restock reason code
+        - Audit trail: who modified, when, approval by, cost reason
+
+    Truck Weight Limit Enforcement [Lvl 1]
+        - Configure truck capacity by type (dry, refrigerated, flatbed, etc.)
+        - During shipment staging: calculate total weight (sum all cartons)
+        - Alert if weight > capacity
+        - Cartonization: auto-split shipment if weight exceeds limit
+        - Configurable by client (Lvl 4)
+
+    Ship Inventory Scan [Lvl 1]
+        - Scan each UID as it goes into carton/trailer
+        - Confirm destination and truck/trip ID
+        - Record shipper name, time, signature
+        - UOM verification (units vs lbs match carton label)
+
+    Generate Shipping Report [Lvl 2+]
+        - Lvl 2: Shift shipments (volume, accuracy)
+        - Lvl 3: Department KPIs (on-time %, error rate, cost per shipment)
+        - Lvl 4: All shipping metrics, multi-lot shipment tracking, weight compliance
+
+
+MODULE 3: PRODUCTION
+====================
+Core Functions:
+
+    View Work Orders [Lvl 1+]
+        - Lvl 1: Assigned work orders only
+        - Lvl 2: Team work orders, can reassign
+        - Lvl 3: Department work orders, can create/modify
+        - Lvl 4: All work orders, schedule production
+
+    Recipe/BOM Management [Lvl 3+]
+        - Define ingredients + quantities (in UOM: lbs, units, etc.)
+        - Define produced quantity (in UOM)
+        - Expiration date rule (e.g., "expires 30 days from production")
+        - Cost tracking: ingredient cost roll-up (cost per produced unit)
+        - Version history with approval workflow (Lvl 3: create, Lvl 4: approve)
+
+    Pre-Flight Ingredient Check [Lvl 2]
+        - Before assigning work order: verify all ingredients available
+        - Exclude QA_HOLD and BLOCKED inventory from availability
+        - EXCLUDE expired ingredients from available qty
+        - If insufficient ingredient qty: Lvl 2 override option with inventory consolidation requirement
+            * System alerts: "Ingredient X short by Y lbs, consolidate other locations?"
+            * Lvl 2 approves consolidation (move from other locations if available)
+            * If consolidation insufficient: suggest reschedule OR use expired ingredient (with override)
+        - Expired ingredient override: tracked in metrics + audit trail
+
+    Ingredient Consumption Variance [Lvl 1+]
+        - Recipe calls for 1870 lbs input, produced 2000 lbs output
+        - System allows qty mismatch (no blocking), but documents variance
+        - No investigation mandatory unless flag exceeds threshold (Lvl 4 configurable)
+        - Ingredient expiration used for KPIs + metrics, tracked by DATE not time
+        - Can use expired ingredients with Lvl 3+ override (tracked in audit trail)
+
+    Convert Inventory (Production Run) [Lvl 1]
+        - Receive production work order (Lvl 2 assigns)
+        - Scan/identify ingredients (validates FIFO, checks expiration)
+        - Confirm quantities consumed match recipe (in UOM)
+        - Record machine used, start time, end time
+        - System automatically consumes ingredients, updates inventory
+
+    Yield Tracking [Lvl 1+]
+        - Record produced amount at end of run (in UOM, e.g., "2000 lbs")
+        - System calculates: Expected qty → Actual qty → Variance %
+        - Threshold: 1% variance = normal, >1% = investigate + alert management
+        - Variance reason mandatory (Lvl 1 select: normal waste, equipment issue, quality, other)
+        - Over-production variance: same 1% threshold + notify management
+        - NO machine runtime/downtime tracking needed
+
+    Label Production Output [Lvl 1]
+        - Generate UID (PROD-MMDDYY-UID) with sequence for multiple runs
+        - Same lot number, different runs: append -1, -2, -3, etc.
+        - Multiple lots NOT created by splitting after production (use -1, -2 sequencing)
+        - Include QR/Barcode + production date + expiration date + lot/batch# + storage location + UOM + quantity
+        - Apply label immediately
+
+    Lot Genealogy Tracking (E2E) [System Automatic]
+        - Track ingredient lots → produced lot lineage
+        - Example: "Lot B (2000 lbs flour) + Lot C (1500 eggs) → PROD-050126-ABC1"
+        - For each produced lot: show all ingredient lots consumed (with quantities + UIDs)
+        - Real-time genealogy queries available for:
+            * Variance investigation (if yield variance >1%, trace ingredient issues)
+            * QA hold/recall situations (show affected lots + customers immediately)
+            * Manual lookups (Lvl 2+ can search lot ancestry on-demand)
+        - If ingredient supplier lot recalled: system flags all produced lots containing that ingredient
+            * Auto-quarantine affected produced lots (move to QA_HOLD, management review required)
+            * Alert: "Ingredient Lot B recalled, Product Lot ABC1 affected, 150 units shipped to Customer X"
+        - Batch genealogy reports:
+            * Auto-generated daily (for management review next morning)
+            * Manual on-demand triggers (immediate report for recall investigations)
+            * Export format: PDF, shows complete E2E lineage
+        - E2E traceability: from receiving → production → shipping with all lot links
+
+    Generate Production Report [Lvl 2+]
+        - Lvl 2: Shift production (units produced, yield %, variance)
+        - Lvl 3: Department KPIs (throughput, yield trends, variance investigation status)
+        - Lvl 4: Strategic analysis (lot genealogy reports, traceability for recalls, cost per unit)
+
+
+MODULE 4: QUALITY ASSURANCE
+===========================
+Core Functions:
+
+    Item Hold [Lvl 1]
+        - Flag item/lot for QA review (incoming or production)
+        - Attach defect code + operator notes + photo (optional)
+        - Auto-quarantine from available inventory → move to QA_HOLD tier
+        - System auto-alerts management (Lvl 3+)
+
+    QA Inspection & Testing [Lvl 2+]
+        - Review held items
+        - Document test results with timestamp, inspector name
+        - Test status: PASS, CONDITIONAL_PASS, FAIL
+        - Restrict SKU/Supplier for future if pattern detected
+
+    Item Release [Lvl 2+]
+        - Release held item back to available inventory
+        - Lvl 2 can release items with no defects
+        - Lvl 3+ required for conditional release
+
+    Item Destroy [Lvl 3+]
+        - Approve destruction (contamination, expired, etc.)
+        - Requires reason code + photo documentation
+        - Remove from inventory, audit trail logged
+        - Track cost impact
+
+    QA Hold Duration Monitoring [System Alert - Escalating]
+        - Days 1-14: Normal hold (no alert)
+        - Days 15-21: Lvl 3 alert: "Item held X days, escalate decision"
+        - Days 21-30: Lvl 4 alert: "Item held X days, requires manager action"
+        - Days 30+: Persistent alert (daily) until resolved
+        - System prevents indefinite holds, forces decision-making
+        - Report: "Items older than N days" (configurable, tracks all holds by age)
+
+    Restricted SKU Tracking [Lvl 3+]
+        - Track supplier defect metrics (defect rate % by supplier)
+        - NO auto-block, but notify management if pattern detected
+        - Lvl 3 can flag SKU for manual review, document decision
+        - Alert: "Supplier X defect rate = 8%, review recommended"
+
+    Product Age & Expiration Tracking [Lvl 2+]
+        - Track age from creation or receipt date
+        - Alert when expiration date is N days away (configurable)
+        - Auto-flag at expiration
+        - Non-moving for N days: report to management (slow-movers)
+
+    Generate QA Report [Lvl 2+]
+        - Lvl 2: Quality metrics for own area (hold rate, release rate)
+        - Lvl 3: Department quality trends
+        - Lvl 4: Supplier defect tracking, investigation status
+
+
+MODULE 5: INVENTORY MANAGEMENT
+==============================
+Core Functions:
+
+    Quick Lookup [Lvl 1+]
+        - Search SKU, location, or lot/batch#
+        - View: Current qty + UOM, location, lot info, expiration date
+        - Inventory tiers: on-hand, available, reserved, QA_HOLD, BLOCKED
+        - QA_HOLD inventory: counted separately, not in available qty
+        - Scan barcode to lookup
+        - Lvl 1: view only assigned area, Lvl 2+: full warehouse
+
+    FIFO Inventory Management [Lvl 2+]
+        - FIFO putaway strategy (place newer stock behind older)
+        - FIFO picking strategy (system enforces oldest lot first)
+        - FIFO location assignments (organize by receive date)
+        - FIFO enforced by default, can override by Lvl 2+ with documented reason
+        - Audit trail logs all FIFO overrides
+
+    FEFO (First Expire First Out) for Expiring Items [Lvl 1+]
+        - If expiration date < N days (configurable by Lvl 4): switch to FEFO picking
+        - Picker notified: "Pick Lot A (expires 5 days) before Lot B (expires 30 days)"
+        - System enforces FEFO priority when expiration critical
+        - Works alongside FIFO (FIFO for normal, FEFO for near-expiration)
+
+    Safety Stock Management [Lvl 3+]
+        - Set reorder point per SKU (based on demand history, lead time)
+        - Set min/max thresholds (trigger reorder alerts)
+        - Safety stock calculation: based on USABLE stock only (excludes QA_HOLD + BLOCKED)
+        - Alert if safety stock compromised: "Safety stock = 20 units, only 5 available (75 on QA hold)"
+        - Safety stock qty override (Lvl 3, with reason code)
+        - Low stock alerts (dashboard + management notifications)
+
+    Adjust Quantity [Lvl 2+]
+        - Adjust QTY for shrinkage, damage, etc.
+        - Lvl 2: Can adjust, but requires reason code
+        - Lvl 3: Authorizes qty adjustments
+        - Lvl 4: Write-off decisions + variance investigation
+        - Before/after QTY logged + audit trail
+        - Management alert: all discrepancies (shrinkage, overages, damage)
+        - System flags suspiciously high adjustments (variance > 5%)
+
+    Move Locations [Lvl 1+]
+        - Move inventory between locations
+        - Lvl 1: Within assigned zone, scan source + destination (validates UOM + capacity)
+        - Lvl 2: Between zones, validates FIFO rules + UOM compatibility
+        - System updates location + move timestamp + moved by
+
+    Add SKU [Lvl 3+]
+        - Create new SKU in master data
+        - Define: SKU code, description, primary UOM, alt UOMs, category
+        - Set default storage location rules + UOM compatibility
+        - Set safety stock defaults + reorder point
+        - Lvl 3: Add to own department, Lvl 4: Add globally
+
+    Delete SKU [Lvl 4]
+        - Soft-delete (mark inactive, archive history)
+        - Hard delete only if 0 qty + no history
+
+    Slow-Moving Inventory (Dead Stock) [Lvl 3+]
+        - Non-moving for N days (configurable by client): report to management
+        - Suggest discounted pricing or clearance sale (Lvl 4 decides)
+        - Track aging report by product
+        - Option: donate to charity (if enabled by client)
+
+    Inventory Audit (Cycle Counting) [Lvl 2+]
+        - Annual full inventory audit (default schedule, per client)
+        - Configurable audit schedule: quarterly, monthly, on-demand per client
+        - Audit types:
+            * Full count: all items in warehouse
+            * Selective count: single item audit or specific location
+            * Spot check: random N items daily/weekly
+        - Expected inventory vs actual inventory count
+        - Generate variance report (discrepancies by location/SKU/lot)
+        - Manual count or barcode scan verification (both supported)
+        - Management approval required for large variances (>5% or >$X)
+
+    Inventory Tier Separation [System Automatic]
+        - On-hand: total physical quantity
+        - Available: on-hand MINUS reserved MINUS QA_HOLD
+        - Reserved: allocated to orders/production
+        - QA_HOLD: on quality hold (counted separately, NOT in available)
+        - BLOCKED: do not use (supplier recall, internal hold)
+        - Shipping/Production can only pick from "Available" tier
+        - System prevents picking from QA_HOLD or BLOCKED tiers
+
+    Warehouse Transfers (Multi-Warehouse) [Lvl 2+]
+        - If multi-warehouse enabled: initiate transfer Warehouse A → B
+        - Tracks in-transit inventory (not available at either location during transfer)
+        - Transit time: assume 1-2 days (configurable by client)
+        - Both warehouses updated: Warehouse A qty decreases, B qty increases
+        - Track: approver, date, time, reason
+        - Lvl 2 can initiate, Lvl 3+ can approve
+
+    Generate Inventory Report [Lvl 1+]
+        - Lvl 1: View assigned zone inventory
+        - Lvl 2: Full warehouse view (by location, by SKU, by lot)
+        - Lvl 3: Inventory aging, slow-moving items, expiration alerts, variance trends
+        - Lvl 4: Multi-warehouse, inventory valuation, SKU profitability
+
+
+MODULE 6: METRICS & REPORTING
+============================
+Core Functions:
+
+    Operational Metrics Dashboard [Lvl 2+]
+        - Metrics update interval: Every 5 minutes (cached, not real-time)
+        - Track:
+            * Receiving: items received, dock utilization, variance rate
+            * Shipping: orders shipped, pick accuracy, on-time %
+            * Production: units produced, yield %, variance alerts
+            * QA: hold count, release count, average hold duration, items > 14 days
+            * Inventory: current on-hand, available, QA_HOLD qty, adjustments
+        - Dimensions: by shift, department, user, machine, product, supplier
+        - Lvl 2: Shift/area metrics only
+        - Lvl 3: Department metrics
+        - Lvl 4: All locations + trend analysis
+
+    KPI Reports (On-Demand or Daily) [Lvl 2+]
+        - Generate on-demand (user-initiated)
+        - OR schedule daily report (configurable by client)
+        - Report format: PDF or Excel
+        - Export/email to stakeholders
+        - Lvl 3: Department KPIs, Lvl 4: All KPIs
+
+    Outlier Detection & Alerts [Lvl 3+]
+        - Configurable by: position, metric (picks/hour), department, machine, warehouse
+        - Baseline options (user can select):
+            * Per-user baseline (user's own 30-day average)
+            * Team average (compare user vs team)
+            * Both available (client configurable)
+        - Outlier threshold: 20% deviation from baseline (configurable per client)
+        - If metric deviates > 20%: alert management (auto-email to Lvl 3+)
+        - Example: "Operator A normally picks 100 units/hour, today 75 units (25% below baseline)"
+        - All outlier alerts logged + require Lvl 2 explanation (notes in system)
+
+    Price Tracking & Conversion [Lvl 3+]
+        - Track ingredient cost per unit (landed cost)
+        - Track produced item cost (ingredient cost roll-up by recipe)
+        - Conversion: "1 batch flour (50 lbs @ $0.50/lb) + 10 eggs (@$0.10 each) = 100 loaves @ $0.30 cost"
+        - NO cost allocation across departments/warehouses
+        - Cost visibility: Lvl 3 read-only, Lvl 4 read+write
+
+    Expired Ingredient Override Tracking [System Automatic]
+        - Track all expired ingredient uses in metrics
+        - Metrics collected:
+            * # of times ingredient SKU used past expiration (by SKU)
+            * # of times user approved expired ingredient (by user)
+            * # of times department used expired ingredients (by dept)
+        - Dashboard alerts: "Ingredient X used expired 12 times this month"
+        - Report: expired override frequency + trending (management review)
+
+    Lot Traceability Report (E2E) [Lvl 3+]
+        - Show lot genealogy: ingredient lots → produced lot → shipped lots
+        - Report schedule:
+            * Auto-generated daily (overnight, ready for morning review)
+            * Manual on-demand triggers (for variance/recall investigations, near real-time)
+        - Example report:
+            * "Produced Lot ABC1: Ingredients = Lot B (flour) + Lot C (eggs)"
+            * "Lot ABC1 shipped to: Customer X (50 units), Customer Y (100 units)"
+            * "Ingredient Lot B recalled: Lot ABC1 affected, customers = X, Y, Z, total units = 200"
+        - Includes: dates, quantities, UOM, all link points, customer list
+        - Exportable formats: PDF, CSV (regulatory/recall investigations)
+        - Internal use only (not customer-facing)
+
+    Items Older Than N Days [Lvl 3+]
+        - Track all items (on-hand + QA_HOLD) by age
+        - Report: "Items in warehouse > N days", "QA holds > 14 days"
+        - Metric: oldest item age by SKU, by location
+        - Management alert: QA hold > 14 days, non-moving > 60 days, expiring < 7 days
+
+    Supplier Performance Tracking [Lvl 3+]
+        - On-time delivery %
+        - Defect rate % (track over time)
+        - Defect trend: improving or worsening (moving average)
+        - Defect cost impact: $ value of rejected units per supplier
+        - NO auto-block, but notify management of trends
+        - Report: "Supplier X defect rate = 8%, trending up, cost impact = $2,500/month"
+
+    Generate Custom Reports [Lvl 2+]
+        - Report builder (select metrics, date range, grouping)
+        - Save as templates for recurring use
+        - Export (CSV, PDF, Excel)
+        - Schedule recurring reports (daily, weekly, monthly)
+        - Lvl 2: Basic reports, Lvl 3: Advanced filters, Lvl 4: All data
+
+
+MODULE 7: CHAT & COMMUNICATION
+==============================
+Core Functions (Basic Implementation):
+
+    Instant Chat [Lvl 1+]
+        - Chat with colleagues in real-time
+        - Department/shift-based groups (auto-created)
+        - Message history searchable
+
+    Urgent Messages [Lvl 2+]
+        - Flag message as urgent (alerts recipient)
+        - Lvl 2: Can mark own messages urgent
+        - Lvl 3+: Can escalate any message
+
+    Chat Groups [Lvl 1+]
+        - Pre-configured: Department, Shift, Location, Team
+        - Lvl 2 can create ad-hoc groups
+
+    Chat History [Lvl 1+]
+        - View chat history (searchable by date/user/content)
+        - Lvl 1: Own messages + shift group chat
+        - Lvl 3: All messages (compliance/audit)
+
+
+MODULE 8: USER MANAGEMENT & ADMINISTRATION
+===========================================
+Core Functions:
+
+    User Add/Edit/Delete [Lvl 4+]
+        - Add new user with: first/last name, employee ID, department, location, shift, manager
+        - Edit user: name, contact, department, location, shift, title (role), status
+        - Assign TITLE (custom role, e.g., "Picker", "Warehouse Manager", "QA Inspector")
+        - Optional: Override individual permissions (grant/revoke specific functions)
+        - Suspend user (Lvl 3: own dept, Lvl 4: all)
+        - Delete user (soft-delete, archive history + permission changes)
+        - Password reset on first login (automatic)
+
+    User Titles & Roles (Custom) [Lvl 4+]
+        - Create custom TITLES (role names): "Picker", "Warehouse Manager", "Production Lead", etc.
+        - Assign users to titles (replaces rigid 1-5 levels)
+        - Title determines base permissions (via template)
+        - Users can have permission overrides (additional grants/revokes on top of template)
+        - Archive titles (don't delete, preserve history)
+
+    Permission Templates [Lvl 4+]
+        - Create reusable PERMISSION TEMPLATES bundling related permissions
+        - Examples:
+            * "Picking Template": can_pick, can_override_fifo, can_view_order_details
+            * "QA Inspector Template": can_hold_item, can_release_item, can_view_hold_reports
+            * "Warehouse Manager Template": can_manage_users, can_configure_system, can_view_audit_logs
+            * "Admin Template": all permissions
+        - Assign templates to titles
+        - Edit templates (permission changes auto-apply to users with that template)
+        - Audit trail: who modified template, what changed, when
+
+    Granular Permission Management [Lvl 4+]
+        - 100+ individual permissions mapped to functions (configurable per client):
+            * Receiving: can_receive, can_qc, can_override_qc, can_approve_asn, can_assign_location, etc.
+            * Shipping: can_pick, can_override_fifo, can_modify_order, can_approve_order_change, etc.
+            * Production: can_create_work_order, can_override_ingredient_shortage, can_use_expired_ingredient, etc.
+            * QA: can_hold_item, can_release_item, can_destroy_item, can_approve_destruction, etc.
+            * Inventory: can_adjust_qty, can_transfer_warehouse, can_perform_cycle_count, etc.
+            * Reports: can_view_cost_data, can_export_genealogy, can_view_audit_logs, etc.
+        - UI allows grant/revoke per permission per user (overrides template)
+        - Bulk permission assignment (assign same permission to multiple users)
+
+    User Hierarchy & Organization [Lvl 3+]
+        - View manager-reports relationships
+        - Department/team assignments
+        - Shift assignments
+        - Lvl 3: View own department, Lvl 4: View all
+
+    Shift Management [Lvl 3+]
+        - Create/edit shifts + schedules
+        - Assign users to shifts
+        - Always a supervisor assigned to each shift
+        - Lvl 4: Global shift policy
+
+    Role-Based API Access [Lvl 4+]
+        - Generate API tokens per integration (ERP, e-commerce, suppliers)
+        - Define scope: read, write, read-write per module
+        - Rate limiting + expiration
+        - Token rotation + audit logging
+
+    Password Policy & Security [Lvl 5]
+        - Enforce password change on first login
+        - Password complexity rules
+        - Session timeout (configurable per role)
+        - Login attempt limits (lockout after N failures)
+        - Optional: multi-factor authentication
+
+    Permission Audit & Reporting [Lvl 4+]
+        - View permission change history (who changed, what changed, when)
+        - Generate permission report (user → permissions mapping)
+        - Export/import permission configurations (for multi-site deployment)
+        - Permission compliance audit (find users with conflicting permissions)
+
+
+MODULE 9: REPORTING & INVOICING
+================================
+Core Functions:
+
+    Generate Reports [Lvl 2+]
+        - Report scope filters: user, shift, department, machine, date range
+        - Report types:
+            * Receiving: items received, QTY, discrepancy rate, supplier performance
+            * Shipping: orders shipped, on-time %, accuracy %, by-lot breakdown
+            * Production: units produced, yield %, variance, by-recipe/machine
+            * QA: hold count, hold duration, defect trends
+            * Inventory: on-hand/available/QA_HOLD qty, adjustments, slow-movers
+            * Lot traceability: ingredient → product → customer link
+        - Lvl 2: Own shift only, Lvl 3: Department level, Lvl 4: All data
+        - Export: CSV, PDF, Excel
+        - Schedule: Daily or on-demand by user
+
+    Generate Invoices [Lvl 4+]
+        - Create invoice from shipped lots/batches
+        - Link to: order, shipment UIDs, lot details, quantities
+        - Generate PDF + email to customer
+        - Track invoice status: draft, sent, paid, overdue
+
+    Lot Genealogy Report [Lvl 3+]
+        - E2E traceability: supplier lot → warehouse → production → customer lot
+        - Export for regulatory/recall investigations
+        - Customer-facing report option (shipment contains which lots)
+
+
+MODULE 10: SYSTEM & INFRASTRUCTURE
+===================================
+Core Functions (Admin - Lvl 5 Only):
+
+    Database Architecture
+        - User Database (separate from operations)
+        - Inventory Database (main operational DB, PostgreSQL)
+        - Chat Database (SQLite - .sco/chat.db)
+        - Metrics Database (time-series for KPIs)
+        - Backup database (recovery standby)
+
+    Backup & Recovery [Lvl 5]
+        - Automated daily backups (configurable frequency)
+        - Backup encryption (AES-256)
+        - Test restore monthly
+        - Disaster recovery SLA: max 4-hour recovery time
+
+    Database Encryption [Lvl 5]
+        - Encrypt sensitive data at rest (user info, passwords, cost data)
+        - TLS 1.2+ encryption in transit
+        - Key management + annual rotation
+
+    Chat Encryption [Lvl 5]
+        - Standard encryption for all messages
+        - Optional end-to-end encryption for sensitive channels
+        - Message retention policy (configurable)
+
+    Label Generation & Scanning [All Levels]
+        - UID generation (REC-MMDDYY-UID, SHIP-MMDDYY-UID, PROD-MMDDYY-UID)
+        - QR/Barcode printing support
+        - Scanning device pairing (RF devices, handheld scanners)
+        - Barcode format validation
+
+    Integration APIs [Lvl 4+]
+        - ERP system sync (if client enabled)
+        - E-commerce order import (if client enabled)
+        - Supplier APIs (if enabled)
+        - API key management + rate limiting
+        - Data format validation + error logging
+
+    System Configuration [Lvl 5] — ALL PER-WAREHOUSE (if multi-warehouse)
+        - Warehouse layout (zones, locations, docks) + capacity rules (max qty/weight per location)
+        - SKU master data + UOM definitions (different warehouses may carry different products)
+        - Production machines + recipes (per warehouse)
+        - Supplier master data (per warehouse)
+        - Carrier master data + truck weight limits (per warehouse)
+        - Threshold settings (configurable per warehouse):
+            * FEFO expiration threshold (e.g., <5 days vs <7 days per warehouse)
+            * Yield variance threshold (1% is standard, but client can adjust per warehouse/product)
+            * QA hold SLA (14 days standard, configurable per warehouse)
+            * ASN variance threshold (>1% standard, client can adjust)
+            * Outlier detection threshold (20% deviation, configurable per warehouse)
+        - Client preferences (FIFO/FEFO behavior, cycle count frequency, report schedule, audit trail retention)
+
+    Audit Logs [Lvl 5]
+        - All user actions: create, edit, delete, override, approval, adjustment
+        - Real-time storage: actions logged as they occur (max 1 month hot storage)
+        - Archive schedule: logs > 1 month → archive storage (configurable by client)
+        - Retention: archive N years (client configurable, 7 years standard for compliance)
+        - Filter by: user, action, module, date range
+        - Download audit trail (CSV/Excel, includes archived logs if requested)
+        - NEVER delete audit logs (compliance requirement, archive indefinitely)
+
+    Password & Session Management [Lvl 5]
+        - Reset user passwords (admin override)
+        - View active sessions + force logout if needed
+        - Configure session timeout per role (30 min default)
+        - Configure login attempt limits (5 attempts = 15 min lockout)
+
+
+========================================
+CRITICAL OPERATIONAL FEATURES (Built-In)
+========================================
+
+DATA ISOLATION & VISIBILITY
+- Lvl 1: Only sees assigned zone/area/shift
+- Lvl 2: Sees full warehouse + own shift metrics
+- Lvl 3: Sees own department fully + limited cross-dept
+- Lvl 4: Sees all data (full visibility)
+- Lvl 5: Sees everything including audit logs
+
+FIFO/FEFO ENFORCEMENT
+- FIFO: default strategy, enforced unless Lvl 2+ override (with reason code)
+- FEFO: automatic when expiration < N days (configurable, switches from FIFO to FEFO)
+- Both tracked in audit trail
+
+MANAGEMENT ALERTS (Auto-Generated)
+- QA hold > 14 days: escalate decision (release/destroy)
+- Yield variance > 1%: investigate
+- Inventory discrepancy > 5%: security review
+- Items > N days without movement: clearance decision
+- Supplier defect rate > threshold: review decision
+- All alerts tracked in metrics dashboard
+
+QA_HOLD INVENTORY SEPARATION
+- QA hold items: counted separately, NOT in available qty for production/shipping
+- System shows: on-hand vs available (accounting for holds)
+- Prevents accidental shipment of held items
+
+AUDIT TRAIL (Compliance Requirement)
+- ALL create/edit/delete/override actions logged
+- Fields: user ID, timestamp, action, before/after values, reason code (if override)
+- Never deleted, archive indefinitely
+- Searchable + exportable for audit/compliance
+
+REASON CODE SYSTEM (Mandatory for Overrides)
+- FIFO override: define reason (code list: urgent order, accessibility, other)
+- Qty adjustment: define reason (code list: shrinkage, data error, damage, theft investigation, other)
+- Manual inventory count: define reason (code list: audit, reconciliation, investigation, other)
+- Expired ingredient use: define reason (code list: no alternatives, cost optimization, other)
+- UOM conversion: mandatory verification
+- Code list defined by client (Lvl 4) during setup
+
+
+========================================
+IMPLEMENTATION NOTES
+========================================
+
+PHASE 1 CORE (MVP - Functional Foundation)
+============================================
+Phase 1 focuses on core operational functionality + groundwork for Phase 2:
+- Receiving: ASN matching, QC, location assignment, FIFO
+- Shipping: FIFO/FEFO picking, multi-lot support, order modification, truck weight limits
+- Production: recipe/BOM, ingredient consumption, yield tracking (1% threshold), lot genealogy
+- QA: hold/release/destroy, supplier defect tracking, hold SLA monitoring
+- Inventory: FIFO/FEFO, safety stock, adjustments (with reason codes), cycle counts
+- Metrics: operational dashboards (5-min refresh), outlier detection, supplier performance
+- Chat: basic instant messaging + groups
+- User Management: levels, shifts, API access
+- Reporting: daily + on-demand (lot genealogy, inventory, supplier performance)
+- System: multi-db architecture, backups, encryption, audit logs, configuration per-warehouse
+
+PHASE 2 ENHANCEMENTS (Polish & Advanced Features)
+==================================================
+- Rework workflow: decision tree, calculation engine, cost tracking (full module)
+- Advanced forecasting: demand prediction, safety stock optimization
+- Labor management: task routing, time-and-motion, productivity tracking
+- Equipment maintenance: preventive scheduling, OEE tracking
+- Customer portal: order status, shipment tracking, lot genealogy (external)
+- Supplier portal: ASN upload, performance dashboard
+- Returns management: RMA workflow, inbound return tracking
+- Multi-warehouse orchestration: demand allocation across warehouses
+- Yard management: truck staging, dock optimization
+- Multi-currency support (if clients need)
+
+MULTI-WAREHOUSE SUPPORT (Phase 1)
+=================================
+- Enable/disable feature per client
+- If enabled: warehouse selection + per-warehouse configuration (SKU, recipes, suppliers, etc.)
+- If disabled: single warehouse mode (simpler interface)
+- Warehouse transfers: track in-transit inventory
+
+MULTI-SITE ARCHITECTURE (Phase 1.5 / Phase 2)
+==============================================
+Full federated multi-site model — each warehouse is an autonomous WMS instance with
+its own backend, user DB, and operational data. A Master Control Site (MCS) coordinates
+cross-site work (federated users, KPI rollups, recall coordination).
+
+KEY PRINCIPLES:
+- Each site has its own User DB; operators can only log in to sites they're provisioned at
+- Session tokens DO NOT cross site boundaries
+- Login page exposes a SITE SELECTOR (dropdown on the bottom status strip)
+- Status strip (Build, Status, Uptime, Ping) reflects the CURRENTLY-SELECTED site
+- Switching site → frontend repoints health checks → form submits to that site's auth endpoint
+- Sites cache the Site Directory from MCS for graceful degradation if MCS is down
+
+LOGIN PAGE SITE SELECTOR (implemented):
+- Click "Site · WHS-001 · DAL ▾" → popover dropdown opens
+- Lists all sites in directory with live ping per site, build, uptime
+- Master Control Site marked with [MASTER] badge
+- Offline sites shown greyed-out with OFFLINE ping tier
+- Selection persists in localStorage (operator returns to last site by default)
+
+PER-SITE HEALTH ENDPOINTS:
+- GET /api/health         → { status, build, boot_ts, uptime, db_ok, queue_ok }
+- GET /api/health/ping    → 200 OK (tiny response for RTT measurement)
+
+USER PROVISIONING PATTERNS:
+- Pattern A: Site-Local (default) — accounts created at each site by Lvl 4+ admin
+- Pattern B: Federated — accounts originate at MCS, pushed to assigned sites, with SSO option
+
+MCS RESPONSIBILITIES:
+- Canonical Site Directory (signed list of sites + endpoints)
+- Cross-site user federation (when enabled)
+- Cross-site reporting (rolled-up KPIs)
+- Recall coordination (cross-site lot genealogy queries)
+- Permission template library (push templates to subscribing sites)
+- Corporate audit log (one-way replication from sites)
+
+NOTE: Phase 1 ships with site selector visible even in single-site deployments — this
+sets the UX pattern and keeps the architecture forward-compatible. Phase 1.5 adds MCS.
+
+FULL SPECIFICATION: See MULTI_SITE_ARCHITECTURE.md
+
+MOBILE/RF DEVICES (Phase 1)
+===========================
+- Picking tasks: RF device support (barcode scan picking)
+- Receiving: handheld scanner pairing
+- Production: manual entry (touchscreen optional)
+
+===================================================

@@ -1,0 +1,164 @@
+Claude: 01:00, 05/15/26
+✅ **WMS Document Updated with All Feedback**
+
+Rebuilt document to reflect your operational reality:
+- ✅ ASN always requires review (no auto-accept)
+- ✅ Receiving capacity not needed (1-2 trucks/ops)
+- ✅ Damaged goods: operator notes + auto-alert + QA hold
+- ✅ Location max capacity configurable (50 units OR 2000 lbs)
+- ✅ **UOM support globally** (units, lbs, gallons, etc.)
+- ✅ FIFO enforced unless Lvl 2+ override
+- ✅ Multi-lot shipment support + packaging slip
+- ✅ Order modification requires Lvl 2+ approval
+- ✅ Truck weight limits configurable by client
+- ✅ Ingredient shortage: allow override, no blocking
+- ✅ Ingredient expiration: for KPIs/metrics/QA (date-based, allow override)
+- ✅ 1% yield variance threshold (>1% = investigation + alert)
+- ✅ **Lot genealogy E2E tracking**: ingredient lots → produced lots → shipments
+- ✅ QA hold > 14 days: management alert
+- ✅ QA_HOLD inventory counted separately (NOT in available qty)
+- ✅ Metrics update every 5 min, reports daily or on-demand
+- ✅ Outlier detection configurable per position/metric/department/machine
+- ✅ FEFO: auto-switch when expiration < N days (works alongside FIFO)
+- ✅ Slow-movers: report to management, suggest clearance
+- ✅ Warehouse transfers if multi-warehouse enabled
+- ✅ NO: Sampling, chain of custody, cost allocation, forecast accuracy, labor mgmt, supplier/customer portals
+
+---
+
+## **CLARIFICATION QUESTIONS (by module)**
+
+**RECEIVING MODULE:**
+
+1. **ASN Mismatch** — What % variance qualifies as "large" for Lvl 3+ review?
+   - (e.g., >5% variance needs supervisor review, <5% Lvl 2 can accept?)
+   Variances over 1% Automatically Notify Level 2+ and require approval.
+
+2. **Quality Check** — Can Lvl 1 skip QC if in a hurry? Or is it mandatory + blocking?
+   - (If mandatory, should receipt be held until QC complete?)
+   QC will always be mandatory(Check for QTY and Condition)
+
+3. **Damaged Goods** — If operator notes "minor cosmetic damage", should it auto-hold in QA or auto-accept with note?
+    Minor damage, noted notifies levels 2+, Major damage noted, HOLD and notify QA/Levels 3+
+
+4. **Location Overflow** — If assigned location full, system suggests secondary. Does secondary location get marked as "overflow" for easier future consolidation?
+    Overflow locations can be declared by the Client
+
+---
+
+**SHIPPING MODULE:**
+
+5. **FIFO/FEFO Priority** — If customer orders "oldest lot" but that lot expires in 2 days (FEFO trigger), which rule wins?
+   - (Strict FIFO, or smart FEFO to prevent waste?)
+   Items expiring in less than 7 days cannot be shipped without approval from level 2+ (Configurable by client)
+
+6. **Multi-Lot Packaging Slip** — If 1 order from 3 lots, do we:
+   - A) Single packing slip listing all 3 lots + quantities
+
+
+7. **Order Modification** — If order modified after 50% picked, can we unpack the 50% already packed?
+   - (Or must all be unpacked + restocked?)
+   If picked items modified, requires approval.
+   If items modified not picked, alert user, no need for approval (approval was done by changing the order)
+
+---
+
+**PRODUCTION MODULE:**
+
+8. **Ingredient Shortage** — If recipe needs 1870 lbs but only 1000 lbs available, what happens?
+   - A) Lvl 2 auto-override workflow (use what's available, requires inventory consolidation)
+
+
+9. **Lot Genealogy Database** — Does genealogy need real-time querying (fast lookups) or batch reporting only?
+   - (Affects schema design: transactional DB vs data warehouse)
+   I'll let you do this one. We hace 2 situations where we would needs this (Variance in production or HOLD, later recall)
+
+10. **Expired Ingredient Override** — Should system allow unlimited usage, or track "# of times override used" as a metric?
+    Keep track of # of times a product SKU, or Ingredient or user has overriden (Metrics tracking, report generation)
+
+---
+
+**QA MODULE:**
+
+11. **Hold Duration SLA** — 14-day alert is correct, but what happens after day 21? Auto-release or force management decision by day 14?
+    14 day hold is normal hold, 15-21 Level 3 alert, 21-30 Level 4 Alert, 30+ Persistent alert until cleared
+
+12. **Rework Workflow** — In Phase 1, do we need full rework module (work orders + cost tracking) or just "rework flag" in reports for now?
+    - (Phase 2 feature, will need a calculation engine and its own module)
+
+---
+
+**INVENTORY MODULE:**
+
+13. **QA_HOLD + Safety Stock** — If safety stock = 100 units, and 80 units on QA hold, should system:
+    - A) Warn "safety stock compromised, only 20 available". It should only keep track of usable stock as safety stock.
+
+
+14. **Slow-Movers Definition** — "Non-moving for N days" — should this exclude:
+    - A) QA_HOLD items (on hold anyway, not moving)
+
+
+15. **Cycle Count Frequency** — You said "currently annual", but should system support:
+    - B) Annual default + configurable per client
+    - C) Multiple counts (annual + spot checks throughout year)
+    This should let the user schedule annual counts + configurable Item or quarterly/monthly audits.
+
+---
+
+**METRICS MODULE:**
+
+16. **Outlier Baseline** — For user productivity tracking, should baseline be:
+    - A) User's own 30-day average (per-user baseline)
+    - B) Team average (compare user vs team)
+    - C) Both available (user configurable)?
+    Both available, some users work alone and have counter parts, some users do not have counterparts, some departments have multiple shifts and some have single shifts.
+
+17. **Outlier Alert Threshold** — Default variance limit?
+    - (e.g., flag if metric > 2 std dev from baseline, or >20% deviation?)
+    20% is fine, needs to be configurable by client
+
+18. **Lot Genealogy Report** — Should this be:
+    - A) On-demand only (manual trigger)
+    - B) Auto-generated daily/weekly
+    - C) Both?
+    Both, should be generated daily for review, but can be triggered manually for a much closer to live report when needed.
+
+19. **Supplier Defect Tracking** — Should we track:
+    - B) Defect rate + trend (improving or worsening)
+    - C) Defect rate + impact (cost of bad units)
+    Both are good, give the client insight on if it's costing them money.
+
+---
+
+**SYSTEM/INFRASTRUCTURE:**
+
+20. **Configuration Scope** — Which settings are per-client (global), vs per-warehouse (if multi-warehouse)?
+    - Examples:
+      * FEFO threshold (N days to expiration): per-client or per-warehouse?
+      * Yield variance threshold (1%): per-client or per-product?
+      * QA hold SLA (14 days): per-client or per-product-category?
+      All of them, different warehouses can carry different products/ingredients.
+
+21. **Audit Trail Retention** — How long to archive logs?
+    - (Indefinitely? Or after 7 years for compliance reasons?)
+    Store and Archive logs > 1 Month, rolling up to N years (Configurable by client)
+
+22. **Phase 1 vs Phase 2** — Which features are **critical for launch** (Phase 1) vs nice-to-have (Phase 2)?
+    - Should I prioritize implementation order?
+    Phase 1 should be all the Core features to make a functional MVP(But still laying groundwork for phase 2)
+    Phase 2 will polish and implement the nice to have features.
+
+---
+
+**GENERAL QUESTIONS:**
+
+23. **Customer-Facing Traceability** — For Lot Genealogy report, do your customers need:
+    - A) Just internal use (your team)
+
+
+24. **Refund/Credit After Shipping** — If customer returns goods, should WMS:
+    - A) Not track returns (people function outside WMS)
+
+
+25. **Real-Time vs Batch Processing** — Is batch reporting (daily) acceptable, or do supervisors need real-time metrics during shift?
+    Should be daily + manual triggers for review

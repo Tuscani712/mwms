@@ -1,0 +1,154 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WMS DESIGN SYSTEM — INDUSTRIAL EDITORIAL
+   Tokens v0.1.0 — Foundation layer
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── TYPOGRAPHY ─────────────────────────────────────────────────────── */
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-body: "Geist", "Söhne", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Fira Code", monospace;
+
+  /* Scale — modular, perfect fourth (1.333) for hierarchy */
+  --text-2xs: 0.6875rem;  /* 11px — meta, timestamps */
+  --text-xs:  0.75rem;    /* 12px — labels, captions */
+  --text-sm:  0.875rem;   /* 14px — body small */
+  --text-base: 1rem;      /* 16px — body */
+  --text-lg:  1.125rem;   /* 18px — body large */
+  --text-xl:  1.375rem;   /* 22px — section headers */
+  --text-2xl: 1.75rem;    /* 28px — subheads */
+  --text-3xl: 2.25rem;    /* 36px — heads */
+  --text-4xl: 3rem;       /* 48px — display */
+  --text-5xl: 4.25rem;    /* 68px — hero */
+  --text-6xl: 6.5rem;     /* 104px — instrument display */
+
+  /* Line heights */
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* Letter spacing — critical for typographic personality */
+  --tracking-tightest: -0.04em;  /* big display serif */
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;       /* mono labels */
+  --tracking-wider: 0.08em;      /* small caps */
+  --tracking-widest: 0.18em;     /* category labels */
+
+  /* ── COLOR / DARK INDUSTRIAL ───────────────────────────────────────── */
+  /* Canvas — graduated blacks for depth */
+  --void:       #07070A;  /* deepest, behind everything */
+  --canvas:     #0C0C0F;  /* main page background */
+  --surface:    #131318;  /* raised — cards, panels */
+  --elevated:   #1A1A20;  /* modals, popovers */
+  --inset:      #050507;  /* inputs, recessed areas */
+
+  /* Borders / Rules — typographic discipline */
+  --rule-faint:    rgba(244, 244, 241, 0.06);
+  --rule-subtle:   rgba(244, 244, 241, 0.10);
+  --rule-default:  rgba(244, 244, 241, 0.16);
+  --rule-strong:   rgba(244, 244, 241, 0.28);
+  --rule-emphatic: rgba(244, 244, 241, 0.50);
+
+  /* Ink — warm off-white, not clinical */
+  --ink-primary:   #F4F1EA;  /* warm paper white */
+  --ink-secondary: #A8A59E;  /* secondary text */
+  --ink-tertiary:  #6B6960;  /* tertiary, meta */
+  --ink-muted:     #44423C;  /* muted, disabled */
+
+  /* Signal — molten industrial palette */
+  --amber:         #FF6B1A;  /* primary action — molten steel */
+  --amber-bright:  #FF8F47;  /* hover */
+  --amber-deep:    #C84A0E;  /* pressed */
+  --amber-glow:    rgba(255, 107, 26, 0.18);
+
+  --ember:         #FFB627;  /* secondary accent — phosphor */
+  --ember-glow:    rgba(255, 182, 39, 0.15);
+
+  /* Status — operational state colors */
+  --signal-ok:        #4ADE80;
+  --signal-ok-glow:   rgba(74, 222, 128, 0.18);
+  --signal-warn:      #FBBF24;
+  --signal-warn-glow: rgba(251, 191, 36, 0.20);
+  --signal-crit:      #EF4444;
+  --signal-crit-glow: rgba(239, 68, 68, 0.22);
+  --signal-info:      #60A5FA;
+  --signal-info-glow: rgba(96, 165, 250, 0.18);
+
+  /* ── SPACING / GRID ────────────────────────────────────────────────── */
+  --space-px: 1px;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Grid */
+  --grid-max: 1440px;
+  --grid-gutter: var(--space-6);
+  --grid-margin: var(--space-8);
+
+  /* ── ELEVATION / SHADOW ────────────────────────────────────────────── */
+  /* Sharp industrial shadows, not soft floaty SaaS shadows */
+  --shadow-1: 0 1px 0 var(--rule-subtle);
+  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.4), 0 1px 0 var(--rule-subtle);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.55), 0 1px 0 var(--rule-default);
+  --shadow-amber: 0 0 0 1px var(--amber), 0 0 24px var(--amber-glow);
+  --shadow-inset: inset 0 1px 0 var(--rule-subtle), inset 0 -1px 0 var(--rule-faint);
+
+  /* ── MOTION ────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-snap: cubic-bezier(0.4, 0, 0.1, 1);
+  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-instant: 80ms;
+  --dur-quick: 160ms;
+  --dur-default: 240ms;
+  --dur-slow: 420ms;
+  --dur-deliberate: 680ms;
+
+  /* ── RADII — minimal, structural ───────────────────────────────────── */
+  --radius-0: 0;
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-3: 8px;
+  --radius-pill: 999px;
+
+  /* ── Z-INDEX ───────────────────────────────────────────────────────── */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-overlay: 500;
+  --z-modal: 1000;
+  --z-toast: 2000;
+  --z-tooltip: 3000;
+}
+
+/* Optional light-mode override hook for future client white-labeling */
+[data-theme="light"] {
+  --void: #F5F2EA;
+  --canvas: #FBF8F2;
+  --surface: #FFFFFF;
+  --elevated: #FFFFFF;
+  --inset: #EDE9DF;
+  --rule-faint: rgba(7, 7, 10, 0.06);
+  --rule-subtle: rgba(7, 7, 10, 0.10);
+  --rule-default: rgba(7, 7, 10, 0.18);
+  --rule-strong: rgba(7, 7, 10, 0.32);
+  --rule-emphatic: rgba(7, 7, 10, 0.55);
+  --ink-primary: #1A1814;
+  --ink-secondary: #4D4A42;
+  --ink-tertiary: #807B70;
+  --ink-muted: #B5B0A2;
+}

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS · Operations Console</title>
+  <meta name="description" content="Warehouse Operations Console — real-time control for receiving, shipping, production, and quality." />
+
+  <!-- Fonts: Instrument Serif (display), Geist (body), JetBrains Mono (data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TOP BAR
+       ═══════════════════════════════════════════════════════════════ -->
+  <header class="topbar">
+    <div class="topbar-inner">
+
+      <a href="/" class="brand" aria-label="WMS Home">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+
+      <nav class="topnav" aria-label="Primary">
+        <a href="index.html" class="topnav-item topnav-item--active">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="production.html" class="topnav-item">Production</a>
+        <a href="quality.html" class="topnav-item">Quality</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item">Admin</a>
+      </nav>
+
+      <div class="topbar-right">
+        <div class="topbar-clock" aria-live="polite">
+          <span class="topbar-clock-time" id="clock-time">--:--:--</span>
+          <span class="topbar-clock-date" id="clock-date">— · — · —</span>
+        </div>
+        <button class="user-chip" aria-label="Account">
+          <span class="user-avatar">M</span>
+          <span class="user-name">M. Tuscani</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       STATUS TICKER
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="status-ticker" aria-label="Operations ticker">
+    <div class="status-ticker-inner">
+      <span class="ticker-item"><span class="dot dot--ok"></span> SYSTEM · NOMINAL</span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">DOCK 03 ▸ <strong>INBOUND</strong> · ASN-44820</span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">PROD LINE 02 ▸ <strong>RUNNING</strong> · WO-9911</span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">QA HOLD ▸ <strong>4 LOTS</strong> · OLDEST 11d</span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item"><span class="dot dot--warn"></span> SAFETY STOCK · 2 SKUs LOW</span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">SHIFT B ▸ <strong>14 OPERATORS</strong> ACTIVE</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       HERO — Editorial greeting + operational briefing
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="hero">
+
+    <div>
+      <div class="hero-eyebrow">
+        <span class="dot dot--amber"></span>
+        <span>Console · 01</span>
+        <span style="opacity: 0.4;">/</span>
+        <span id="hero-date">Thursday, May 15</span>
+      </div>
+
+      <h1 class="hero-greeting">
+        Welcome back,<br>
+        <em>Meatbag.</em>
+      </h1>
+
+      <p class="hero-lede">
+        <strong>8 active alerts</strong> · 2 receiving · 4 quality · 1 ingredient shortage · 1 yield variance.
+        Throughput <strong>+4.2%</strong> vs 30-day baseline.
+      </p>
+    </div>
+
+    <aside class="hero-panel scanline-bg" aria-label="Operational briefing">
+      <div class="hero-panel-label">
+        <span>Operational Briefing</span>
+        <span class="dot dot--ok"></span>
+      </div>
+
+      <dl class="hero-panel-shift">
+        <dt class="shift-label">Shift</dt>
+        <dd class="shift-value"><em>Bravo</em></dd>
+
+        <dt class="shift-label">Window</dt>
+        <dd class="shift-value shift-value--mono">14:00 — 22:00</dd>
+
+        <dt class="shift-label">Lead</dt>
+        <dd class="shift-value"><em>Sarah Mendez</em></dd>
+
+        <dt class="shift-label">Site</dt>
+        <dd class="shift-value shift-value--mono">WHS-001 · DAL</dd>
+
+        <dt class="shift-label">Weather</dt>
+        <dd class="shift-value shift-value--mono">73°F · CLR · 8mph S</dd>
+      </dl>
+    </aside>
+
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       KPI INSTRUMENT CLUSTER
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="section" id="kpis">
+
+    <div class="section-head">
+      <div class="section-head-left">
+        <span class="section-eyebrow">Live Instruments</span>
+        <h2 class="section-title">Today's <em>throughput</em></h2>
+      </div>
+      <span class="section-meta">Refreshes every 5 min · Last <span id="kpi-refresh">just now</span></span>
+    </div>
+
+    <div class="kpi-grid stagger">
+
+      <article class="kpi" style="--kpi-accent: var(--amber);">
+        <div class="kpi-label"><span class="dot dot--amber"></span> Units Received</div>
+        <div class="kpi-value">12,847<span class="kpi-unit">UNITS</span></div>
+        <div class="kpi-delta kpi-delta--up">▲ 6.4% vs. 30d avg</div>
+        <div class="kpi-meta">Across 4 dock doors · 11 trucks</div>
+      </article>
+
+      <article class="kpi" style="--kpi-accent: var(--signal-ok);">
+        <div class="kpi-label"><span class="dot dot--ok"></span> Orders Shipped</div>
+        <div class="kpi-value">2,394<span class="kpi-unit">ORDERS</span></div>
+        <div class="kpi-delta kpi-delta--up">▲ 4.2% · on track</div>
+        <div class="kpi-meta">98.7% accuracy · 96.1% on-time</div>
+      </article>
+
+      <article class="kpi" style="--kpi-accent: var(--ember);">
+        <div class="kpi-label"><span class="dot dot--info"></span> Production Yield</div>
+        <div class="kpi-value">94.8<span class="kpi-unit">%</span></div>
+        <div class="kpi-delta kpi-delta--down">▼ 0.6 pts · within tolerance</div>
+        <div class="kpi-meta">Recipe BR-1140 · WO-9911</div>
+      </article>
+
+      <article class="kpi" style="--kpi-accent: var(--signal-warn);">
+        <div class="kpi-label"><span class="dot dot--warn"></span> QA Holds</div>
+        <div class="kpi-value">14<span class="kpi-unit">LOTS</span></div>
+        <div class="kpi-delta kpi-delta--down">▲ 3 since last shift</div>
+        <div class="kpi-meta">Oldest: 17 days · Lvl-3 alert</div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MAIN GRID — Quick Actions + Alerts
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="section">
+    <div class="main-grid">
+
+      <!-- Actions -->
+      <div>
+        <div class="section-head">
+          <div class="section-head-left">
+            <span class="section-eyebrow">Quick Actions</span>
+            <h2 class="section-title">Quick <em>actions</em></h2>
+          </div>
+          <span class="section-meta">⌘ K to search</span>
+        </div>
+
+        <div class="actions-grid stagger">
+
+          <a href="receiving.html" class="action-tile">
+            <span class="action-tile-code">RCV.001 → INBOUND</span>
+            <span class="action-tile-title">Receive<br>shipment</span>
+            <span class="action-tile-desc">Scan ASN, match PO, run QC, assign putaway.</span>
+          </a>
+
+          <a href="shipping.html" class="action-tile">
+            <span class="action-tile-code">SHP.001 → OUTBOUND</span>
+            <span class="action-tile-title">Pick &amp;<br>pack order</span>
+            <span class="action-tile-desc">FIFO-driven pick path, multi-lot consolidation.</span>
+          </a>
+
+          <a href="production.html" class="action-tile">
+            <span class="action-tile-code">PRD.001 → EXECUTE</span>
+            <span class="action-tile-title">Start<br>work order</span>
+            <span class="action-tile-desc">Reserve ingredients, track yield, log genealogy.</span>
+          </a>
+
+          <a href="inventory.html" class="action-tile">
+            <span class="action-tile-code">INV.LOOKUP</span>
+            <span class="action-tile-title">Inventory<br>lookup</span>
+            <span class="action-tile-desc">SKU, lot, location · real-time availability.</span>
+          </a>
+
+          <a href="quality.html" class="action-tile">
+            <span class="action-tile-code">QA.HOLD</span>
+            <span class="action-tile-title">Hold<br>or release</span>
+            <span class="action-tile-desc">Inspect held lots, document decision, audit.</span>
+          </a>
+
+          <a href="reports.html" class="action-tile">
+            <span class="action-tile-code">RPT.GENEALOGY</span>
+            <span class="action-tile-title">Trace<br>a lot</span>
+            <span class="action-tile-desc">End-to-end genealogy for recall &amp; variance.</span>
+          </a>
+
+        </div>
+      </div>
+
+      <!-- Alerts feed -->
+      <div>
+        <div class="section-head">
+          <div class="section-head-left">
+            <span class="section-eyebrow">Active Alerts</span>
+            <h2 class="section-title">Open <em>alerts</em></h2>
+          </div>
+          <span class="section-meta">8 open</span>
+        </div>
+
+        <div class="panel alerts">
+
+          <div class="alert">
+            <span class="dot dot--crit"></span>
+            <div>
+              <div class="alert-title">QA hold exceeded 21 days</div>
+              <div class="alert-sub">LOT-44820-A · escalate to Level 4</div>
+            </div>
+            <span class="alert-time">14:38</span>
+            <span class="alert-source">QA</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--crit"></span>
+            <div>
+              <div class="alert-title">ASN variance &gt; 1%</div>
+              <div class="alert-sub">ASN-44820 · expected 2,400 · received 2,358</div>
+            </div>
+            <span class="alert-time">14:21</span>
+            <span class="alert-source">RCV</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--warn"></span>
+            <div>
+              <div class="alert-title">Ingredient shortage flagged</div>
+              <div class="alert-sub">WO-9911 needs 1,870 lbs · 1,210 lbs on hand</div>
+            </div>
+            <span class="alert-time">13:55</span>
+            <span class="alert-source">PRD</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--warn"></span>
+            <div>
+              <div class="alert-title">Yield variance + 1.4%</div>
+              <div class="alert-sub">Recipe BR-1140 · investigation suggested</div>
+            </div>
+            <span class="alert-time">13:42</span>
+            <span class="alert-source">PRD</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--info"></span>
+            <div>
+              <div class="alert-title">FEFO trigger · 6 days to expiry</div>
+              <div class="alert-sub">SKU-22018 · 410 units · Lot 32A</div>
+            </div>
+            <span class="alert-time">13:30</span>
+            <span class="alert-source">SHP</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--info"></span>
+            <div>
+              <div class="alert-title">Safety stock breach</div>
+              <div class="alert-sub">SKU-19044 · 22 units · reorder point 50</div>
+            </div>
+            <span class="alert-time">12:08</span>
+            <span class="alert-source">INV</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--info"></span>
+            <div>
+              <div class="alert-title">Slow-mover candidate</div>
+              <div class="alert-sub">SKU-30122 · 84 days no movement</div>
+            </div>
+            <span class="alert-time">10:50</span>
+            <span class="alert-source">INV</span>
+          </div>
+
+          <div class="alert">
+            <span class="dot dot--info"></span>
+            <div>
+              <div class="alert-title">Cycle-count scheduled</div>
+              <div class="alert-sub">Zone D · tomorrow 06:00</div>
+            </div>
+            <span class="alert-time">09:14</span>
+            <span class="alert-source">INV</span>
+          </div>
+
+          <div class="panel-foot">
+            <span>Showing 8 of 8 open</span>
+            <a href="#" class="btn btn--ghost btn--sm btn-arrow">View All</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="brand-mark"><em>Wms</em><span class="amp">/</span></div>
+        <p class="footer-statement">
+          Warehouse Operations Console · v0.1.0
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h6>Operations</h6>
+        <ul>
+          <li><a href="#">Receiving</a></li>
+          <li><a href="#">Shipping</a></li>
+          <li><a href="#">Production</a></li>
+          <li><a href="#">Quality</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h6>Insight</h6>
+        <ul>
+          <li><a href="#">Reports</a></li>
+          <li><a href="#">Genealogy</a></li>
+          <li><a href="#">Suppliers</a></li>
+          <li><a href="#">Audit Trail</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h6>System</h6>
+        <ul>
+          <li><a href="#">Admin Panel</a></li>
+          <li><a href="#">Permissions</a></li>
+          <li><a href="#">Integrations</a></li>
+          <li><a href="#">Status</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>WMS · v0.1.0 · Build 2026.05.15</span>
+      <span><span class="dot dot--ok" style="margin-right: 8px;"></span> All systems nominal · API 142ms</span>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PERSISTENT CHAT DOCK
+       ═══════════════════════════════════════════════════════════════ -->
+  <aside class="chat-dock" id="chat-dock" aria-label="Team chat">
+    <div class="chat-dock-head" id="chat-toggle">
+      <span class="chat-dock-title">
+        <span class="dot dot--ok"></span>
+        Floor Chat · Shift B
+      </span>
+      <span class="mono" style="font-size: var(--text-2xs); color: var(--ink-tertiary);">▾</span>
+    </div>
+    <div class="chat-dock-body" id="chat-body">
+
+      <div class="chat-msg">
+        <div class="chat-msg-meta">
+          <span class="chat-msg-author">Sarah M.</span>
+          <span>14:22 · Lead</span>
+        </div>
+        <div class="chat-msg-body">Pulling LOT-44820-A for QA inspection. Need Level 3 sign-off on release.</div>
+      </div>
+
+      <div class="chat-msg">
+        <div class="chat-msg-meta">
+          <span class="chat-msg-author">David L.</span>
+          <span>14:25 · QA</span>
+        </div>
+        <div class="chat-msg-body">On my way. ETA 5 min.</div>
+      </div>
+
+      <div class="chat-msg">
+        <div class="chat-msg-meta">
+          <span class="chat-msg-author">System</span>
+          <span>14:30 · Auto</span>
+        </div>
+        <div class="chat-msg-body">ASN-44820 variance flagged · 1.75% short. Awaiting approval.</div>
+      </div>
+
+    </div>
+    <form class="chat-dock-input" onsubmit="event.preventDefault();">
+      <input class="input input--mono" placeholder="// type a message…" />
+      <button class="btn btn--primary btn--sm" type="submit">Send</button>
+    </form>
+  </aside>
+
+  <script src="scripts/dashboard.js"></script>
+</body>
+</html>

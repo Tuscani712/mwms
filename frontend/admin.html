@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="production.html" class="topnav-item">Production</a>
+        <a href="quality.html" class="topnav-item">Quality</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item topnav-item--active">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip"><span class="user-avatar">M</span><span class="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="status-ticker">
+    <div class="status-ticker-inner">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">USERS ACTIVE ▸ <strong>14</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">TITLES DEFINED ▸ <strong>8</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">PERMISSION TEMPLATES ▸ <strong>11</strong></span>
+      <span class="ticker-sep"></span>
+      <span class="ticker-item">PENDING APPROVALS ▸ <strong>3</strong></span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Admin</span>
+    </div>
+    <h1 class="page-title"><em>Admin</em></h1>
+    <p class="page-lede">
+      Manage users, titles, permission templates, sites, branding, and audit trail.
+    </p>
+  </div>
+
+  <main class="page">
+
+    <!-- SUBNAV -->
+    <nav class="subnav" aria-label="Admin sections">
+      <a href="admin.html" class="subnav-item" data-active="true">Overview</a>
+      <a href="#" class="subnav-item">Users</a>
+      <a href="#" class="subnav-item">Titles</a>
+      <a href="#" class="subnav-item">Permission Templates</a>
+      <a href="#" class="subnav-item">Granular Permissions</a>
+      <a href="#" class="subnav-item">Sites</a>
+      <a href="admin-branding.html" class="subnav-item">Branding</a>
+      <a href="#" class="subnav-item">Audit Trail</a>
+      <a href="#" class="subnav-item">Settings</a>
+    </nav>
+
+    <!-- ADMIN TILES -->
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Modules</span>
+          <h2 class="section-title">Admin <em>modules</em></h2>
+        </div>
+      </div>
+
+      <div class="actions-grid">
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.USERS</span>
+          <span class="action-tile-title">Manage<br>users</span>
+          <span class="action-tile-desc">Create, edit, deactivate operators. Assign titles, shifts, departments.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.TITLES</span>
+          <span class="action-tile-title">Custom<br>titles</span>
+          <span class="action-tile-desc">Define organizational roles (Picker, Lead, Inspector). Attach permission templates.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.TEMPLATES</span>
+          <span class="action-tile-title">Permission<br>templates</span>
+          <span class="action-tile-desc">Reusable bundles of permissions. Apply to titles for consistent role-out.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.GRANULAR</span>
+          <span class="action-tile-title">Granular<br>overrides</span>
+          <span class="action-tile-desc">Per-user grant or revoke at the function level. For senior staff exceptions.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.SITES</span>
+          <span class="action-tile-title">Site<br>directory</span>
+          <span class="action-tile-desc">Manage sites in the multi-site network. Master site coordinates.</span>
+        </a>
+
+        <a href="admin-branding.html" class="action-tile">
+          <span class="action-tile-code">ADM.BRANDING</span>
+          <span class="action-tile-title">Facility<br>branding</span>
+          <span class="action-tile-desc">Upload company logo, set display name and site identifier.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.AUDIT</span>
+          <span class="action-tile-title">Audit<br>trail</span>
+          <span class="action-tile-desc">Searchable log of every override, permission change, and decision. Immutable.</span>
+        </a>
+
+        <a href="#" class="action-tile">
+          <span class="action-tile-code">ADM.SETTINGS</span>
+          <span class="action-tile-title">System<br>settings</span>
+          <span class="action-tile-desc">FEFO thresholds, yield variance limits, alert tiers, reason codes.</span>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- PENDING APPROVALS + RECENT AUDIT -->
+    <section class="page-row page-row--main-aside">
+
+      <div>
+        <div class="section-head">
+          <div class="section-head-left">
+            <span class="section-eyebrow">Pending Approvals</span>
+            <h2 class="section-title">Pending <em>approvals</em></h2>
+          </div>
+          <span class="section-meta">3 open · Lvl 4 attention</span>
+        </div>
+
+        <div class="panel">
+          <div class="alert">
+            <span class="dot dot--crit"></span>
+            <div>
+              <div class="alert-title">Destroy request · LOT-44515-B · $1,290</div>
+              <div class="alert-sub">Requested by J. Patel (QA Inspector) · 32d hold</div>
+            </div>
+            <span class="alert-time">14:08</span>
+            <span class="alert-source">QA</span>
+          </div>
+          <div class="alert">
+            <span class="dot dot--warn"></span>
+            <div>
+              <div class="alert-title">Permission grant request</div>
+              <div class="alert-sub">D. Lopez requests can_destroy_items · reason: senior QA promo</div>
+            </div>
+            <span class="alert-time">13:14</span>
+            <span class="alert-source">USR</span>
+          </div>
+          <div class="alert">
+            <span class="dot dot--warn"></span>
+            <div>
+              <div class="alert-title">ASN variance approval</div>
+              <div class="alert-sub">ASN-44820 · 1.75% short · receiving blocked</div>
+            </div>
+            <span class="alert-time">14:21</span>
+            <span class="alert-source">RCV</span>
+          </div>
+          <div class="panel-foot">
+            <span>All approvals captured in audit trail with reason</span>
+            <a href="#" class="btn btn--ghost btn--sm btn-arrow"><span>Review queue</span></a>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="section-head">
+          <div class="section-head-left">
+            <span class="section-eyebrow">Recent Activity</span>
+            <h2 class="section-title">Recent <em>audit</em></h2>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-body" style="display: flex; flex-direction: column; gap: var(--space-3);">
+
+            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
+              <span style="color: var(--amber);">14:38</span> · M. Tuscani granted <strong style="color: var(--ink-primary);">can_override_fifo</strong> to J. Park (reason: senior picker promotion)
+            </div>
+            <hr class="rule">
+
+            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
+              <span style="color: var(--amber);">13:42</span> · S. Mendez edited template <strong style="color: var(--ink-primary);">Warehouse_Manager_Template</strong> (added can_approve_destruction)
+            </div>
+            <hr class="rule">
+
+            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
+              <span style="color: var(--amber);">12:08</span> · System auto-fired <strong style="color: var(--ink-primary);">Lvl 3 alert</strong> · LOT-44820-A (17d hold)
+            </div>
+            <hr class="rule">
+
+            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
+              <span style="color: var(--amber);">09:14</span> · M. Tuscani created title <strong style="color: var(--ink-primary);">Senior Picker</strong> (template: Picking_Template + 2 overrides)
+            </div>
+
+            <a href="#" class="btn btn--ghost btn-arrow" style="margin-top: var(--space-2);"><span>Full audit trail</span></a>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-bottom" style="border-top: 0; padding-top: 0;">
+      <span>WMS · Admin · v0.1.0</span>
+      <span><span class="dot dot--ok"></span> All systems nominal</span>
+    </div>
+  </footer>
+
+  <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
+    <div class="chat-dock-head" id="chat-toggle">
+      <span class="chat-dock-title"><span class="dot dot--ok"></span> Admin Channel</span>
+      <span class="chat-caret" style="font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
+    </div>
+    <div class="chat-dock-body">
+      <div class="chat-msg">
+        <div class="chat-msg-meta"><span class="chat-msg-author">System</span><span>14:08 · Auto</span></div>
+        <div class="chat-msg-body">3 approvals waiting on Lvl 4 sign-off.</div>
+      </div>
+    </div>
+    <form class="chat-dock-input" onsubmit="event.preventDefault();">
+      <input class="input input--mono" placeholder="// type a message…" />
+      <button class="btn btn--primary btn--sm">Send</button>
+    </form>
+  </aside>
+
+  <script src="scripts/shell.js"></script>
+</body>
+</html>
