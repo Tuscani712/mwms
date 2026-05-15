@@ -60,9 +60,42 @@
     });
   }
 
-  const storedSite = localStorage.getItem('wms.siteName') || 'WHS-001 · DAL';
+  // Prefer the actively logged-in site label (set at login); fall back to
+  // admin-branded site name; final default for unauthenticated demo.
+  const activeSiteLabel =
+    localStorage.getItem('wms.activeSiteLabel') ||
+    localStorage.getItem('wms.siteName') ||
+    'WHS-001 · DAL';
   document.querySelectorAll('[data-bind="site-name"]').forEach(el => {
-    el.textContent = storedSite;
+    el.textContent = activeSiteLabel;
   });
+
+  // ── ACTIVE USER BIND ────────────────────────────────────────────────
+  try {
+    const userRaw = localStorage.getItem('wms.user');
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      const displayName = u.full_name || u.employee_code || 'Operator';
+      document.querySelectorAll('[data-bind="user-name"]').forEach(el => {
+        el.textContent = displayName;
+      });
+      document.querySelectorAll('[data-bind="user-initial"]').forEach(el => {
+        el.textContent = displayName.trim().charAt(0).toUpperCase();
+      });
+    }
+  } catch (_) { /* ignore */ }
+
+  // ── SIGN-OUT (click user chip) ──────────────────────────────────────
+  const userChip = document.getElementById('user-chip');
+  if (userChip) {
+    userChip.addEventListener('click', () => {
+      if (confirm('Sign out and clock off?')) {
+        localStorage.removeItem('wms.token');
+        localStorage.removeItem('wms.user');
+        localStorage.removeItem('wms.activeSiteLabel');
+        window.location.href = 'login.html';
+      }
+    });
+  }
 
 })();

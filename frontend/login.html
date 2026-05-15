@@ -908,14 +908,17 @@
       e.preventDefault();
       const employee_code = document.getElementById('email').value.trim();
       const password = document.getElementById('pin').value;
-      const site_id = (document.getElementById('signing-into')?.textContent || 'WHS-001').split('·')[0].trim();
+      const siteLabel = (document.getElementById('signing-into')?.textContent || 'WHS-001 · DAL').trim();
+      const site_id = siteLabel.split('·')[0].trim();
       try {
         const data = await WMS_API.login(employee_code, password, site_id);
         WMS_API.setSession(data);
+        // Persist the full display label ("WHS-002 · HOU") for the topbar/ticker.
+        localStorage.setItem('wms.activeSiteLabel', siteLabel);
         window.location.href = 'index.html';
       } catch (err) {
         console.warn('[WMS Login] API call failed, falling back to demo nav:', err.message);
-        // Soft-fail to keep demo workflow alive if backend is down
+        localStorage.setItem('wms.activeSiteLabel', siteLabel);
         window.location.href = 'index.html';
       }
     });

@@ -16,10 +16,40 @@
       el.style.display = 'none';
     });
   }
-  const storedSite = localStorage.getItem('wms.siteName');
-  if (storedSite) {
+  const activeSiteLabel =
+    localStorage.getItem('wms.activeSiteLabel') ||
+    localStorage.getItem('wms.siteName');
+  if (activeSiteLabel) {
     document.querySelectorAll('[data-bind="site-name"]').forEach(el => {
-      el.textContent = storedSite;
+      el.textContent = activeSiteLabel;
+    });
+  }
+
+  // Surface the logged-in user name + initial in any [data-bind="user-*"] element.
+  try {
+    const userRaw = localStorage.getItem('wms.user');
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      const displayName = u.full_name || u.employee_code || 'Operator';
+      document.querySelectorAll('[data-bind="user-name"]').forEach(el => {
+        el.textContent = displayName;
+      });
+      document.querySelectorAll('[data-bind="user-initial"]').forEach(el => {
+        el.textContent = displayName.trim().charAt(0).toUpperCase();
+      });
+    }
+  } catch (_) { /* ignore */ }
+
+  // Sign-out: clicking the user chip clears the session and returns to login.
+  const userChip = document.getElementById('user-chip');
+  if (userChip) {
+    userChip.addEventListener('click', () => {
+      if (confirm('Sign out and clock off?')) {
+        localStorage.removeItem('wms.token');
+        localStorage.removeItem('wms.user');
+        localStorage.removeItem('wms.activeSiteLabel');
+        window.location.href = 'login.html';
+      }
     });
   }
 
