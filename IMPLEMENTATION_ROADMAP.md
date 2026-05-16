@@ -113,15 +113,24 @@
 - Post-launch menu: status, tail logs, restart, open browser, quit
 - Graceful CTRL+C via `trap shutdown INT TERM`
 
-### 🔜 Next Up
-- Frontend wiring for MFA enrollment UI on `/profile.html` (QR code render, backup-code display, "Set up MFA" CTA when policy says required)
+### 🔜 Next Up — see [`PAGES_WORKFLOW.md`](./PAGES_WORKFLOW.md) for full per-page workflow, endpoints, edge cases, and tests
+
+**Page completion path (dependency-ordered)**:
+1. **SCO-49** — Inventory module (backend + `inventory.html` wiring, search/KPIs/adjust/safety-stock)
+2. **SCO-50** — Quality (QA) module (hold workflow, escalation tiers, supplier defect trending)
+3. **SCO-51** — Production module (work orders, recipe BOM with versioning, genealogy, atomic reservation)
+4. **SCO-52** — Reports & Metrics (dashboard KPIs, CSV streaming, outliers, genealogy walks)
+5. **SCO-53** — Admin → System Settings page (registry-driven, type/bound-validated, branding upload, site-offline toggle)
+
+Settings page lands **last** so it renders from a known registry (`SETTINGS_REGISTRY.md`) instead of speculating. Each page above appends its candidate knobs to the registry in the same commit that introduces the consumer code.
+
+**Other deferred work (not in the 5-task path)**:
+- Frontend wiring for MFA enrollment UI on `/profile.html` (QR code render, backup-code display, "Set up MFA" CTA when policy requires)
 - Frontend wiring for the 2-step login challenge (post password → if `mfa_challenge_token` present, show 6-digit input)
-- Inventory module backend (search, KPIs, safety-stock alerts)
-- Quality module backend (QC hold workflow, escalation tiers)
-- Production module backend (work orders, recipe BOM, genealogy)
 - MCS / corporate-rollup layer (admin-scoped endpoints + view)
 - Alembic migrations (currently using `create_all` for dev convenience)
 - Multi-site federation (per-site DBs, MCS service)
+- Remaining audit findings: H-1 rate-limit, H-3 token storage, H-5 PyJWT, H-6 CSP; M-2 password history, M-3 HTML escape sweep; L-1 shipping/alerting (SEC-6), L-5 token TTL, L-6 CSRF
 
 ---
 
