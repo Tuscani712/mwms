@@ -12,10 +12,12 @@ Permission model (read top-down, first match wins):
 
 from __future__ import annotations
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from wms.core.security import hash_password
-from wms.models import Department, Role, Shift, User
+from wms.models import AuditLog, Department, Role, Shift, User
+from wms.models.core import ProfileChangeRequest, UserMFA
 
 MCS_SITE_ID = "MCS"
 
@@ -222,6 +224,67 @@ def reactivate_user(db: Session, caller: User, target: User) -> User:
     db.commit()
     db.refresh(target)
     return target
+
+
+def purge_user(db: Session, caller: User, target: User) -> dict:
+    """Hard-delete a user row, irreversibly.
+
+    Returns a snapshot dict the caller can attach to the audit event *before*
+    the row disappears. Refuses on the obvious footguns (self, last admin,
+    has subordinates). User-owned dependent rows (MFA, profile change
+    requests) cascade-delete. Audit log refs are NULLed out so the historical
+    trail survives the user it described.
+    """
+    if caller.permission_level < 5:
+        raise AdminAuthorizationError("Level 5 required to permanently delete users")
+    if caller.id == target.id:
+        raise AdminAuthorizationError("You cannot delete yourself")
+
+    # System-lockout protection: at least one Lvl 5 must remain.
+    if target.permission_level == 5:
+        remaining = (
+            db.query(User)
+            .filter(User.permission_level == 5, User.id != target.id, User.is_active.is_(True))
+            .count()
+        )
+        if remaining == 0:
+            raise AdminAuthorizationError(
+                "Cannot delete the last Level 5 admin. Promote another user first."
+            )
+
+    sub_count = db.query(User).filter(User.supervisor_id == target.id).count()
+    if sub_count > 0:
+        raise ValueError(
+            f"User has {sub_count} active subordinate(s). Reassign them before deleting."
+        )
+
+    snapshot = {
+        "id": target.id,
+        "employee_code": target.employee_code,
+        "email": target.email,
+        "full_name": target.full_name,
+        "site_id": target.site_id,
+        "role": target.role,
+        "permission_level": target.permission_level,
+        "was_active": target.is_active,
+    }
+
+    # Preserve audit history: keep the rows, drop the FK pointers.
+    db.execute(update(AuditLog).where(AuditLog.user_id == target.id).values(user_id=None))
+    db.execute(update(AuditLog).where(AuditLog.actor_id == target.id).values(actor_id=None))
+
+    # Drop user-owned data that has NOT NULL FKs.
+    db.query(UserMFA).filter(UserMFA.user_id == target.id).delete()
+    db.query(ProfileChangeRequest).filter(ProfileChangeRequest.user_id == target.id).delete()
+    db.execute(
+        update(ProfileChangeRequest)
+        .where(ProfileChangeRequest.decided_by == target.id)
+        .values(decided_by=None)
+    )
+
+    db.delete(target)
+    db.commit()
+    return snapshot
 
 
 def list_users(

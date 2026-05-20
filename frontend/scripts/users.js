@@ -141,6 +141,7 @@
           ${u.is_active
             ? `<button class="btn btn--xs" data-act="deactivate" data-id="${u.id}">Deactivate</button>`
             : `<button class="btn btn--xs" data-act="reactivate" data-id="${u.id}">Reactivate</button>`}
+          <button class="btn btn--xs" data-act="purge" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" style="color: var(--signal-crit); border-color: var(--signal-crit);">Delete</button>
         </div></td>`;
       tbody.appendChild(tr);
     });
@@ -308,9 +309,71 @@
         await A.request(`/admin/users/${id}/reactivate`, { method: 'POST', body: {} });
         toast('ok', 'User reactivated');
         loadList();
+      } else if (act === 'purge') {
+        openPurgeModal(id, btn.dataset.name || `user #${id}`);
       }
     } catch (err) {
       toast('err', err.message);
+    }
+  });
+
+  // ── Purge (hard-delete) modal — typed DELETE required ──────────────
+  const purgeState = { id: null };
+  const purgeBackdrop = $('#purge-backdrop');
+  const purgeInput = $('#purge-confirm-input');
+  const purgeBtn = $('#purge-confirm');
+  const purgeErr = $('#purge-error');
+
+  function openPurgeModal(id, name) {
+    purgeState.id = id;
+    $('#purge-target-name').textContent = name;
+    purgeInput.value = '';
+    purgeErr.style.display = 'none';
+    purgeBtn.disabled = true;
+    purgeBtn.style.opacity = '0.5';
+    purgeBtn.style.cursor = 'not-allowed';
+    purgeBackdrop.dataset.open = 'true';
+    setTimeout(() => purgeInput.focus(), 30);
+  }
+
+  function closePurgeModal() {
+    purgeBackdrop.dataset.open = 'false';
+    purgeState.id = null;
+    purgeInput.value = '';
+  }
+
+  purgeInput.addEventListener('input', () => {
+    const armed = purgeInput.value === 'DELETE';
+    purgeBtn.disabled = !armed;
+    purgeBtn.style.opacity = armed ? '1' : '0.5';
+    purgeBtn.style.cursor = armed ? 'pointer' : 'not-allowed';
+    purgeErr.style.display = 'none';
+  });
+
+  $('#purge-cancel').addEventListener('click', closePurgeModal);
+  purgeBackdrop.addEventListener('click', (e) => {
+    if (e.target.id === 'purge-backdrop') closePurgeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && purgeBackdrop.dataset.open === 'true') closePurgeModal();
+  });
+
+  purgeBtn.addEventListener('click', async () => {
+    if (purgeInput.value !== 'DELETE' || !purgeState.id) return;
+    const id = purgeState.id;
+    purgeBtn.disabled = true;
+    purgeBtn.textContent = 'Deleting…';
+    try {
+      await A.request(`/admin/users/${id}/purge`, { method: 'POST', body: {} });
+      toast('ok', 'User permanently deleted');
+      closePurgeModal();
+      loadList();
+    } catch (err) {
+      purgeErr.textContent = err.message;
+      purgeErr.style.display = 'block';
+      purgeBtn.disabled = false;
+    } finally {
+      purgeBtn.textContent = 'Delete forever';
     }
   });
 

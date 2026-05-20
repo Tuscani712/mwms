@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -197,6 +197,38 @@ def reactivate_user(
         return svc.reactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+@router.post("/{user_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+def purge_user(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    """Hard-delete a user. Irreversible. Lvl 5 only.
+
+    The frontend gates this behind a typed-DELETE confirmation modal; the
+    server still enforces all the safety rails independently.
+    """
+    target = _load_target(db, user_id)
+    try:
+        snapshot = svc.purge_user(db, caller, target)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    from wms.services import audit_log
+
+    audit_log.record(
+        db,
+        event_type="user.purged",
+        actor_id=caller.id,
+        site_id=snapshot["site_id"],
+        request=request,
+        detail=snapshot,
+    )
+    return None
 
 
 # ── Hierarchy + assignment endpoints (SCO-36) ──────────────────────────

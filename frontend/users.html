@@ -173,7 +173,7 @@
     </div>
     <h1 class="page-title"><em>User</em> management</h1>
     <p class="page-lede">
-      Create, edit, deactivate. Assign supervisors, departments, and shifts. All actions are gated by your permission level.
+      Create, edit, deactivate, or permanently delete users. Assign supervisors, departments, and shifts. All actions are gated by your permission level.
     </p>
   </div>
 
@@ -287,6 +287,28 @@
           <button type="submit" class="btn btn--primary" id="modal-save">Save</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Hard-delete (purge) confirmation modal — typed DELETE required -->
+  <div class="modal-backdrop" id="purge-backdrop">
+    <div class="modal" style="max-width: 480px;">
+      <h2 style="color: var(--signal-crit);">Permanently delete user?</h2>
+      <p style="color: var(--ink-secondary); font-size: 13px; line-height: 1.55; margin: var(--space-2) 0 var(--space-4);">
+        This will <strong style="color: var(--ink-primary);">irreversibly remove</strong> the user
+        <strong id="purge-target-name" style="color: var(--ink-primary); font-family: var(--font-mono);">—</strong>
+        from the system. Their audit history is preserved (anonymized), but the user record itself is gone.
+        Prefer <strong style="color: var(--ink-primary);">Deactivate</strong> if the person may return.
+      </p>
+      <label style="display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-tertiary); margin-bottom: 6px;">
+        Type <strong style="color: var(--signal-crit);">DELETE</strong> to confirm
+      </label>
+      <input class="input input--mono" id="purge-confirm-input" type="text" autocomplete="off" placeholder="DELETE" style="border-color: var(--signal-crit); letter-spacing: 0.1em;" />
+      <div id="purge-error" style="display: none; color: var(--signal-crit); font-family: var(--font-mono); font-size: 11px; margin-top: var(--space-2);"></div>
+      <div class="modal-footer" style="margin-top: var(--space-4);">
+        <button type="button" class="btn" id="purge-cancel">Cancel</button>
+        <button type="button" class="btn" id="purge-confirm" disabled style="background: var(--signal-crit); color: var(--ink-primary); border-color: var(--signal-crit); opacity: 0.5;">Delete forever</button>
+      </div>
     </div>
   </div>
 

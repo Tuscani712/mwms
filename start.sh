@@ -396,6 +396,43 @@ except Exception: pass" 2>/dev/null)
 
       # Use suffix to avoid collisions if the same admin re-runs back-to-back.
       local suffix; suffix="$(date +%s)$$"
+      # Users purge round-trip: create disposable user, hard-purge it, confirm 404.
+      _purge_check() {
+        local code
+        code=$(date +%s%N | tail -c 8)
+        local payload="{\"employee_code\":\"PRG-$code\",\"email\":\"prg-$code@wms.local\",\"full_name\":\"Purge Test\",\"password\":\"password123\"}"
+        local create_resp
+        create_resp=$(curl -s --max-time 5 -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $token" \
+          -d "$payload" \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/admin/users" 2>/dev/null || echo '')
+        local uid
+        uid=$(printf '%s' "$create_resp" | python3 -c "import sys,json
+try: print(json.loads(sys.stdin.read()).get('id',''))
+except Exception: pass" 2>/dev/null)
+        if [[ -z "$uid" ]]; then
+          printf "  %s ✗ Users purge%s        %screate failed: %s%s\n" "$C_RED" "$C_RST" "$C_DIM" "${create_resp:0:80}" "$C_RST"
+          fails=$(( fails + 1 ))
+          return
+        fi
+        local purge_code
+        purge_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST \
+          -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{}' \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/admin/users/$uid/purge" 2>/dev/null || echo 000)
+        local get_code
+        get_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+          -H "Authorization: Bearer $token" \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/admin/users/$uid" 2>/dev/null || echo 000)
+        if [[ "$purge_code" == "204" && "$get_code" == "404" ]]; then
+          printf "  %s ✓ Users purge%s        %screate %s → purge 204 → get 404%s\n" "$C_GRN" "$C_RST" "$C_DIM" "$uid" "$C_RST"
+          pass=$(( pass + 1 ))
+        else
+          printf "  %s ✗ Users purge%s        %spurge %s, get %s (uid %s)%s\n" "$C_RED" "$C_RST" "$C_DIM" "$purge_code" "$get_code" "$uid" "$C_RST"
+          fails=$(( fails + 1 ))
+        fi
+      }
+      _purge_check
+
       _crud_check "Sites CRUD"   "/api/v1/sites" \
         "{\"id\":\"WHS-SMK${suffix: -6}\",\"name\":\"Smoke Test\",\"city\":\"Testville\"}" \
         "id" "/api/v1/sites/{id}"
