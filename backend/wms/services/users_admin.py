@@ -15,7 +15,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from wms.core.security import hash_password
-from wms.models import User
+from wms.models import Department, Role, Shift, User
 
 MCS_SITE_ID = "MCS"
 
@@ -53,6 +53,49 @@ def assert_can_manage(caller: User, target: User) -> None:
         )
 
 
+def _resolve_role(db: Session, role_id: int | None, site_id: str) -> Role | None:
+    """Validate role_id exists and is usable at site_id (global or matches)."""
+    if role_id is None:
+        return None
+    role = db.query(Role).filter(Role.id == role_id).one_or_none()
+    if role is None:
+        raise ValueError(f"Role {role_id} not found")
+    if role.site_id is not None and role.site_id != site_id:
+        raise ValueError(
+            f"Role '{role.name}' belongs to site {role.site_id}, "
+            f"cannot assign to user at site {site_id}"
+        )
+    return role
+
+
+def _resolve_department(db: Session, dept_id: int | None, site_id: str) -> Department | None:
+    if dept_id is None:
+        return None
+    dept = db.query(Department).filter(Department.id == dept_id).one_or_none()
+    if dept is None:
+        raise ValueError(f"Department {dept_id} not found")
+    if dept.site_id != site_id:
+        raise ValueError(
+            f"Department '{dept.name}' belongs to site {dept.site_id}, "
+            f"cannot assign to user at site {site_id}"
+        )
+    return dept
+
+
+def _resolve_shift(db: Session, shift_id: int | None, site_id: str) -> Shift | None:
+    if shift_id is None:
+        return None
+    shift = db.query(Shift).filter(Shift.id == shift_id).one_or_none()
+    if shift is None:
+        raise ValueError(f"Shift {shift_id} not found")
+    if shift.site_id != site_id:
+        raise ValueError(
+            f"Shift '{shift.name}' belongs to site {shift.site_id}, "
+            f"cannot assign to user at site {site_id}"
+        )
+    return shift
+
+
 def create_user(db: Session, caller: User, *, payload: dict) -> User:
     require_admin(caller)
 
@@ -64,7 +107,20 @@ def create_user(db: Session, caller: User, *, payload: dict) -> User:
             "Cross-site user creation requires MCS admin (Level 4+)"
         )
 
-    new_level = int(payload.get("permission_level", 1))
+    # SCO-80: resolve FK entities first so we can derive permission_level from
+    # Role.default_permission_level when caller doesn't pass it explicitly.
+    role_obj = _resolve_role(db, payload.get("role_id"), site_id)
+    dept_obj = _resolve_department(db, payload.get("department_id"), site_id)
+    shift_obj = _resolve_shift(db, payload.get("shift_id"), site_id)
+
+    explicit_level = payload.get("permission_level")
+    if explicit_level is not None:
+        new_level = int(explicit_level)
+    elif role_obj is not None:
+        new_level = role_obj.default_permission_level
+    else:
+        new_level = 1  # legacy default when neither role_id nor level provided
+
     if new_level >= caller.permission_level:
         raise AdminAuthorizationError(
             f"Cannot create a user at level {new_level} — must be below your "
@@ -74,16 +130,26 @@ def create_user(db: Session, caller: User, *, payload: dict) -> User:
     if db.query(User).filter(User.employee_code == payload["employee_code"]).first():
         raise ValueError(f"Employee code '{payload['employee_code']}' already exists")
 
+    # Backfill legacy string fields from resolved entities so callers consuming
+    # User.role / User.department / User.shift keep working during the soft-FK
+    # transition (SCO-77/80).
+    role_str = role_obj.name if role_obj else payload.get("role", "operator")
+    dept_str = dept_obj.name if dept_obj else payload.get("department")
+    shift_str = shift_obj.name if shift_obj else payload.get("shift")
+
     user = User(
         site_id=site_id,
         employee_code=payload["employee_code"],
         email=payload["email"],
         full_name=payload["full_name"],
-        role=payload.get("role", "operator"),
+        role=role_str,
+        role_id=role_obj.id if role_obj else None,
         permission_level=new_level,
         hashed_password=hash_password(payload["password"]),
-        department=payload.get("department"),
-        shift=payload.get("shift"),
+        department=dept_str,
+        department_id=dept_obj.id if dept_obj else None,
+        shift=shift_str,
+        shift_id=shift_obj.id if shift_obj else None,
         is_active=True,
     )
     db.add(user)
@@ -105,6 +171,27 @@ def update_user(db: Session, caller: User, target: User, payload: dict) -> User:
         if field in payload and payload[field] is not None:
             setattr(target, field, payload[field])
             changed = True
+
+    # SCO-80: FK updates with site-match validation + legacy-string backfill.
+    if "role_id" in payload:
+        role_obj = _resolve_role(db, payload["role_id"], target.site_id)
+        target.role_id = role_obj.id if role_obj else None
+        if role_obj is not None:
+            target.role = role_obj.name
+        changed = True
+    if "department_id" in payload:
+        dept_obj = _resolve_department(db, payload["department_id"], target.site_id)
+        target.department_id = dept_obj.id if dept_obj else None
+        if dept_obj is not None:
+            target.department = dept_obj.name
+        changed = True
+    if "shift_id" in payload:
+        shift_obj = _resolve_shift(db, payload["shift_id"], target.site_id)
+        target.shift_id = shift_obj.id if shift_obj else None
+        if shift_obj is not None:
+            target.shift = shift_obj.name
+        changed = True
+
     if "permission_level" in payload and payload["permission_level"] is not None:
         new_level = int(payload["permission_level"])
         if new_level >= caller.permission_level:

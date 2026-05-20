@@ -25,11 +25,18 @@ class UserCreate(BaseModel):
     email: str = Field(min_length=3, max_length=180, pattern=EMAIL_PATTERN)
     full_name: str = Field(min_length=1, max_length=120)
     role: str = Field(default="operator", max_length=40)
-    permission_level: int = Field(ge=1, le=5, default=1)
+    # SCO-80: permission_level is now optional. When omitted, the service
+    # derives it from the linked Role's default_permission_level. Admin can
+    # still pass an explicit value to override (interim leadership case).
+    permission_level: int | None = Field(default=None, ge=1, le=5)
     password: str = Field(min_length=4, max_length=128)
     site_id: str | None = None  # defaults to caller's site
     department: str | None = None
     shift: str | None = None
+    # SCO-80: org-metadata FKs (preferred over the free strings above).
+    role_id: int | None = None
+    department_id: int | None = None
+    shift_id: int | None = None
 
     @field_validator("password")
     @classmethod
@@ -46,6 +53,9 @@ class UserUpdate(BaseModel):
     permission_level: int | None = Field(default=None, ge=1, le=5)
     department: str | None = None
     shift: str | None = None
+    role_id: int | None = None
+    department_id: int | None = None
+    shift_id: int | None = None
 
 
 class UserAdminOut(BaseModel):
@@ -58,6 +68,9 @@ class UserAdminOut(BaseModel):
     permission_level: int
     department: str | None
     shift: str | None
+    role_id: int | None = None
+    department_id: int | None = None
+    shift_id: int | None = None
     is_active: bool
     supervisor_id: int | None
     display_name: str | None
@@ -154,6 +167,10 @@ def update_user(
         return svc.update_user(db, caller, target, payload.model_dump(exclude_unset=True))
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    except ValueError as e:
+        # SCO-80: FK validation errors (cross-site dept/shift, missing entity)
+        # propagate as 400 — same shape as create_user's wrapper.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
 
 
 @router.delete("/{user_id}", response_model=UserAdminOut)

@@ -455,3 +455,177 @@ def test_list_pagination(client, populated_site):
     ids2 = {u["id"] for u in page2["items"]}
     assert ids1.isdisjoint(ids2)
     assert page1["total"] == page2["total"] >= 11
+
+
+# ── SCO-80: org-metadata FKs on user create/update ──────────────────────
+
+
+def _seed_role(db, *, name="supervisor-test", default_level=3, site_id=None):
+    from wms.models import Role
+    r = Role(name=name, default_permission_level=default_level, site_id=site_id)
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    return r
+
+
+def _seed_dept(db, *, name="Receiving-Test", site_id="WHS-001"):
+    from wms.models import Department
+    d = Department(name=name, site_id=site_id)
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return d
+
+
+def _seed_shift(db, *, name="Morning-Test", site_id="WHS-001"):
+    from datetime import time
+    from wms.models import Shift
+    s = Shift(name=name, site_id=site_id, start_time=time(6, 0), end_time=time(14, 0))
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+def test_create_user_auto_fills_permission_level_from_role(client, seeded_db):
+    """When role_id is given but permission_level is omitted, derive from Role.default_permission_level."""
+    _seed_admin(seeded_db, level=5)
+    role = _seed_role(seeded_db, name="lead-auto", default_level=2)
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-AUTO",
+            "email": "auto@wms.local",
+            "full_name": "Auto Fill",
+            "password": "pw1234",
+            "role_id": role.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["permission_level"] == 2
+    assert body["role_id"] == role.id
+    assert body["role"] == "lead-auto"  # legacy string backfilled
+
+
+def test_create_user_explicit_level_overrides_role_default(client, seeded_db):
+    """Interim leadership: admin can bump an Operator into a Supervisor role at level 4."""
+    _seed_admin(seeded_db, level=5)
+    role = _seed_role(seeded_db, name="supervisor-auto", default_level=3)
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-OVR",
+            "email": "ovr@wms.local",
+            "full_name": "Override",
+            "password": "pw1234",
+            "role_id": role.id,
+            "permission_level": 4,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["permission_level"] == 4  # explicit wins
+    assert body["role_id"] == role.id
+
+
+def test_create_user_refuses_cross_site_role(client, seeded_db):
+    """Site-specific role on WHS-002 cannot be assigned to a WHS-001 user."""
+    _seed_admin(seeded_db, level=4)
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    foreign = _seed_role(seeded_db, name="foreign", default_level=2, site_id="WHS-002")
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-X",
+            "email": "x@wms.local",
+            "full_name": "X",
+            "password": "pw1234",
+            "role_id": foreign.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "WHS-002" in r.json()["detail"]
+
+
+def test_create_user_refuses_cross_site_department(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    foreign_dept = _seed_dept(seeded_db, name="ForeignDept", site_id="WHS-002")
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-XD",
+            "email": "xd@wms.local",
+            "full_name": "XD",
+            "password": "pw1234",
+            "department_id": foreign_dept.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "WHS-002" in r.json()["detail"]
+
+
+def test_create_user_global_role_works_anywhere(client, seeded_db):
+    """Global role (site_id IS NULL) is assignable from any site."""
+    _seed_admin(seeded_db, level=4)
+    global_role = _seed_role(seeded_db, name="global-op", default_level=1, site_id=None)
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-G",
+            "email": "g@wms.local",
+            "full_name": "G",
+            "password": "pw1234",
+            "role_id": global_role.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 201
+    assert r.json()["permission_level"] == 1
+
+
+def test_update_user_sets_dept_id_and_backfills_string(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    dept = _seed_dept(seeded_db, name="QA-Updated")
+    token = _login(client, "WHS-001-ADMIN")
+    # Get the seeded operator
+    list_resp = client.get("/api/v1/admin/users", headers=_headers(token)).json()
+    operator_id = next(u["id"] for u in list_resp["items"] if u["employee_code"] == "WHS-001-001")
+    r = client.put(
+        f"/api/v1/admin/users/{operator_id}",
+        json={"department_id": dept.id},
+        headers=_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["department_id"] == dept.id
+    assert r.json()["department"] == "QA-Updated"
+
+
+def test_update_user_refuses_cross_site_shift(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    foreign_shift = _seed_shift(seeded_db, name="FShift", site_id="WHS-002")
+    token = _login(client, "WHS-001-ADMIN")
+    list_resp = client.get("/api/v1/admin/users", headers=_headers(token)).json()
+    operator_id = next(u["id"] for u in list_resp["items"] if u["employee_code"] == "WHS-001-001")
+    r = client.put(
+        f"/api/v1/admin/users/{operator_id}",
+        json={"shift_id": foreign_shift.id},
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "WHS-002" in r.json()["detail"]
