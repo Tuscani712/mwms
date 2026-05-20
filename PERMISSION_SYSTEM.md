@@ -474,7 +474,7 @@ A small set of permissions only exist at the MCS layer:
 
 ```
 MCS PERMISSIONS:
-├─ can_manage_site_directory       (add/remove sites)
+├─ can_manage_site_directory       (add/remove sites)                         ✅ SCO-84
 ├─ can_federate_users              (provision a user across sites)
 ├─ can_publish_master_templates    (push template updates)
 ├─ can_initiate_cross_site_recall  (broadcast recall to all sites)
@@ -484,8 +484,23 @@ MCS PERMISSIONS:
 
 These are **only** held by corporate-level admins, never by site-local users.
 
+### Implemented permission gates (current code)
+
+| Action | Required gate | Where enforced | Ticket |
+|---|---|---|---|
+| List users (`GET /admin/users`) | Lvl 3+ (or any MCS user) | `users_admin.require_admin` | SCO-35 |
+| Create / update / soft-delete user | Lvl 3+ strict outrank, MCS Lvl 4+ cross-site | `users_admin.assert_can_manage` | SCO-35 |
+| **Hard-purge user** (`POST /admin/users/{id}/purge`) | **Lvl 5 only.** Not self. Not last active Lvl 5. No active subordinates. | `users_admin.purge_user` | **SCO-85** |
+| Roles / Departments / Shifts CRUD | Lvl 3+ own-site, MCS Lvl 4+ globals/cross-site | `orgmeta` service | SCO-79 |
+| List sites (`GET /sites`) | Open (unauthenticated) — used by login picker | — | base |
+| **Create / delete site** | **Master-site Lvl 5.** One-master rule. FK-safe delete. | `sites._require_master_admin(min_level=5)` | **SCO-84** |
+| **Update / toggle-online site** | **Master-site Lvl 4+.** Master site cannot go offline. 60s cooldown. | `sites._require_master_admin(min_level=4)` | **SCO-84** |
+| Field-visibility policies | Lvl 3+ | `policy` router | base |
+| Password policies | Lvl 3+ | `policy` router | base |
+| MFA reset for another user | Lvl 4+ same-site | `policy.mfa_reset` | SCO-46 |
+
 ---
 
-**Version**: 1.1
-**Status**: Ready for Phase 1 Implementation (Multi-Site section added 2026-05-15)
+**Version**: 1.2
+**Status**: Ready for Phase 1 Implementation. Sites CRUD (SCO-84) and User purge (SCO-85) gates added 2026-05-20.
 **Owner**: Development Team

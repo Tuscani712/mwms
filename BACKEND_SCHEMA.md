@@ -158,7 +158,12 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 |---|---|---|
 | POST | `/api/v1/auth/login` | Login → JWT with `{sub, site_id, role}` |
 | GET | `/api/v1/auth/me` | Current user |
-| GET | `/api/v1/sites` | All sites for login picker |
+| GET | `/api/v1/sites` | All sites for login picker (open to unauthenticated callers) |
+| GET | `/api/v1/sites/{site_id}` | Site detail + user_count + department_count (SCO-84) |
+| POST | `/api/v1/sites` | Create site — MCS Lvl 5 only; strict ID regex; one-master rule (SCO-84) |
+| PUT | `/api/v1/sites/{site_id}` | Partial update name/city/timezone/build_version — MCS Lvl 4 (SCO-84) |
+| DELETE | `/api/v1/sites/{site_id}` | Hard delete — MCS Lvl 5; refuses master, self-site, or referenced (409) (SCO-84) |
+| POST | `/api/v1/sites/{site_id}/toggle-online` | Flip `is_online` — MCS Lvl 4; 60s cooldown (429); master cannot go offline (SCO-84) |
 | GET | `/api/v1/health` | Status + build + uptime |
 | GET | `/api/v1/health/ping` | Latency probe (frontend ping pill) |
 | GET | `/api/v1/receiving/inbound` | Open ASNs |
@@ -203,6 +208,7 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | GET/POST/PUT/DELETE | `/api/v1/admin/shifts` | Per-site CRUD (Lvl 3+ own-site; MCS Lvl 4+ cross-site). Times sent as `HH:MM:SS`. |
 | DELETE | `/api/v1/admin/users/{id}` | Soft-delete via `is_active=false`. Cannot self-delete. |
 | POST | `/api/v1/admin/users/{id}/reactivate` | Restore an inactive user |
+| POST | `/api/v1/admin/users/{id}/purge` | **Hard-delete (irreversible, SCO-85).** Lvl 5 only. Refuses self / last-Lvl-5 / users with active subordinates (409). NULLs audit_log FK refs, cascades user-owned dependents (UserMFA, ProfileChangeRequest). Emits `user.purged` audit event before removal. Returns 204. |
 | PUT  | `/api/v1/admin/users/{id}/supervisor` | Set/clear supervisor; enforces 5-tier outrank + same-site (or MCS) + cycle detection |
 | PUT  | `/api/v1/admin/users/{id}/department` | Transfer department |
 | PUT  | `/api/v1/admin/users/{id}/shift` | Change shift |

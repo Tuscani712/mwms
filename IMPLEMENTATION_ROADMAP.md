@@ -6,10 +6,10 @@
 
 ---
 
-## Current Status (2026-05-15)
+## Current Status (2026-05-20)
 
-### ✅ Frontend Scaffold (v0.1)
-- 10 pages live (Dashboard, Login w/ multi-site picker, Receiving, Shipping, Production, Quality, Inventory, Reports, Admin, Admin-Branding)
+### ✅ Frontend Scaffold (v0.2)
+- **13 pages live**: Dashboard, Login (multi-site picker), Receiving, Shipping, Production, Quality, **Inventory (wired SCO-49)**, Reports, Admin, Admin-Branding, **Admin-Orgmeta (SCO-77..82)**, Users (with hard-purge modal SCO-85), **Admin-Sites (SCO-84)**
 - Industrial Editorial design system: tokens.css, base.css, components.css, page.css, dashboard.css
 - Live clock, uptime ticker, ping pill (Green ≤74ms · Yellow 75-149ms · Red ≥150ms)
 - Client logo upload + brand-mark swap via localStorage
@@ -103,15 +103,25 @@
 - The returned URL still flows through the existing `/profile/display-picture-request` approval queue — Lvl 3+ approval gate is intact.
 - 10 new pytest tests covering: PNG/JPEG/WebP acceptance, SVG rejection, fake-PNG-actually-text rejection, oversize, oversized dimensions, polyglot strip, path-traversal filename, and full upload→approval flow.
 
-### ✅ Local Dev Launcher (`./start.sh`)
+### ✅ Local Dev Launcher (`./start.sh`) — hardened (SCO-86)
 - One-shot environment check + boot:
   - Detects Python 3, creates `backend/.venv` if missing
   - Installs deps only when imports fail (cache-friendly)
   - Seeds DB only when `backend/data/wms.db` is absent
   - Detects port collisions on 8775 / 8765, interactively offers to kill occupants
   - Tracks PIDs in `.run/{backend,frontend}.pid`, logs in same dir
-- Post-launch menu: status, tail logs, restart, open browser, quit
+- Post-launch menu: status, tail logs, restart, **smoke test `[t]`**, open browser, quit
 - Graceful CTRL+C via `trap shutdown INT TERM`
+- **Race-free restart**: `wait_for_port_free` polls actual port release before relaunching; SIGTERM escalates to SIGKILL at half the configured timeout
+- **Real readiness probe**: `wait_for_port_open` uses bash-builtin `/dev/tcp` to verify the socket bound before declaring "RUNNING" (no more fixed-sleep false-positives)
+- **Stale PID sweep**: launcher cleans `.run/*.pid` from prior crashed runs on boot
+- **Restart lock**: spam-pressing `r` no longer forks duplicate uvicorns
+- **Non-fatal menu errors**: a failed restart no longer drops you out of the launcher; you can `[b]`/`[f]` to inspect logs
+- **`[t]` smoke test** (13 checks):
+  - OpenAPI spec, Swagger UI, `/api/v1/health`, frontend login/index/tokens
+  - Auth login → `/me` round-trip (env-overridable creds: `WMS_SMOKE_USER/_PASS/_SITE`)
+  - Users purge create→204→404 round-trip (SCO-85)
+  - Sites/Roles/Departments/Shifts CRUD round-trips (SCO-84 + orgmeta)
 
 ### ✅ Org Metadata: Role / Department / Shift entities (SCO-76 → SCO-77..82)
 First-class entities replacing the free-string `User.role` / `User.department` / `User.shift` columns. Soft migration — both forms live in parallel; backfill is a later one-shot.
@@ -123,14 +133,35 @@ First-class entities replacing the free-string `User.role` / `User.department` /
 - **SCO-81** frontend: user-form text inputs → dropdowns; new `admin-orgmeta.html` page with Roles / Departments / Shifts management.
 - **SCO-82** removes the orphaned `UserTitle` module (SCO-75) — its role overlapped with `Role` and was never seeded. Schema/permission/roadmap docs refreshed.
 
+### ✅ Sites Admin CRUD (SCO-84) — shipped 2026-05-20
+Closes the multi-site onboarding gap: previously sites could only be created via the seeder, which blocked client self-service. Now MCS Lvl 5 admins can provision new warehouses from the UI.
+- `POST /api/v1/sites` (Lvl 5 create), `PUT /{id}` (Lvl 4 update), `DELETE /{id}` (Lvl 5 delete, FK-safe with reference counts in 409), `POST /{id}/toggle-online` (Lvl 4, 60s cooldown), `GET /{id}` (detail with user_count + department_count)
+- Master-site protections: cannot be deleted or taken offline (auth-path safety)
+- Frontend: `admin-sites.html` site cards grid (master accented amber), `scripts/admin-sites.js` with destructive controls hidden when caller isn't master-Lvl-5 (UX layer; server enforces independently)
+- Audit events: `site.created` / `.updated` (diff-only detail) / `.deleted` / `.online_toggled`
+- 12 new pytest tests. Commit `88d2ec8`.
+
+### ✅ User Hard-Purge + Typed-DELETE Modal (SCO-85) — shipped 2026-05-20
+Distinct from the existing soft-archive (`DELETE /admin/users/{id}` unchanged). Adds an irreversible verb for client cleanup.
+- `POST /api/v1/admin/users/{id}/purge` (Lvl 5 only) → 204 No Content
+- Safety rails: refuses self-purge, last active Lvl 5 (system-lockout protection), users with active subordinates (409 with count)
+- **Audit history preservation**: `audit_log.user_id` / `actor_id` are NULLed instead of cascade-deleted — trail outlives the user
+- User-owned dependents cascade: `UserMFA` (1:1), `ProfileChangeRequest` (NOT NULL `user_id`)
+- `user.purged` audit event recorded *before* row deletion with full snapshot in `detail_json`
+- **Custom typed-confirmation modal**: no `window.confirm()` (clients can disable native dialogs). "Delete forever" button disabled until input value === `DELETE` (case-sensitive). Dismissible via Cancel/X/Escape/backdrop — none can trigger the purge.
+- 8 new pytest tests. Commit `f08233a`.
+
 ### 🔜 Next Up — see [`PAGES_WORKFLOW.md`](./PAGES_WORKFLOW.md) for full per-page workflow, endpoints, edge cases, and tests
 
 **Page completion path (dependency-ordered)**:
-1. ~~SCO-49~~ — ✅ Inventory module shipped 2026-05-20 (commit 458206a). Per-board: registered as SCO-75.
+1. ~~SCO-49~~ — ✅ Inventory module shipped 2026-05-20 (commit 458206a)
 2. **SCO-50** — Quality (QA) module (hold workflow, escalation tiers, supplier defect trending)
 3. **SCO-51** — Production module (work orders, recipe BOM with versioning, genealogy, atomic reservation)
 4. **SCO-52** — Reports & Metrics (dashboard KPIs, CSV streaming, outliers, genealogy walks)
 5. **SCO-53** — Admin → System Settings page (registry-driven, type/bound-validated, branding upload, site-offline toggle)
+6. **Deployment review** (per Meatbag, queued after SCO-50..53): what to deploy, where (host/cloud), how clients connect to the master, security boundaries (TLS, secrets, multi-tenant isolation)
+
+**Test count trajectory**: 16 (initial) → 79 (SCO-37) → 125 (security pass) → 168 (orgmeta) → 180 (sites) → **188 (purge, current)**. Live smoke 13/13.
 
 Settings page lands **last** so it renders from a known registry (`SETTINGS_REGISTRY.md`) instead of speculating. Each page above appends its candidate knobs to the registry in the same commit that introduces the consumer code.
 

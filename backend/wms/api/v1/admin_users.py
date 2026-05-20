@@ -199,7 +199,26 @@ def reactivate_user(
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
 
 
-@router.post("/{user_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{user_id}/purge",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Permanently delete a user (Lvl 5 only) — IRREVERSIBLE",
+    description=(
+        "Hard-delete a user row. Distinct from DELETE /admin/users/{id} which is a soft-archive.\n\n"
+        "Refuses self-purge, the last active Lvl 5 admin (system-lockout protection), and "
+        "users with active subordinates (must be reassigned first). Audit log rows owned or "
+        "authored by the target have their FK pointers NULLed so the trail survives. UserMFA "
+        "and ProfileChangeRequest rows owned by the user cascade-delete.\n\n"
+        "Emits the `user.purged` audit event with full snapshot in detail_json before the "
+        "row is removed."
+    ),
+    responses={
+        204: {"description": "User permanently deleted"},
+        403: {"description": "Caller is not Lvl 5, or is attempting to delete themselves"},
+        409: {"description": "User has active subordinates — reassign them first"},
+        404: {"description": "User not found"},
+    },
+)
 def purge_user(
     user_id: int,
     request: Request,

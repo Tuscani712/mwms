@@ -107,12 +107,22 @@ def _counts(db: Session, site_id: str) -> tuple[int, int]:
 
 # ── Endpoints ────────────────────────────────────────────────────────────
 
-@router.get("", response_model=list[SiteOut])
+@router.get(
+    "",
+    response_model=list[SiteOut],
+    summary="List all sites",
+    description="Open to unauthenticated callers — used by the login picker and the header status ticker. Returns master site first, then alphabetical by id.",
+)
 def list_sites(db: Session = Depends(get_session)) -> list[Site]:
     return db.query(Site).order_by(Site.is_master.desc(), Site.id).all()
 
 
-@router.get("/{site_id}", response_model=SiteDetail)
+@router.get(
+    "/{site_id}",
+    response_model=SiteDetail,
+    summary="Get site detail with reference counts",
+    description="Returns a single site plus user_count and department_count, used by the admin Sites page to surface which sites have dependent records.",
+)
 def get_site(
     site_id: str,
     db: Session = Depends(get_session),
@@ -134,7 +144,18 @@ def get_site(
     )
 
 
-@router.post("", response_model=SiteOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=SiteOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new site (MCS Lvl 5 only)",
+    description="Provision a new warehouse/plant/DC. Caller must be on the master site with permission_level=5. Site id must match `^[A-Z][A-Z0-9-]{1,31}$` and be unique. Only one master site is permitted.",
+    responses={
+        409: {"description": "Site id already exists, or a master site already exists when is_master=true"},
+        400: {"description": "Site id fails the format regex"},
+        403: {"description": "Caller is not on the master site or has insufficient permissions"},
+    },
+)
 def create_site(
     payload: SiteCreate,
     request: Request,
@@ -182,7 +203,16 @@ def create_site(
     return site
 
 
-@router.put("/{site_id}", response_model=SiteOut)
+@router.put(
+    "/{site_id}",
+    response_model=SiteOut,
+    summary="Update a site (MCS Lvl 4+)",
+    description="Partial update of name/city/timezone/build_version. The site `id` field is immutable. Audit detail captures only the diffed fields with was/now values.",
+    responses={
+        403: {"description": "Caller is not on the master site or has insufficient permissions"},
+        404: {"description": "Site not found"},
+    },
+)
 def update_site(
     site_id: str,
     payload: SiteUpdate,
@@ -214,7 +244,17 @@ def update_site(
     return site
 
 
-@router.delete("/{site_id}", response_model=SiteOut)
+@router.delete(
+    "/{site_id}",
+    response_model=SiteOut,
+    summary="Delete a site (MCS Lvl 5 only)",
+    description="Permanently remove a site. Refuses if the site is the master, is the caller's signed-in site, or has any users/departments still referencing it. Returns the deleted record's snapshot.",
+    responses={
+        400: {"description": "Cannot delete master site or own site"},
+        409: {"description": "Site has dependent users or departments"},
+        403: {"description": "Caller is not on the master site or has insufficient permissions"},
+    },
+)
 def delete_site(
     site_id: str,
     request: Request,
@@ -247,7 +287,17 @@ def delete_site(
     return snapshot
 
 
-@router.post("/{site_id}/toggle-online", response_model=SiteOut)
+@router.post(
+    "/{site_id}/toggle-online",
+    response_model=SiteOut,
+    summary="Toggle a site's is_online flag (MCS Lvl 4+)",
+    description="Flip the site's online/offline state. 60s cooldown between toggles prevents flap. Master site cannot be taken offline. Returns the updated site record.",
+    responses={
+        429: {"description": "Cooldown still in effect (≤60s since last toggle on this site)"},
+        400: {"description": "Cannot take master site offline"},
+        403: {"description": "Caller is not on the master site or has insufficient permissions"},
+    },
+)
 def toggle_site_online(
     site_id: str,
     request: Request,

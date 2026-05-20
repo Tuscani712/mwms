@@ -8,23 +8,30 @@
 
 ---
 
-## Status snapshot (2026-05-15)
+## Status snapshot (2026-05-20)
 
 | Page | Backend | Frontend | Notes |
 |---|---|---|---|
 | `login.html` | ✅ | ✅ | Wired with multi-site picker + MFA challenge support |
-| `index.html` (dashboard) | ⚠️ partial | ⚠️ partial | KPI tiles currently mock; no `/reports/dashboard` endpoint yet |
+| `index.html` (dashboard) | ⚠️ partial | ⚠️ partial | KPI tiles currently mock; no `/reports/dashboard` endpoint yet — SCO-52 |
 | `profile.html` | ✅ | ✅ | Full identity + password + MFA + avatar upload |
-| `users.html` | ✅ | ✅ | Admin user CRUD + hierarchy |
-| `admin.html` | ⚠️ tile only | ⚠️ tile only | Only Manage Users tile wired; needs Settings tile |
+| `users.html` | ✅ | ✅ | Admin user CRUD + hierarchy + **hard-purge w/ typed-DELETE modal (SCO-85)** |
+| `admin.html` | ✅ | ✅ | Subnav + tile grid wired to Users / Org Metadata / Sites / Branding |
+| `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82) |
+| `admin-sites.html` | ✅ | ✅ | **NEW (SCO-84)** — site CRUD + toggle-online + master-site protection |
 | `admin-branding.html` | ❌ | ⚠️ localStorage-only | No server persistence — folded into SCO-53 |
 | `receiving.html` | ✅ | ✅ | Wired |
 | `shipping.html` | ✅ | ✅ | Wired |
-| `inventory.html` | ❌ | ❌ | **SCO-49** |
-| `quality.html` | ❌ | ❌ | **SCO-50** |
-| `production.html` | ❌ | ❌ | **SCO-51** |
-| `reports.html` | ❌ | ❌ | **SCO-52** (also rewires dashboard KPIs) |
-| `settings.html` (new) | ❌ | ❌ | **SCO-53** |
+| `inventory.html` | ✅ | ✅ | **DONE (SCO-49)** — lot search + KPIs + adjust |
+| `quality.html` | ❌ | ❌ | **SCO-50** (scaffold HTML exists, not wired) |
+| `production.html` | ❌ | ❌ | **SCO-51** (scaffold HTML exists, not wired) |
+| `reports.html` | ❌ | ❌ | **SCO-52** (scaffold HTML exists; also rewires dashboard KPIs) |
+| `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings |
+
+**Recent additions (post-2026-05-15):**
+- **SCO-84** — Sites admin CRUD: `POST/PUT/DELETE/GET/{id}/toggle-online`. Master-site protections, audit events, in-process toggle cooldown. Commit `88d2ec8`.
+- **SCO-85** — User hard-purge: `POST /admin/users/{id}/purge`. Lvl 5 only, typed-DELETE confirmation modal (no `confirm()`), audit FK nullification. Commit `f08233a`.
+- **SCO-86** — `start.sh` launcher hardened: race-free restart, `wait_for_port_free/open` helpers, `[t]` smoke test with full auth + CRUD round-trips (13/13 green). Folded into commits 88d2ec8 + f08233a.
 
 ---
 
@@ -231,6 +238,67 @@ Registry-only keys accepted (random key → 400); type validation rejects wrong 
 
 ---
 
+## 6. Sites admin module — SCO-84 ✅ SHIPPED 2026-05-20
+
+**Page**: `admin-sites.html`. **Script**: `scripts/admin-sites.js`.
+**Backend**: extended `wms/api/v1/sites.py`.
+
+### Endpoints
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/sites` | List (open to login picker) |
+| GET | `/api/v1/sites/{id}` | Detail + user_count + department_count |
+| POST | `/api/v1/sites` | Create (MCS Lvl 5) |
+| PUT | `/api/v1/sites/{id}` | Update name/city/timezone/build_version (MCS Lvl 4) |
+| DELETE | `/api/v1/sites/{id}` | Hard delete (MCS Lvl 5, FK-safe) |
+| POST | `/api/v1/sites/{id}/toggle-online` | Flip `is_online` (MCS Lvl 4, cooldown) |
+
+### Logic & edge cases
+- **Site id format**: `^[A-Z][A-Z0-9-]{1,31}$`, uppercased server-side. Immutable after create.
+- **One-master rule**: refusing `is_master=true` when a master already exists (409).
+- **Toggle cooldown**: 60s minimum between toggles per site, in-process dict (`_last_toggle_at`). Returns 429 within window. NB: multi-worker deployments need a shared store — flagged in code.
+- **Master site protections**: cannot delete, cannot take offline. Prevents auth-path lockout.
+- **FK-safe delete**: refuses with 409 if any users or departments still reference the site. Returns counts in the error detail so the admin knows what to reassign.
+- **Audit events**: `site.created`, `site.updated`, `site.deleted`, `site.online_toggled`. Update event uses diff-only detail (`{field: {was, now}}`).
+- **Frontend gating**: destructive controls hidden when caller isn't master-Lvl-5. Server still enforces independently.
+
+### Tests
+12 covering: list-open-to-any, operator denied, non-master-Lvl-5 denied, full CRUD happy path, cannot-delete-master, cannot-take-master-offline, refuse-when-users-exist, refuse-when-departments-exist, id-format validation, duplicate-409, one-master-409, cooldown release after window.
+
+---
+
+## 7. User hard-purge — SCO-85 ✅ SHIPPED 2026-05-20
+
+**Page**: `users.html` (extended). **Script**: `scripts/users.js` (extended).
+**Backend**: extended `wms/api/v1/admin_users.py` + `wms/services/users_admin.py`.
+
+### Endpoints
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/admin/users/{id}/purge` | Hard-delete user row (Lvl 5, irreversible) → 204 |
+
+The existing `DELETE /admin/users/{id}` is unchanged — it remains a soft-archive (`is_active=False`, reversible via `/reactivate`). Purge is the distinct irreversible verb.
+
+### Logic & edge cases
+- **Permission**: Lvl 5 only.
+- **Self-purge refused**: 403 with "yourself" in detail.
+- **Last-admin guard**: refuses to delete the only remaining active Lvl 5 user (system-lockout protection). Coverage at the service layer (HTTP path requires multiple concurrent admins for test setup).
+- **Subordinate guard**: 409 if the user has any active subordinates pointing at them via `supervisor_id`. Detail includes the count.
+- **Audit preservation**: instead of cascade-deleting `audit_log` rows that reference the target via `user_id`/`actor_id`, we `UPDATE … SET … = NULL` for both columns. The historical trail survives the user it describes.
+- **User-owned cascade**: `UserMFA` (1:1) and `ProfileChangeRequest` (NOT NULL `user_id`) rows are deleted explicitly. `ProfileChangeRequest.decided_by` is nullified.
+- **Audit event**: `user.purged` recorded *before* the row is deleted, with full snapshot (id/employee_code/email/full_name/site_id/role/permission_level/was_active) in `detail_json`.
+
+### Frontend confirmation
+- Custom modal (NOT `window.confirm()` — clients can disable native dialogs).
+- "Delete forever" button is disabled until the input value exactly equals `DELETE` (case-sensitive).
+- Dismissible via Cancel button / X / Escape / backdrop click — none can trigger the call.
+- In-modal error surface for server-side refusals (409 subordinate count, 403 last-admin).
+
+### Tests
+8 covering: happy path 204, GET-after-purge 404, audit-event-with-snapshot, audit-history-preserved-with-FK-nulled, Lvl 4 denied, self-purge denied, last-admin guard (service layer), subordinate-blocked, 404-for-missing-user.
+
+---
+
 ## Cross-cutting workflow rules (apply to every new page)
 
 1. **Auth gate** — every endpoint uses `get_current_user`; site claim validated.
@@ -257,7 +325,7 @@ must return the expected new paths, and `/docs` must render the new tag without 
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: 2026-05-15  
+**Version**: 1.1  
+**Last Updated**: 2026-05-20  
 **Owner**: Meatbag / claude  
 **See also**: `IMPLEMENTATION_ROADMAP.md`, `BACKEND_SCHEMA.md`, `FRONTEND_DESIGN_SCHEMA.md`, `SETTINGS_REGISTRY.md`
