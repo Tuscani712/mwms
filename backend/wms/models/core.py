@@ -50,6 +50,18 @@ class User(Base):
     supervisor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     theme: Mapped[str] = mapped_column(String(20), default="dark")
 
+    # Soft FKs to org-metadata entities (SCO-76). Nullable alongside the legacy
+    # string fields above; populated by new user-create flow, backfilled later.
+    role_id: Mapped[int | None] = mapped_column(
+        ForeignKey("roles.id"), index=True, nullable=True
+    )
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("departments.id"), index=True, nullable=True
+    )
+    shift_id: Mapped[int | None] = mapped_column(
+        ForeignKey("shifts.id"), index=True, nullable=True
+    )
+
     site: Mapped[Site] = relationship(back_populates="users")
 
     def __repr__(self) -> str:
