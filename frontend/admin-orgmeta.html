@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Org Metadata · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+  <style>
+    .om-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-6); }
+    @media (max-width: 1100px) { .om-grid { grid-template-columns: 1fr; } }
+    .om-card { border: 1px solid var(--rule-default); padding: var(--space-5); background: var(--surface); }
+    .om-card h2 { font-family: var(--font-display); font-style: italic; font-size: var(--text-xl); margin: 0 0 var(--space-3); }
+    .om-list { list-style: none; padding: 0; margin: 0 0 var(--space-4); max-height: 320px; overflow-y: auto; }
+    .om-list li {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: var(--space-2) 0; border-bottom: 1px dashed var(--rule-default);
+      font-family: var(--font-mono); font-size: 11px;
+    }
+    .om-meta { color: var(--ink-tertiary); font-size: 10px; letter-spacing: var(--tracking-wide); text-transform: uppercase; }
+    .om-form { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+    .om-row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); align-items: end; }
+    .om-times { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+    .om-empty { color: var(--ink-tertiary); font-family: var(--font-mono); font-size: 11px; padding: var(--space-3) 0; }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="inventory.html" class="topnav-item">Inventory</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item topnav-item--active">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <a href="admin.html">Admin</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Org Metadata</span>
+    </div>
+    <h1 class="page-title"><em>Org</em> metadata</h1>
+    <p class="page-lede">
+      Curate the Roles, Departments, and Shifts that drive user-creation pickers.
+      Roles can be global (NULL site) or site-specific. Departments + Shifts are per-site.
+    </p>
+  </div>
+
+  <main class="page">
+    <div class="om-grid">
+
+      <!-- ROLES -->
+      <section class="om-card">
+        <h2>Roles</h2>
+        <div class="om-meta" id="roles-meta">Loading…</div>
+        <ul class="om-list" id="roles-list"></ul>
+        <form class="om-form" id="role-form">
+          <label>Name <input class="input input--mono" id="role-name" required maxlength="60"></label>
+          <div class="om-row">
+            <label>Default tier
+              <select class="select" id="role-level">
+                <option value="1">L1 · Operator</option>
+                <option value="2">L2 · Lead</option>
+                <option value="3">L3 · Supervisor</option>
+                <option value="4">L4 · Manager</option>
+                <option value="5">L5 · Admin</option>
+              </select>
+            </label>
+            <label>Scope
+              <select class="select" id="role-scope">
+                <option value="site">Own site</option>
+                <option value="global">Global (MCS only)</option>
+              </select>
+            </label>
+          </div>
+          <button type="submit" class="btn btn--primary btn--sm">Add role</button>
+        </form>
+      </section>
+
+      <!-- DEPARTMENTS -->
+      <section class="om-card">
+        <h2>Departments</h2>
+        <div class="om-meta">Per-site — your site only</div>
+        <ul class="om-list" id="depts-list"></ul>
+        <form class="om-form" id="dept-form">
+          <label>Name <input class="input" id="dept-name" required maxlength="60"></label>
+          <button type="submit" class="btn btn--primary btn--sm">Add department</button>
+        </form>
+      </section>
+
+      <!-- SHIFTS -->
+      <section class="om-card">
+        <h2>Shifts</h2>
+        <div class="om-meta">Per-site — your site only</div>
+        <ul class="om-list" id="shifts-list"></ul>
+        <form class="om-form" id="shift-form">
+          <label>Name <input class="input input--mono" id="shift-name" required maxlength="40" placeholder="Swing"></label>
+          <div class="om-times">
+            <label>Start <input class="input input--mono" type="time" id="shift-start" required></label>
+            <label>End <input class="input input--mono" type="time" id="shift-end" required></label>
+          </div>
+          <button type="submit" class="btn btn--primary btn--sm">Add shift</button>
+        </form>
+      </section>
+
+    </div>
+
+    <div id="toast" style="position:fixed;bottom:24px;right:24px;padding:var(--space-3) var(--space-4);font-family:var(--font-mono);font-size:11px;letter-spacing:var(--tracking-wide);text-transform:uppercase;z-index:200;display:none;border:1px solid var(--signal-ok);color:var(--signal-ok);background:rgba(74,222,128,0.08)"></div>
+  </main>
+
+  <script src="scripts/api.js"></script>
+  <script src="scripts/shell.js"></script>
+  <script src="scripts/admin-orgmeta.js"></script>
+</body>
+</html>

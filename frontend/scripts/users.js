@@ -147,7 +147,39 @@
   }
 
   // ── Modal (create / edit) ──────────────────────────────────────────
-  function openModal(user) {
+  // SCO-81: dropdown caches so we don't re-fetch on every modal open
+  const orgmeta = { roles: null, departments: null, shifts: null };
+
+  async function loadOrgmeta() {
+    if (orgmeta.roles && orgmeta.departments && orgmeta.shifts) return;
+    try {
+      const [roles, depts, shifts] = await Promise.all([
+        A.orgmeta.roles(),
+        A.orgmeta.departments(),
+        A.orgmeta.shifts(),
+      ]);
+      orgmeta.roles = roles.filter((r) => r.is_active);
+      orgmeta.departments = depts.filter((d) => d.is_active);
+      orgmeta.shifts = shifts.filter((s) => s.is_active);
+    } catch (e) {
+      console.warn('orgmeta fetch failed', e);
+      orgmeta.roles = []; orgmeta.departments = []; orgmeta.shifts = [];
+    }
+  }
+
+  function fillSelect(selEl, items, fmt, currentId) {
+    const head = selEl.querySelector('option[value=""]') ||
+                 (() => { const o = new Option('— Select —', ''); selEl.insertBefore(o, selEl.firstChild); return o; })();
+    selEl.innerHTML = '';
+    selEl.appendChild(head);
+    items.forEach((it) => {
+      const opt = new Option(fmt(it), it.id);
+      if (currentId && Number(currentId) === it.id) opt.selected = true;
+      selEl.appendChild(opt);
+    });
+  }
+
+  async function openModal(user) {
     state.editing = user;
     $('#modal-title').textContent = user ? `Edit · ${user.employee_code}` : 'New user';
     $('#form-user-id').value = user?.id || '';
@@ -155,16 +187,38 @@
     $('#form-employee_code').disabled = !!user;  // code immutable post-create
     $('#form-full_name').value = user?.full_name || '';
     $('#form-email').value = user?.email || '';
-    $('#form-role').value = user?.role || 'operator';
+
+    await loadOrgmeta();
+    fillSelect(
+      $('#form-role_id'),
+      orgmeta.roles,
+      (r) => `${r.name} (default L${r.default_permission_level})${r.site_id ? '' : ' · global'}`,
+      user?.role_id,
+    );
+    fillSelect($('#form-department_id'), orgmeta.departments, (d) => d.name, user?.department_id);
+    fillSelect($('#form-shift_id'), orgmeta.shifts,
+      (s) => `${s.name} · ${(s.start_time || '').slice(0,5)}–${(s.end_time || '').slice(0,5)}`,
+      user?.shift_id);
+
     $('#form-permission_level').value = user?.permission_level || 1;
-    $('#form-department').value = user?.department || '';
-    $('#form-shift').value = user?.shift || '';
     $('#form-password').value = '';
     $('#form-password-row').style.display = user ? 'none' : '';
     $('#form-password').required = !user;
     populateSupervisors(user);
     $('#modal-backdrop').dataset.open = 'true';
   }
+
+  // SCO-81: when role changes, auto-fill permission_level from the role's
+  // default. The user can still manually override afterwards (interim
+  // leadership) — change handler doesn't re-fire on permission_level edits.
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'form-role_id') {
+      const roleId = Number(e.target.value);
+      if (!roleId || !orgmeta.roles) return;
+      const role = orgmeta.roles.find((r) => r.id === roleId);
+      if (role) $('#form-permission_level').value = role.default_permission_level;
+    }
+  });
 
   function closeModal() {
     $('#modal-backdrop').dataset.open = 'false';
@@ -195,13 +249,19 @@
   $('#user-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const u = state.editing;
+    // SCO-81: dropdowns now drive the FK ids; legacy string fields are no
+    // longer collected from the form. The backend backfills strings from
+    // the linked entities (SCO-80).
+    const roleId = $('#form-role_id').value;
+    const deptId = $('#form-department_id').value;
+    const shiftId = $('#form-shift_id').value;
     const body = {
       full_name: $('#form-full_name').value.trim(),
       email: $('#form-email').value.trim(),
-      role: $('#form-role').value.trim(),
       permission_level: Number($('#form-permission_level').value),
-      department: $('#form-department').value.trim() || null,
-      shift: $('#form-shift').value.trim() || null,
+      role_id: roleId ? Number(roleId) : null,
+      department_id: deptId ? Number(deptId) : null,
+      shift_id: shiftId ? Number(shiftId) : null,
     };
     const supId = $('#form-supervisor_id').value;
     const supervisorId = supId ? Number(supId) : null;

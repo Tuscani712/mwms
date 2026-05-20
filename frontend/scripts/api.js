@@ -103,5 +103,41 @@ window.WMS_API = (() => {
         request('/shipping/truck-load', { method: 'POST', body: { shipment_id, order_id } }),
       packingSlip: (order_id) => request(`/shipping/packing-slip/${order_id}`),
     },
+    orgmeta: {
+      // SCO-81: org-metadata picker + CRUD endpoints. site_id is optional
+      // (server defaults to caller's site for create; list-without-site_id
+      // returns own-site for depts/shifts and own-site+globals for roles).
+      roles: (params = {}) => {
+        const qs = new URLSearchParams();
+        if (params.site_id) qs.set('site_id', params.site_id);
+        if (params.include_globals === false) qs.set('include_globals', 'false');
+        const t = qs.toString();
+        return request(`/admin/roles${t ? `?${t}` : ''}`);
+      },
+      createRole: (payload) =>
+        request('/admin/roles', { method: 'POST', body: payload }),
+      updateRole: (id, payload) =>
+        request(`/admin/roles/${id}`, { method: 'PUT', body: payload }),
+      deactivateRole: (id) =>
+        request(`/admin/roles/${id}`, { method: 'DELETE' }),
+
+      departments: (site_id) =>
+        request(`/admin/departments${site_id ? `?site_id=${site_id}` : ''}`),
+      createDepartment: (payload) =>
+        request('/admin/departments', { method: 'POST', body: payload }),
+      updateDepartment: (id, payload) =>
+        request(`/admin/departments/${id}`, { method: 'PUT', body: payload }),
+      deactivateDepartment: (id) =>
+        request(`/admin/departments/${id}`, { method: 'DELETE' }),
+
+      shifts: (site_id) =>
+        request(`/admin/shifts${site_id ? `?site_id=${site_id}` : ''}`),
+      createShift: (payload) =>
+        request('/admin/shifts', { method: 'POST', body: payload }),
+      updateShift: (id, payload) =>
+        request(`/admin/shifts/${id}`, { method: 'PUT', body: payload }),
+      deactivateShift: (id) =>
+        request(`/admin/shifts/${id}`, { method: 'DELETE' }),
+    },
   };
 })();

@@ -253,16 +253,28 @@
           <input class="input" type="text" id="form-email" required />
         </label>
         <label>Role
-          <input class="input input--mono" type="text" id="form-role" maxlength="40" placeholder="operator / lead / supervisor / manager / admin" />
+          <select class="select" id="form-role_id">
+            <option value="">— Select role —</option>
+          </select>
+          <small style="display:block;margin-top:4px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
+            Curated in <a href="admin-orgmeta.html" style="color:var(--amber)">Admin → Org Metadata</a>.
+          </small>
         </label>
         <label>Permission level (tier)
           <select class="select" id="form-permission_level"></select>
+          <small style="display:block;margin-top:4px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
+            Auto-fills from the role's default. Override only for interim leadership.
+          </small>
         </label>
         <label>Department
-          <input class="input" type="text" id="form-department" maxlength="60" />
+          <select class="select" id="form-department_id">
+            <option value="">— None —</option>
+          </select>
         </label>
         <label>Shift
-          <input class="input input--mono" type="text" id="form-shift" maxlength="20" placeholder="1st / 2nd / 3rd / Graveyard" />
+          <select class="select" id="form-shift_id">
+            <option value="">— None —</option>
+          </select>
         </label>
         <label id="form-password-row">Initial password
           <input class="input" type="password" id="form-password" minlength="4" maxlength="128" />
