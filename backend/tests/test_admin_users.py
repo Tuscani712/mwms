@@ -167,6 +167,165 @@ def test_mcs_admin_can_create_cross_site(client, seeded_db):
     assert r.json()["site_id"] == "WHS-002"
 
 
+# ── Top-down hierarchy chain ────────────────────────────────────────────
+# Verifies that the creation invariant holds at every level: a caller at
+# level N can create a subordinate at level N-1 (and below), but NEVER a
+# peer (level N) or superior (level > N). Mirrors the UI flow where a
+# Lvl 5 admin onboards a Lvl 4 manager, who then onboards a Lvl 3 lead, etc.
+
+
+def test_top_down_hierarchy_chain_creates_full_org(client, seeded_db):
+    """Walk the 5→4→3→{2,1} chain, each tier creating the one below it.
+
+    Design invariant: user management requires permission_level >= 3
+    (see wms/services/users_admin.py). Lvl 1 operators and Lvl 2 supervisors
+    are read-only consumers of the org — they cannot mint users. The chain
+    therefore branches at Lvl 3, which onboards both supervisors (Lvl 2)
+    and operators (Lvl 1) directly.
+
+    Each link asserts:
+      (1) the create succeeds with the correct level
+      (2) the freshly-created caller can log in
+      (3) attempting to create at-or-above own level returns 403
+    """
+    # Bootstrap: Lvl 5 super-admin. Lvl 5 cannot be self-promoted to —
+    # it must be seeded (initial deployment) or created by another Lvl 5+.
+    _seed_admin(seeded_db, code="WHS-001-L5", level=5)
+
+    chain = [
+        # (caller_code, new_code, new_level, new_role)
+        ("WHS-001-L5", "WHS-001-L4", 4, "manager"),
+        ("WHS-001-L4", "WHS-001-L3", 3, "lead"),
+        ("WHS-001-L3", "WHS-001-L2", 2, "supervisor"),
+        ("WHS-001-L3", "WHS-001-L1", 1, "operator"),
+    ]
+
+    for caller_code, new_code, new_level, new_role in chain:
+        token = _login(client, caller_code)
+
+        # (3) Reject creating a peer (at the caller's own level)
+        # NOTE: a Lvl 3 caller's "peer level" is 3 itself. We can't probe
+        # the at-own-level rule for callers below Lvl 4 here because the
+        # Lvl 3+ gate fires first (peer would be Lvl 3, which the caller IS).
+        # That edge is covered by test_cannot_create_user_at_or_above_own_level.
+        # Here we only probe peer-rejection where it's distinguishable:
+        if new_level >= 3:
+            caller_level = new_level + 1
+            r_peer = client.post(
+                "/api/v1/admin/users",
+                json={
+                    "employee_code": f"{new_code}-PEER",
+                    "email": f"{new_code.lower()}-peer@wms.local",
+                    "full_name": "Peer",
+                    "permission_level": caller_level,
+                    "password": "pw1234",
+                },
+                headers=_headers(token),
+            )
+            assert r_peer.status_code == 403, (
+                f"caller {caller_code} should NOT create a peer at lvl {caller_level}"
+            )
+
+        # (1) Create the next subordinate
+        r = client.post(
+            "/api/v1/admin/users",
+            json={
+                "employee_code": new_code,
+                "email": f"{new_code.lower()}@wms.local",
+                "full_name": f"Tier {new_level}",
+                "role": new_role,
+                "permission_level": new_level,
+                "password": "password123",
+            },
+            headers=_headers(token),
+        )
+        assert r.status_code == 201, (
+            f"caller {caller_code} (lvl > {new_level}) should create lvl {new_level}: {r.text}"
+        )
+        body = r.json()
+        assert body["employee_code"] == new_code
+        assert body["permission_level"] == new_level
+        assert body["role"] == new_role
+
+        # (2) The newly-created user can log in
+        new_token = _login(client, new_code)
+        assert new_token, f"{new_code} could not log in after creation"
+
+    # Final assertion: full org tree is in place
+    final_codes = {
+        u.employee_code
+        for u in seeded_db.query(User)
+        .filter(User.employee_code.in_(
+            ["WHS-001-L5", "WHS-001-L4", "WHS-001-L3", "WHS-001-L2", "WHS-001-L1"]
+        ))
+        .all()
+    }
+    assert final_codes == {
+        "WHS-001-L5", "WHS-001-L4", "WHS-001-L3", "WHS-001-L2", "WHS-001-L1"
+    }
+
+
+def test_lvl2_supervisor_blocked_from_user_management(client, seeded_db):
+    """Lvl 2 supervisors are non-admin: they cannot list, create, or modify users.
+
+    This is the explicit boundary: even though Lvl 2 is "above" Lvl 1, the
+    admin endpoints require Lvl 3+ (see users_admin.assert_can_admin).
+    """
+    _seed_admin(seeded_db, code="WHS-001-SUP", level=2)
+    token = _login(client, "WHS-001-SUP")
+    # Cannot list
+    assert client.get("/api/v1/admin/users", headers=_headers(token)).status_code == 403
+    # Cannot create
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-NEW",
+            "email": "n@wms.local",
+            "full_name": "New",
+            "permission_level": 1,
+            "password": "pw1234",
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+
+
+def test_lvl1_operator_cannot_create_anyone(client, seeded_db):
+    """The bottom of the chain — Lvl 1 must be blocked from any admin call."""
+    # The default seeded user is already Lvl 1 (WHS-001-001).
+    token = _login(client, "WHS-001-001")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-IMPOSTER",
+            "email": "i@wms.local",
+            "full_name": "Imposter",
+            "permission_level": 1,
+            "password": "pw1234",
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+
+
+def test_lvl4_cannot_create_lvl5_or_above(client, seeded_db):
+    """Promotion ceiling: a Lvl 4 manager cannot mint a Lvl 5 super-admin."""
+    _seed_admin(seeded_db, code="WHS-001-L4", level=4)
+    token = _login(client, "WHS-001-L4")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-ROGUE",
+            "email": "r@wms.local",
+            "full_name": "Rogue Super",
+            "permission_level": 5,
+            "password": "pw1234",
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+
+
 # ── Update ──────────────────────────────────────────────────────────────
 
 def test_update_user_fields(client, seeded_db):
