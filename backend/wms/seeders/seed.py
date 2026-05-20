@@ -30,7 +30,6 @@ from wms.models import (
     Site,
     User,
     UserProfileField,
-    UserTitle,
 )
 
 random.seed(42)
@@ -219,27 +218,6 @@ def seed_shifts(db: Session) -> None:
             )
             if existing is None:
                 db.add(Shift(site_id=site.id, name=name, start_time=start, end_time=end))
-    db.commit()
-
-
-DEFAULT_TITLES = [
-    "Operator",
-    "Lead",
-    "Supervisor",
-    "Plant Supervisor",
-    "Manager",
-    "Plant Manager",
-    "Director",
-    "Admin",
-]
-
-
-def seed_user_titles(db: Session) -> None:
-    """Seed the default user-title list (SCO-70). Idempotent on re-seed."""
-    for name in DEFAULT_TITLES:
-        existing = db.query(UserTitle).filter(UserTitle.name == name).one_or_none()
-        if existing is None:
-            db.add(UserTitle(name=name, is_active=True))
     db.commit()
 
 

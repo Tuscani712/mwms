@@ -13,7 +13,6 @@ import wms.models  # noqa: F401
 from wms import __version__
 from wms.api.v1 import (
     admin_orgmeta,
-    admin_titles,
     admin_users,
     auth,
     health,
@@ -65,7 +64,6 @@ def create_app() -> FastAPI:
     app.include_router(mfa.router, prefix=api_prefix)
     app.include_router(mfa.auth_router, prefix=api_prefix)
     app.include_router(admin_users.router, prefix=api_prefix)
-    app.include_router(admin_titles.router, prefix=api_prefix)
     app.include_router(admin_orgmeta.roles_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.departments_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.shifts_router, prefix=api_prefix)

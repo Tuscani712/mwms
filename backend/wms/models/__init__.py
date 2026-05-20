@@ -12,7 +12,6 @@ from wms.models.core import (
 )
 from wms.models.inventory import SKU, Location, Lot, LotGenealogy
 from wms.models.orgmeta import Department, Role, Shift
-from wms.models.titles import UserTitle
 from wms.models.ops import (
     ASN,
     ASNLine,
@@ -50,5 +49,4 @@ __all__ = [
     "User",
     "UserMFA",
     "UserProfileField",
-    "UserTitle",
 ]

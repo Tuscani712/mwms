@@ -113,10 +113,20 @@
 - Post-launch menu: status, tail logs, restart, open browser, quit
 - Graceful CTRL+C via `trap shutdown INT TERM`
 
+### ✅ Org Metadata: Role / Department / Shift entities (SCO-76 → SCO-77..82)
+First-class entities replacing the free-string `User.role` / `User.department` / `User.shift` columns. Soft migration — both forms live in parallel; backfill is a later one-shot.
+
+- **SCO-77** models: `Role(name, default_permission_level, site_id NULLABLE)`, `Department(name, site_id)`, `Shift(name, start_time, end_time, site_id)`. Soft FKs added to `users` table.
+- **SCO-78** seeders: 5 global roles (operator=1 → admin=5) + 8 depts × 5 sites + 3 shifts × 5 sites. Idempotent.
+- **SCO-79** admin CRUD: `/admin/roles`, `/admin/departments`, `/admin/shifts`. Permission gates: Lvl 3+ own-site, MCS Lvl 4+ globals/cross-site. 14 new pytest cases.
+- **SCO-80** user-create / update consumes the new FKs and auto-fills `permission_level` from `Role.default_permission_level`. Cross-site mismatches refused with 400. 7 new tests.
+- **SCO-81** frontend: user-form text inputs → dropdowns; new `admin-orgmeta.html` page with Roles / Departments / Shifts management.
+- **SCO-82** removes the orphaned `UserTitle` module (SCO-75) — its role overlapped with `Role` and was never seeded. Schema/permission/roadmap docs refreshed.
+
 ### 🔜 Next Up — see [`PAGES_WORKFLOW.md`](./PAGES_WORKFLOW.md) for full per-page workflow, endpoints, edge cases, and tests
 
 **Page completion path (dependency-ordered)**:
-1. **SCO-49** — Inventory module (backend + `inventory.html` wiring, search/KPIs/adjust/safety-stock)
+1. ~~SCO-49~~ — ✅ Inventory module shipped 2026-05-20 (commit 458206a). Per-board: registered as SCO-75.
 2. **SCO-50** — Quality (QA) module (hold workflow, escalation tiers, supplier defect trending)
 3. **SCO-51** — Production module (work orders, recipe BOM with versioning, genealogy, atomic reservation)
 4. **SCO-52** — Reports & Metrics (dashboard KPIs, CSV streaming, outliers, genealogy walks)

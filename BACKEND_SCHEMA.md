@@ -22,14 +22,31 @@ Per-site identity. **Same employee can have rows at multiple sites with differen
 | `id` | int (PK) | |
 | `site_id` | FK → sites | Scopes every login + every API call |
 | `employee_code` | str (UQ) | Operator-facing ID |
-| `email`, `full_name`, `role`, `permission_level` | | role ∈ operator/lead/supervisor/manager/admin |
+| `email`, `full_name`, `role`, `permission_level` | | `role` is a legacy free string. **Preferred:** `role_id` FK below. |
 | `hashed_password` | str | bcrypt |
 | `is_active`, `last_login_at` | | |
-| `department`, `shift` | str (nullable) | Read-only on profile page; client-managed |
+| `department`, `shift` | str (nullable) | Legacy free strings. **Preferred:** `department_id` / `shift_id` FKs below. |
+| `role_id` | FK → roles (nullable) | SCO-77 soft FK. When set, drives the auto-fill of `permission_level` from `roles.default_permission_level` (SCO-80). |
+| `department_id` | FK → departments (nullable) | SCO-77 soft FK. Must match the user's site_id. |
+| `shift_id` | FK → shifts (nullable) | SCO-77 soft FK. Must match the user's site_id. |
 | `display_name` | str (nullable) | Chat-only; requires Lvl 3+ approval to change |
 | `display_picture_url` | str (nullable) | Avatar URL; requires Lvl 3+ approval to change |
 | `supervisor_id` | FK → users (nullable) | For future supervisor-approval routing |
 | `theme` | str | UI theme preference ("dark" default, light theme stub in tokens.css) |
+
+### `roles`, `departments`, `shifts` (SCO-76 org-metadata)
+First-class entities driving the user-create pickers. Replace the free-string `User.role` / `User.department` / `User.shift` columns over time (soft migration — both forms live in parallel).
+
+| Table | Per-site? | Columns | Notes |
+|---|---|---|---|
+| `roles` | nullable site_id | `name`, `default_permission_level` (1-5), `site_id` (NULL = global template), `is_active` | NULL site_id makes the role assignable from any site. Site-specific roles only assignable to users at that site. |
+| `departments` | yes | `name`, `site_id`, `is_active` | Unique (site_id, name). "WHERE within the site" — Receiving, Shipping, QA, Maintenance, etc. |
+| `shifts` | yes | `name`, `start_time`, `end_time`, `site_id`, `is_active` | Unique (site_id, name). Times stored as `Time` (not strings) so sites in different timezones aren't forced into a single corporate cadence. |
+
+**Permission gates** (`services/orgmeta.py`):
+- Lvl 3+ at a site can manage that site's departments / shifts / site-specific roles.
+- Managing **global** roles (site_id IS NULL) requires MCS admin (Lvl 4+).
+- Cross-site mutation requires MCS admin (Lvl 4+).
 
 ### `user_profile_fields`
 Visibility/editability rules for profile fields. **Resolved at request time** with precedence
@@ -176,9 +193,14 @@ Every domain table has `site_id`. The `get_current_user` dependency validates th
 | POST | `/api/v1/profile/picture/upload` | Multipart avatar upload — sanitizes + re-encodes via Pillow, returns sanitized URL |
 | GET  | `/uploads/avatars/{file}` | Static-served avatars, `Content-Security-Policy: default-src 'none'` + `nosniff` |
 | GET  | `/api/v1/admin/users` | Paginated user list. Filters: `site_id`, `role`, `level_min/max`, `q`, `include_inactive`, `limit`, `offset`. Same-site only for non-MCS. |
-| POST | `/api/v1/admin/users` | Create user (Lvl 3+, strict outrank-only; MCS Lvl 4+ for cross-site). Returns 201. |
+| POST | `/api/v1/admin/users` | Create user (Lvl 3+, strict outrank-only; MCS Lvl 4+ for cross-site). Returns 201. Accepts `role_id` / `department_id` / `shift_id`; auto-fills `permission_level` from role default (SCO-80). |
 | GET  | `/api/v1/admin/users/{id}` | Fetch one (same-site for non-MCS) |
-| PUT  | `/api/v1/admin/users/{id}` | Update mutable fields (email/full_name/role/permission_level/department/shift) |
+| PUT  | `/api/v1/admin/users/{id}` | Update mutable fields (email/full_name/role/permission_level/department/shift + FK ids; cross-site FK targets refused with 400) |
+| GET  | `/api/v1/admin/roles` | List roles. Defaults to caller's site + globals; MCS Lvl 4+ sees everything. |
+| POST | `/api/v1/admin/roles` | Create role. site_id=NULL ⇒ global, requires MCS Lvl 4+. Site-specific ⇒ Lvl 3+ at that site. |
+| PUT/DELETE | `/api/v1/admin/roles/{id}` | Update or deactivate. |
+| GET/POST/PUT/DELETE | `/api/v1/admin/departments` | Per-site CRUD (Lvl 3+ own-site; MCS Lvl 4+ cross-site). |
+| GET/POST/PUT/DELETE | `/api/v1/admin/shifts` | Per-site CRUD (Lvl 3+ own-site; MCS Lvl 4+ cross-site). Times sent as `HH:MM:SS`. |
 | DELETE | `/api/v1/admin/users/{id}` | Soft-delete via `is_active=false`. Cannot self-delete. |
 | POST | `/api/v1/admin/users/{id}/reactivate` | Restore an inactive user |
 | PUT  | `/api/v1/admin/users/{id}/supervisor` | Set/clear supervisor; enforces 5-tier outrank + same-site (or MCS) + cycle detection |
