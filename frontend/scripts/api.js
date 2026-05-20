@@ -139,5 +139,19 @@ window.WMS_API = (() => {
       deactivateShift: (id) =>
         request(`/admin/shifts/${id}`, { method: 'DELETE' }),
     },
+    sitesAdmin: {
+      // SCO-54: master-site CRUD for sites. Write endpoints require MCS Lvl 5
+      // (create/delete) or Lvl 4 (update/toggle). The server enforces; the UI
+      // hides destructive controls when the caller isn't on master.
+      get: (site_id) => request(`/sites/${encodeURIComponent(site_id)}`),
+      create: (payload) =>
+        request('/sites', { method: 'POST', body: payload }),
+      update: (site_id, payload) =>
+        request(`/sites/${encodeURIComponent(site_id)}`, { method: 'PUT', body: payload }),
+      remove: (site_id) =>
+        request(`/sites/${encodeURIComponent(site_id)}`, { method: 'DELETE' }),
+      toggleOnline: (site_id) =>
+        request(`/sites/${encodeURIComponent(site_id)}/toggle-online`, { method: 'POST' }),
+    },
   };
 })();

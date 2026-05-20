@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Sites · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+  <style>
+    .sites-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-5);
+      margin-top: var(--space-4);
+    }
+    .site-card {
+      border: 1px solid var(--rule-default);
+      padding: var(--space-5);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .site-card[data-master="true"] {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 1px rgba(255,107,26,0.18);
+    }
+    .site-card[data-online="false"] {
+      opacity: 0.78;
+    }
+    .site-card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .site-id {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);
+      text-transform: uppercase;
+    }
+    .site-name {
+      font-family: var(--font-display); font-style: italic;
+      font-size: var(--text-xl); margin: 0;
+    }
+    .site-tags {
+      display: flex; gap: var(--space-2); flex-wrap: wrap;
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+    }
+    .site-tag {
+      padding: 2px var(--space-2);
+      border: 1px solid var(--rule-default);
+      color: var(--ink-secondary);
+    }
+    .site-tag--master { color: var(--amber); border-color: var(--amber); }
+    .site-tag--online { color: var(--signal-ok); border-color: var(--signal-ok); }
+    .site-tag--offline { color: var(--signal-crit); border-color: var(--signal-crit); }
+    .site-meta {
+      display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3);
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--ink-secondary);
+    }
+    .site-meta-label {
+      color: var(--ink-tertiary); font-size: 10px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+    }
+    .site-actions {
+      display: flex; gap: var(--space-2); flex-wrap: wrap;
+      margin-top: var(--space-2);
+      padding-top: var(--space-3);
+      border-top: 1px dashed var(--rule-default);
+    }
+    .site-counts {
+      display: flex; gap: var(--space-3);
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--ink-secondary);
+    }
+    .site-count strong { color: var(--ink-primary); }
+    .add-card {
+      border: 1px dashed var(--rule-default);
+      padding: var(--space-5);
+      background: transparent;
+    }
+    .add-card h2 {
+      font-family: var(--font-display); font-style: italic;
+      font-size: var(--text-xl); margin: 0 0 var(--space-3);
+    }
+    .add-form { display: grid; gap: var(--space-3); }
+    .add-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+    .add-form label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      padding: var(--space-3) var(--space-4);
+      font-family: var(--font-mono); font-size: 11px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      z-index: 200; display: none;
+      border: 1px solid var(--signal-ok);
+      color: var(--signal-ok);
+      background: rgba(74,222,128,0.08);
+    }
+    .gate-banner {
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-4);
+      border: 1px solid var(--amber);
+      color: var(--amber);
+      font-family: var(--font-mono); font-size: 11px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      background: rgba(255,107,26,0.08);
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav">
+        <a href="index.html" class="topnav-item">Dashboard</a>
+        <a href="receiving.html" class="topnav-item">Receiving</a>
+        <a href="shipping.html" class="topnav-item">Shipping</a>
+        <a href="inventory.html" class="topnav-item">Inventory</a>
+        <a href="reports.html" class="topnav-item">Reports</a>
+        <a href="admin.html" class="topnav-item topnav-item--active">Admin</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <a href="admin.html">Admin</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Sites</span>
+    </div>
+    <h1 class="page-title">Site <em>directory</em></h1>
+    <p class="page-lede">
+      Provision warehouses, plants, and distribution centers. The master site coordinates corporate policy;
+      other sites operate independently within the multi-site network. Site IDs are immutable once created.
+    </p>
+  </div>
+
+  <main class="page">
+    <div id="gate-banner" class="gate-banner">
+      Read-only view — site provisioning requires sign-in to the master site with Level 5.
+    </div>
+
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Network</span>
+          <h2 class="section-title">Sites <em>online</em></h2>
+        </div>
+        <span class="section-meta" id="sites-meta">Loading…</span>
+      </div>
+
+      <div class="sites-grid" id="sites-grid">
+        <!-- cards populated by JS -->
+      </div>
+    </section>
+
+    <section style="margin-top: var(--space-7);" id="add-section" hidden>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Provision</span>
+          <h2 class="section-title">Add <em>site</em></h2>
+        </div>
+      </div>
+      <div class="add-card">
+        <form class="add-form" id="site-form">
+          <div class="add-form-row">
+            <label>ID (code)
+              <input class="input input--mono" id="site-id" required maxlength="32" placeholder="WHS-004" pattern="^[A-Za-z][A-Za-z0-9\-]+$">
+            </label>
+            <label>Name
+              <input class="input" id="site-name" required maxlength="120" placeholder="San Antonio DC">
+            </label>
+          </div>
+          <div class="add-form-row">
+            <label>City
+              <input class="input" id="site-city" required maxlength="80" placeholder="San Antonio, TX">
+            </label>
+            <label>Timezone
+              <input class="input input--mono" id="site-tz" maxlength="40" value="America/Chicago">
+            </label>
+          </div>
+          <div class="add-form-row">
+            <label>Build version
+              <input class="input input--mono" id="site-build" maxlength="20" value="v0.1.0">
+            </label>
+            <label style="flex-direction: row; align-items: center; gap: var(--space-2);">
+              <input type="checkbox" id="site-online" checked>
+              <span style="text-transform: none; letter-spacing: 0; color: var(--ink-secondary); font-size: 12px;">Online at create</span>
+            </label>
+          </div>
+          <button type="submit" class="btn btn--primary btn--sm">Add site</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <footer class="footer">
+    <div class="footer-bottom" style="border-top: 0; padding-top: 0;">
+      <span>WMS · Admin · Sites</span>
+      <span><span class="dot dot--ok"></span> All systems nominal</span>
+    </div>
+  </footer>
+
+  <script src="scripts/api.js"></script>
+  <script src="scripts/shell.js"></script>
+  <script src="scripts/admin-sites.js"></script>
+</body>
+</html>
