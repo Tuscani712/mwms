@@ -5,7 +5,7 @@
 window.WMS_API = (() => {
   'use strict';
 
-  const BASE = window.WMS_API_BASE || 'http://localhost:8000/api/v1';
+  const BASE = window.WMS_API_BASE || 'http://localhost:8775/api/v1';
   const TOKEN_KEY = 'wms.token';
   const USER_KEY = 'wms.user';
 

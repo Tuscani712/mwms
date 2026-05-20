@@ -27,10 +27,10 @@ cp .env.example .env
 python -m wms.seeders.seed
 
 # Run the API
-uvicorn wms.main:app --reload --port 8000
+uvicorn wms.main:app --reload --port 8775
 ```
 
-Open http://localhost:8000/docs for interactive Swagger UI.
+Open http://localhost:8775/docs for interactive Swagger UI.
 
 ## Project layout
 
@@ -99,12 +99,12 @@ Quick verification with curl:
 
 ```bash
 # Wrong site → 401
-curl -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" \
+curl -X POST http://localhost:8775/api/v1/auth/login -H "Content-Type: application/json" \
   -d '{"employee_code":"WHS-002-001","password":"password123","site_id":"WHS-001"}'
 #  → 401 {"detail":"Invalid credentials or site"}
 
 # Right site → 200
-curl -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" \
+curl -X POST http://localhost:8775/api/v1/auth/login -H "Content-Type: application/json" \
   -d '{"employee_code":"WHS-002-001","password":"password123","site_id":"WHS-002"}'
 #  → 200 {"access_token":"…", "site_id":"WHS-002", "role":"operator", …}
 ```

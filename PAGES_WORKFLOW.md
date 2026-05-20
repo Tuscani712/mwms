@@ -251,7 +251,7 @@ FastAPI auto-publishes `/openapi.json` and `/docs`. Each new router (`inventory`
 
 **Acceptance check per task**:
 ```bash
-curl -s http://127.0.0.1:8000/openapi.json | jq '.paths | keys | map(select(startswith("/api/v1/<module>")))'
+curl -s http://127.0.0.1:8775/openapi.json | jq '.paths | keys | map(select(startswith("/api/v1/<module>")))'
 ```
 must return the expected new paths, and `/docs` must render the new tag without missing-schema errors.
 

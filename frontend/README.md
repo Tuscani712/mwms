@@ -186,7 +186,7 @@ cd frontend && python3 -m http.server 8765
 cd backend && python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 python -m wms.seeders.seed
-uvicorn wms.main:app --reload --port 8000
+uvicorn wms.main:app --reload --port 8775
 ```
 
 Login as `WHS-001-001` / `password123` (or any seeded `WHS-00X-001`). Receiving and Shipping pages

@@ -6,7 +6,7 @@
 #   • Installs deps (only when missing)
 #   • Seeds DB (only when missing)
 #   • Detects port collisions (interactively offers to kill)
-#   • Launches backend (uvicorn :8000) + frontend (http.server :8765)
+#   • Launches backend (uvicorn :8775) + frontend (http.server :8765)
 #   • Tracks PIDs; CTRL+C gracefully stops both
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -41,7 +41,7 @@ FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 BACKEND_LOG="$PID_DIR/backend.log"
 FRONTEND_LOG="$PID_DIR/frontend.log"
 
-BACKEND_PORT="${WMS_BACKEND_PORT:-8000}"
+BACKEND_PORT="${WMS_BACKEND_PORT:-8775}"
 FRONTEND_PORT="${WMS_FRONTEND_PORT:-8765}"
 
 # ── BANNER ───────────────────────────────────────────────────────────────────

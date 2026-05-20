@@ -108,7 +108,7 @@
   - Detects Python 3, creates `backend/.venv` if missing
   - Installs deps only when imports fail (cache-friendly)
   - Seeds DB only when `backend/data/wms.db` is absent
-  - Detects port collisions on 8000 / 8765, interactively offers to kill occupants
+  - Detects port collisions on 8775 / 8765, interactively offers to kill occupants
   - Tracks PIDs in `.run/{backend,frontend}.pid`, logs in same dir
 - Post-launch menu: status, tail logs, restart, open browser, quit
 - Graceful CTRL+C via `trap shutdown INT TERM`
