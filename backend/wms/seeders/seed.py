@@ -6,7 +6,7 @@ Run: python -m wms.seeders.seed
 from __future__ import annotations
 
 import random
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -17,12 +17,15 @@ from wms.models import (
     ASN,
     SKU,
     ASNLine,
+    Department,
     Location,
     Lot,
     Order,
     OrderLine,
     PasswordPolicy,
     QCHold,
+    Role,
+    Shift,
     Shipment,
     Site,
     User,
@@ -109,6 +112,36 @@ DEPARTMENTS = {
 }
 SHIFTS = ["A · 06:00-14:00", "B · 14:00-22:00", "C · 22:00-06:00"]
 
+# SCO-78: per-site default departments + shifts for the new Department / Shift
+# entities. Distinct from the legacy DEPARTMENTS dict (which is keyed by role
+# and used to populate the free-string User.department during seed_users).
+DEFAULT_SITE_DEPARTMENTS = [
+    "Receiving",
+    "Shipping",
+    "Production",
+    "Quality",
+    "Inventory",
+    "Operations",
+    "Maintenance",
+    "Administration",
+]
+
+DEFAULT_SITE_SHIFTS = [
+    ("A", time(6, 0), time(14, 0)),
+    ("B", time(14, 0), time(22, 0)),
+    ("C", time(22, 0), time(6, 0)),
+]
+
+# Global role templates (site_id=NULL). Matches the existing ROLES tuple so
+# the legacy User.role string and the new role_id FK stay in lock-step.
+DEFAULT_GLOBAL_ROLES = [
+    ("operator", 1),
+    ("lead", 2),
+    ("supervisor", 3),
+    ("manager", 4),
+    ("admin", 5),
+]
+
 
 def seed_users(db: Session) -> None:
     for site in db.query(Site).all():
@@ -145,6 +178,47 @@ def seed_users(db: Session) -> None:
                     )
                 )
                 idx += 1
+    db.commit()
+
+
+def seed_roles(db: Session) -> None:
+    """Seed the 5 global role templates (SCO-78). Idempotent."""
+    for name, default_level in DEFAULT_GLOBAL_ROLES:
+        existing = (
+            db.query(Role)
+            .filter(Role.site_id.is_(None), Role.name == name)
+            .one_or_none()
+        )
+        if existing is None:
+            db.add(Role(name=name, default_permission_level=default_level, site_id=None))
+    db.commit()
+
+
+def seed_departments(db: Session) -> None:
+    """Per-site default departments (SCO-78). Idempotent."""
+    for site in db.query(Site).all():
+        for name in DEFAULT_SITE_DEPARTMENTS:
+            existing = (
+                db.query(Department)
+                .filter(Department.site_id == site.id, Department.name == name)
+                .one_or_none()
+            )
+            if existing is None:
+                db.add(Department(site_id=site.id, name=name))
+    db.commit()
+
+
+def seed_shifts(db: Session) -> None:
+    """Per-site default shifts A/B/C (SCO-78). Idempotent."""
+    for site in db.query(Site).all():
+        for name, start, end in DEFAULT_SITE_SHIFTS:
+            existing = (
+                db.query(Shift)
+                .filter(Shift.site_id == site.id, Shift.name == name)
+                .one_or_none()
+            )
+            if existing is None:
+                db.add(Shift(site_id=site.id, name=name, start_time=start, end_time=end))
     db.commit()
 
 
@@ -378,6 +452,9 @@ def run() -> None:
     db = SessionLocal()
     try:
         seed_sites(db)
+        seed_roles(db)
+        seed_departments(db)
+        seed_shifts(db)
         seed_users(db)
         seed_profile_field_policy(db)
         seed_password_policy(db)
