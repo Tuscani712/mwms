@@ -17,7 +17,11 @@
 
 | Key | Type | Default | Bounds | Scope | Edit Lvl | Hot-reload | Source |
 |---|---|---|---|---|---|---|---|
-| _(populated as each task lands — empty until SCO-49 ships)_ | | | | | | | |
+| `inventory.aging_bucket_days` | `list[int]` | `[30, 60, 90]` | ascending, 1–3650 each, length 1–6 | site | 4 | yes (next call recomputes) | SCO-49 |
+| `inventory.expiring_soon_days` | `int` | `7` | 0–365 | site | 3 | yes | SCO-49 |
+| `inventory.adjust_large_threshold` | `int` | `100` | 1–1_000_000 | site | 4 | yes | SCO-49 |
+| `inventory.kpi_cache_ttl_sec` | `int` | `300` | 0–3600 | site | 4 | yes (clears on save) | SCO-49 |
+| `inventory.search_limit_max` | `int` | `200` | 1–1000 | site | 4 | yes | SCO-49 |
 
 ---
 
@@ -39,5 +43,5 @@ These exist in code today but aren't yet rendered in the settings UI. SCO-53 wra
 
 ---
 
-**Version**: 0.1 (skeleton)  
-**Last Updated**: 2026-05-15
+**Version**: 0.2 (SCO-49 inventory knobs landed)  
+**Last Updated**: 2026-05-19

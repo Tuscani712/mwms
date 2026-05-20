@@ -73,6 +73,26 @@ window.WMS_API = (() => {
         request('/receiving/receipts', { method: 'POST', body: payload }),
       putaway: (asn_id) => request(`/receiving/putaway-suggestions/${asn_id}`),
     },
+    inventory: {
+      lots: (params = {}) => {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+          if (v === undefined || v === null || v === '') return;
+          qs.append(k, String(v));
+        });
+        const tail = qs.toString();
+        return request(`/inventory/lots${tail ? `?${tail}` : ''}`);
+      },
+      sku: (sku_code) => request(`/inventory/sku/${encodeURIComponent(sku_code)}`),
+      kpis: (refresh = false) =>
+        request(`/inventory/kpis${refresh ? '?refresh=true' : ''}`),
+      adjust: (lot_id, delta, reason) =>
+        request('/inventory/adjust', {
+          method: 'POST',
+          body: { lot_id, delta, reason },
+        }),
+      belowSafetyStock: () => request('/inventory/below-safety-stock'),
+    },
     shipping: {
       orders: (status) => request(`/shipping/orders${status ? `?status=${status}` : ''}`),
       consolidation: (order_id, line_id) =>
