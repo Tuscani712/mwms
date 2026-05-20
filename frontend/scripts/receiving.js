@@ -1,7 +1,21 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Receiving Page — live data wiring
-   Fetches ASNs from /api/v1/receiving/inbound and replaces the mock table body.
-   If unauthed or API unreachable, the page falls back to the static mock content.
+   ─────────────────────────────────────────────────────────────────────────
+   Currently wired:
+     • GET /api/v1/receiving/inbound → inbound queue table
+
+   To wire (endpoints listed are NOT YET BUILT unless marked existing):
+     • GET /receiving/kpis              → KPI tiles (units, avg time, variances, holds)
+     • GET /receiving/docks             → status ticker dock states
+     • GET /receiving/asn/{id}          → QC inspection panel rows
+     • POST /receiving/qc/{line_id}     → per-line QC pass/hold update
+     • POST /receiving/receipts          (existing) → Complete QC button
+     • GET /receiving/putaway-suggestions/{id}  (existing) → Putaway aside
+     • POST /receiving/putaway/assign   → Assign & print labels button
+     • GET /receiving/search?q=         → Search input
+
+   Auth: if not signed in, render "Sign in to load data" empty states.
+   Never substitute mock data — the UI must reflect reality.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (async () => {
@@ -24,7 +38,7 @@
       receiving: '<span class="tag tag--ok">RECEIVING</span>',
       received: '<span class="tag tag--ok">RECEIVED</span>',
     };
-    return map[status] || `<span class="tag">${status.toUpperCase()}</span>`;
+    return map[status] || `<span class="tag">${String(status || '').toUpperCase()}</span>`;
   }
 
   function setStatus(text, isLive = false) {
@@ -33,8 +47,13 @@
     statusEl.dataset.live = isLive ? 'true' : 'false';
   }
 
+  function emptyRow(text) {
+    return `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">${text}</td></tr>`;
+  }
+
   if (!window.WMS_API || !WMS_API.isAuthed()) {
-    setStatus('Demo data · sign in for live', false);
+    setStatus('Signed out · sign in to load data', false);
+    tbody.innerHTML = emptyRow('Sign in to load inbound data');
     return;
   }
 
@@ -42,8 +61,8 @@
     setStatus('Loading inbound…', false);
     const asns = await WMS_API.receiving.inbound();
     if (!asns.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No inbound ASNs.</td></tr>';
-      setStatus(`Live · 0 inbound`, true);
+      tbody.innerHTML = emptyRow('No inbound ASNs.');
+      setStatus('Live · 0 inbound', true);
       return;
     }
     tbody.innerHTML = asns
@@ -64,7 +83,8 @@
       .join('');
     setStatus(`Live · ${asns.length} inbound`, true);
   } catch (err) {
-    console.warn('[WMS Receiving] Falling back to mock data:', err.message);
-    setStatus('Backend unreachable · showing demo data', false);
+    console.warn('[WMS Receiving] inbound fetch failed:', err.message);
+    tbody.innerHTML = emptyRow('Backend unreachable.');
+    setStatus('Backend unreachable', false);
   }
 })();

@@ -34,23 +34,20 @@
       </nav>
       <div class="topbar-right">
         <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
-        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">—</span><span class="user-name" data-bind="user-name">—</span></button>
       </div>
     </div>
   </header>
 
-  <!-- STATUS TICKER -->
+  <!-- STATUS TICKER
+       WIRING: receiving.js renders one ticker-item per dock door from
+       GET /api/v1/receiving/docks (NOT YET BUILT). Each item shows
+       DOCK_CODE ▸ STATE [· ASN_CODE]. State values: OPEN, OFFLOADING,
+       QC_HOLD, RECEIVED. Site name comes from /auth/me via shell.js. -->
   <div class="status-ticker">
-    <div class="status-ticker-inner">
-      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">DOCK 01 ▸ <strong>OPEN</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">DOCK 02 ▸ <strong>OFFLOADING</strong> · ASN-44820</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">DOCK 03 ▸ <strong>QC HOLD</strong> · LOT-22018</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">DOCK 04 ▸ <strong>OPEN</strong></span>
+    <div class="status-ticker-inner" data-bind="receiving-ticker">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">—</strong></span>
+      <!-- dock items inserted here -->
     </div>
   </div>
 
@@ -65,54 +62,78 @@
     <p class="page-lede">
       Track inbound trucks, match ASNs to receipts, run QC, and assign putaway locations.
     </p>
+    <!-- PAGE ACTIONS
+         WIRING:
+           [Begin new receipt] → opens receipt-create modal; POST /api/v1/receiving/receipts on submit
+           [Scan ASN]         → camera/barcode scanner overlay; resolves ASN code → loads detail panel
+           [View shift report]→ links to reports.html?report=receiving (SCO-52) -->
     <div class="page-actions">
-      <a href="#" class="btn btn--primary btn-arrow"><span>Begin new receipt</span></a>
-      <a href="#" class="btn btn-arrow"><span>Scan ASN</span></a>
-      <a href="#" class="btn btn--ghost"><span>View shift report</span></a>
+      <button class="btn btn--primary btn-arrow" data-action="receipt-new" disabled><span>Begin new receipt</span></button>
+      <button class="btn btn-arrow" data-action="asn-scan" disabled><span>Scan ASN</span></button>
+      <a href="reports.html" class="btn btn--ghost"><span>View shift report</span></a>
     </div>
   </div>
 
   <!-- PAGE BODY -->
   <main class="page">
 
-    <!-- KPI ROW -->
+    <!-- KPI ROW
+         WIRING: receiving.js calls GET /api/v1/receiving/kpis (NOT YET BUILT —
+         to be added in a follow-up Receiving backend pass). Until then,
+         all four tiles render `—`. Shape expected:
+           { units_received_today, trucks_today, dock_doors_used,
+             avg_receipt_minutes, asn_variances_open, qc_holds_open,
+             qc_holds_cosmetic, qc_holds_major } -->
     <section>
       <div class="kpi-row">
         <article class="kpi" style="--kpi-accent: var(--amber);">
           <div class="kpi-label"><span class="dot dot--amber"></span> Units Received Today</div>
-          <div class="kpi-value">12,847<span class="kpi-unit">UNITS</span></div>
-          <div class="kpi-meta">11 trucks · 4 dock doors</div>
+          <div class="kpi-value" data-bind="kpi-units-received">—<span class="kpi-unit">UNITS</span></div>
+          <div class="kpi-meta" data-bind="kpi-units-received-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-ok);">
           <div class="kpi-label"><span class="dot dot--ok"></span> Avg Receipt Time</div>
-          <div class="kpi-value">22<span class="kpi-unit">MIN</span></div>
-          <div class="kpi-meta">▼ 3min vs 7d avg</div>
+          <div class="kpi-value" data-bind="kpi-avg-receipt">—<span class="kpi-unit">MIN</span></div>
+          <div class="kpi-meta" data-bind="kpi-avg-receipt-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-warn);">
           <div class="kpi-label"><span class="dot dot--warn"></span> ASN Variances</div>
-          <div class="kpi-value">2<span class="kpi-unit">OPEN</span></div>
-          <div class="kpi-meta">&gt; 1% — require Lvl 2+ approval</div>
+          <div class="kpi-value" data-bind="kpi-asn-variances">—<span class="kpi-unit">OPEN</span></div>
+          <div class="kpi-meta" data-bind="kpi-asn-variances-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-crit);">
           <div class="kpi-label"><span class="dot dot--crit"></span> QC Holds</div>
-          <div class="kpi-value">3<span class="kpi-unit">LOTS</span></div>
-          <div class="kpi-meta">2 cosmetic · 1 major damage</div>
+          <div class="kpi-value" data-bind="kpi-qc-holds">—<span class="kpi-unit">LOTS</span></div>
+          <div class="kpi-meta" data-bind="kpi-qc-holds-meta">—</div>
         </article>
       </div>
     </section>
 
-    <!-- INBOUND QUEUE -->
+    <!-- INBOUND QUEUE
+         WIRING: receiving.js calls GET /api/v1/receiving/inbound and renders
+         one row per ASN. Status filter chips will POST a `status` param
+         to the same endpoint once it accepts filters. The free-text input
+         will hit /receiving/search (NOT YET BUILT).
+         Schema per row: { id, asn_code, supplier, dock_door, status, lines[], eta }. -->
     <section>
       <div class="section-head">
         <div class="section-head-left">
           <span class="section-eyebrow">Inbound Queue</span>
           <h2 class="section-title">Inbound <em>queue</em></h2>
         </div>
-        <span class="section-meta" data-bind="receiving-data-status">Demo data · sign in for live</span>
+        <span class="section-meta" data-bind="receiving-data-status">—</span>
       </div>
 
-      <!-- LIVE API FEED (shows when authenticated; mock dock table remains below) -->
-      <table class="data-table" style="margin-bottom: var(--space-6);">
+      <div class="filter-bar">
+        <input class="input" data-bind="receiving-search" placeholder="Search by ASN, PO, supplier, lot…" disabled />
+        <span class="filter-chip" data-active="true" data-filter="all">All</span>
+        <span class="filter-chip" data-filter="open">Open</span>
+        <span class="filter-chip" data-filter="offloading">Offloading</span>
+        <span class="filter-chip" data-filter="qc_hold">QC Hold</span>
+        <span class="filter-chip" data-filter="putaway">Putaway</span>
+      </div>
+
+      <table class="data-table">
         <thead>
           <tr>
             <th>ASN</th>
@@ -124,98 +145,23 @@
           </tr>
         </thead>
         <tbody data-bind="receiving-inbound-rows">
-          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load live inbound data</td></tr>
-        </tbody>
-      </table>
-
-      <div class="filter-bar">
-        <input class="input" placeholder="Search by ASN, PO, supplier, lot…" />
-        <span class="filter-chip" data-active="true">All</span>
-        <span class="filter-chip">Open</span>
-        <span class="filter-chip">Offloading</span>
-        <span class="filter-chip">QC Hold</span>
-        <span class="filter-chip">Putaway</span>
-      </div>
-
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="col-status"></th>
-            <th>Dock</th>
-            <th>ASN / PO</th>
-            <th>Supplier</th>
-            <th class="num">Expected</th>
-            <th class="num">Received</th>
-            <th>Variance</th>
-            <th>Status</th>
-            <th class="col-action"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td class="mono">DOCK-01</td>
-            <td>
-              <div class="row-title">ASN-44820</div>
-              <div class="row-sub">PO-2026-08841</div>
-            </td>
-            <td>Northwind Beef Co.</td>
-            <td class="num">2,400 lbs</td>
-            <td class="num">2,358 lbs</td>
-            <td><span class="tag tag--warn">1.75% short</span></td>
-            <td><span class="tag tag--warn">Awaiting Lvl 2</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Review</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td class="mono">DOCK-02</td>
-            <td>
-              <div class="row-title">ASN-44821</div>
-              <div class="row-sub">PO-2026-08842</div>
-            </td>
-            <td>SunValley Produce</td>
-            <td class="num">800 cases</td>
-            <td class="num">800 cases</td>
-            <td><span class="tag tag--ok">Match</span></td>
-            <td><span class="tag tag--amber">Offloading · 60%</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--crit"></span></td>
-            <td class="mono">DOCK-03</td>
-            <td>
-              <div class="row-title">ASN-44822</div>
-              <div class="row-sub">PO-2026-08843</div>
-            </td>
-            <td>PrairieBag Ingredients</td>
-            <td class="num">1,500 bags</td>
-            <td class="num">1,500 bags</td>
-            <td><span class="tag tag--ok">Match</span></td>
-            <td><span class="tag tag--crit">QC HOLD · Major damage</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Inspect</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot"></span></td>
-            <td class="mono">DOCK-04</td>
-            <td>
-              <div class="row-title">—</div>
-              <div class="row-sub">awaiting truck</div>
-            </td>
-            <td colspan="4" style="color: var(--ink-tertiary); font-family: var(--font-mono); font-size: var(--text-xs);">DOCK OPEN · next ETA 15:45</td>
-            <td><span class="tag">Open</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Assign</span></a></td>
-          </tr>
+          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load inbound data</td></tr>
         </tbody>
       </table>
     </section>
 
-    <!-- RECEIPT DETAIL + QC PANEL -->
+    <!-- RECEIPT DETAIL + QC PANEL
+         WIRING: when a row in the inbound queue is selected, receiving.js
+         calls GET /api/v1/receiving/asn/{id} (NOT YET BUILT — needs to
+         return ASN + line items + QC state). Each QC row update POSTs
+         /receiving/qc/{line_id} with { qc_passed, condition_notes }.
+         The "Complete QC" button POSTs /receiving/receipts (existing). -->
     <section class="page-row page-row--main-aside">
 
       <div>
         <div class="section-head">
           <div class="section-head-left">
-            <span class="section-eyebrow">Active Receipt · ASN-44820</span>
+            <span class="section-eyebrow" data-bind="qc-eyebrow">Active Receipt</span>
             <h2 class="section-title">QC <em>inspection</em></h2>
           </div>
           <span class="section-meta">Mandatory · blocking</span>
@@ -223,8 +169,8 @@
 
         <div class="panel">
           <div class="panel-head">
-            <span class="panel-title">Line Items · 4 SKUs</span>
-            <span class="tag tag--amber">QC In Progress · 2 of 4</span>
+            <span class="panel-title" data-bind="qc-line-count">No active receipt</span>
+            <span class="tag" data-bind="qc-progress-tag">—</span>
           </div>
           <table class="data-table" style="border: none;">
             <thead>
@@ -237,49 +183,23 @@
                 <th>QC</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td class="col-status"><span class="dot dot--ok"></span></td>
-                <td class="mono">SKU-19044</td>
-                <td>Ground beef · 80/20 · 5lb chub</td>
-                <td class="num">240</td>
-                <td><span class="tag tag--ok">Sealed</span></td>
-                <td><span class="tag tag--ok">PASSED</span></td>
-              </tr>
-              <tr>
-                <td class="col-status"><span class="dot dot--ok"></span></td>
-                <td class="mono">SKU-19045</td>
-                <td>Ground beef · 90/10 · 5lb chub</td>
-                <td class="num">320</td>
-                <td><span class="tag tag--ok">Sealed</span></td>
-                <td><span class="tag tag--ok">PASSED</span></td>
-              </tr>
-              <tr>
-                <td class="col-status"><span class="dot dot--warn"></span></td>
-                <td class="mono">SKU-19046</td>
-                <td>Beef trim · 50/50 · bulk</td>
-                <td class="num">140</td>
-                <td><span class="tag tag--warn">Minor leak</span></td>
-                <td><span class="tag tag--amber">PENDING</span></td>
-              </tr>
-              <tr>
-                <td class="col-status"><span class="dot"></span></td>
-                <td class="mono">SKU-19047</td>
-                <td>Beef tallow · 35lb pail</td>
-                <td class="num">42</td>
-                <td>—</td>
-                <td><span class="tag">QUEUED</span></td>
-              </tr>
+            <tbody data-bind="qc-rows">
+              <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Select an ASN from the inbound queue to load line items</td></tr>
             </tbody>
           </table>
           <div class="panel-foot">
             <span>Hold any failed item · auto-notify Lvl 2+</span>
-            <a href="#" class="btn btn--primary btn--sm btn-arrow"><span>Complete QC</span></a>
+            <button class="btn btn--primary btn--sm btn-arrow" data-action="qc-complete" disabled><span>Complete QC</span></button>
           </div>
         </div>
       </div>
 
-      <!-- ASIDE: Putaway suggestion -->
+      <!-- ASIDE: Putaway suggestion
+           WIRING: receiving.js calls GET /api/v1/receiving/putaway-suggestions/{asn_id}
+           (existing). Returns { primary_location, primary_capacity_left,
+           overflow_location, overflow_capacity_left, rationale } per ASN line.
+           The "Assign & print labels" button POSTs /receiving/putaway/assign
+           (NOT YET BUILT) which writes the assignment + triggers label PDF gen. -->
       <aside>
         <div class="section-head">
           <div class="section-head-left">
@@ -293,10 +213,10 @@
 
             <div>
               <div class="kpi-label"><span class="dot dot--ok"></span> Primary (FIFO)</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-base); font-weight: 500; margin-top: var(--space-2); color: var(--ink-primary);">A-04-12 · COOLER-2</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 2px;">Capacity 80% · matches SKU class</div>
+              <div data-bind="putaway-primary-code" style="font-family: var(--font-mono); font-size: var(--text-base); font-weight: 500; margin-top: var(--space-2); color: var(--ink-primary);">—</div>
+              <div data-bind="putaway-primary-meta" style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 2px;">—</div>
               <div class="meter" style="margin-top: var(--space-2);">
-                <div class="meter-fill meter-fill--ok" style="width: 80%;"></div>
+                <div class="meter-fill meter-fill--ok" data-bind="putaway-primary-meter" style="width: 0%;"></div>
               </div>
             </div>
 
@@ -304,10 +224,10 @@
 
             <div>
               <div class="kpi-label"><span class="dot dot--warn"></span> Overflow (declared)</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-base); font-weight: 500; margin-top: var(--space-2); color: var(--ink-primary);">B-12-03 · COOLER-3</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 2px;">Capacity 22% · client-declared overflow</div>
+              <div data-bind="putaway-overflow-code" style="font-family: var(--font-mono); font-size: var(--text-base); font-weight: 500; margin-top: var(--space-2); color: var(--ink-primary);">—</div>
+              <div data-bind="putaway-overflow-meta" style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 2px;">—</div>
               <div class="meter" style="margin-top: var(--space-2);">
-                <div class="meter-fill meter-fill--warn" style="width: 22%;"></div>
+                <div class="meter-fill meter-fill--warn" data-bind="putaway-overflow-meter" style="width: 0%;"></div>
               </div>
             </div>
 
@@ -317,7 +237,7 @@
               ▸ Manual override available · requires Lvl 2+ + reason code
             </div>
 
-            <a href="#" class="btn btn--primary btn-arrow" style="justify-content: space-between;"><span>Assign &amp; print labels</span></a>
+            <button class="btn btn--primary btn-arrow" data-action="putaway-assign" disabled style="justify-content: space-between;"><span>Assign &amp; print labels</span></button>
           </div>
         </div>
       </aside>
@@ -333,25 +253,22 @@
     </div>
   </footer>
 
-  <!-- CHAT DOCK -->
+  <!-- CHAT DOCK
+       WIRING: future feature — site-scoped operator chat. Will connect to
+       /api/v1/chat/{site_id}/messages (NOT YET BUILT) with WebSocket fan-out.
+       Send POSTs to the same endpoint. Until then the dock is empty + the
+       input is disabled so it doesn't look interactive. -->
   <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
     <div class="chat-dock-head" id="chat-toggle">
-      <span class="chat-dock-title"><span class="dot dot--ok"></span> Floor Chat · Shift B</span>
+      <span class="chat-dock-title"><span class="dot"></span> Floor Chat</span>
       <span class="mono chat-caret" style="font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
     </div>
-    <div class="chat-dock-body">
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">Sarah M.</span><span>14:22 · Lead</span></div>
-        <div class="chat-msg-body">Dock-03 lot needs Lvl 3 sign-off on major damage. ETA?</div>
-      </div>
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">David L.</span><span>14:25 · QA</span></div>
-        <div class="chat-msg-body">On my way — 5 min.</div>
-      </div>
+    <div class="chat-dock-body" data-bind="chat-messages">
+      <!-- chat messages inserted here when the chat endpoint ships -->
     </div>
     <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm">Send</button>
+      <input class="input input--mono" placeholder="// chat not yet available" disabled />
+      <button class="btn btn--primary btn--sm" disabled>Send</button>
     </form>
   </aside>
 

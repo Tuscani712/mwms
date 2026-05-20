@@ -33,22 +33,20 @@
       </nav>
       <div class="topbar-right">
         <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
-        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">—</span><span class="user-name" data-bind="user-name">—</span></button>
       </div>
     </div>
   </header>
 
+  <!-- STATUS TICKER
+       WIRING: shipping.js renders ticker items from
+       GET /api/v1/shipping/floor-summary (NOT YET BUILT).
+       Shape: { pickers_active, open_picks, staged_orders, fefo_triggers_7d }.
+       Site name comes from /auth/me via shell.js. -->
   <div class="status-ticker">
-    <div class="status-ticker-inner">
-      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">PICKERS ACTIVE ▸ <strong>14</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">OPEN PICKS ▸ <strong>87</strong> tasks</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">STAGED ORDERS ▸ <strong>12</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">FEFO TRIGGERS ▸ <strong>3</strong> · &lt;7d</span>
+    <div class="status-ticker-inner" data-bind="shipping-ticker">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">—</strong></span>
+      <!-- summary items inserted here -->
     </div>
   </div>
 
@@ -62,53 +60,79 @@
     <p class="page-lede">
       Manage pick queue, multi-lot consolidation, FEFO triggers, and truck loading.
     </p>
+    <!-- PAGE ACTIONS
+         WIRING:
+           [Start next pick] → POSTs /api/v1/shipping/picks/next (NOT YET BUILT);
+                              returns the next prioritized order for this picker
+           [Build a load]    → opens load-builder modal; POST /shipping/truck-load
+                              for each order added (existing endpoint)
+           [View accuracy report] → links to reports.html?report=shipping (SCO-52) -->
     <div class="page-actions">
-      <a href="#" class="btn btn--primary btn-arrow"><span>Start next pick</span></a>
-      <a href="#" class="btn btn-arrow"><span>Build a load</span></a>
-      <a href="#" class="btn btn--ghost"><span>View accuracy report</span></a>
+      <button class="btn btn--primary btn-arrow" data-action="pick-next" disabled><span>Start next pick</span></button>
+      <button class="btn btn-arrow" data-action="load-build" disabled><span>Build a load</span></button>
+      <a href="reports.html" class="btn btn--ghost"><span>View accuracy report</span></a>
     </div>
   </div>
 
   <main class="page">
 
-    <!-- KPIs -->
+    <!-- KPIs
+         WIRING: shipping.js calls GET /api/v1/shipping/kpis (NOT YET BUILT).
+         Shape: { orders_shipped_today, orders_shipped_delta_pct,
+                  pick_accuracy_pct, pick_errors_count, pick_total_count,
+                  on_time_ship_pct, on_time_delta_pts,
+                  fefo_triggers_7d } -->
     <section>
       <div class="kpi-row">
         <article class="kpi" style="--kpi-accent: var(--amber);">
           <div class="kpi-label"><span class="dot dot--amber"></span> Orders Shipped</div>
-          <div class="kpi-value">2,394<span class="kpi-unit">ORDERS</span></div>
-          <div class="kpi-meta">▲ 4.2% vs 30d avg</div>
+          <div class="kpi-value" data-bind="kpi-orders-shipped">—<span class="kpi-unit">ORDERS</span></div>
+          <div class="kpi-meta" data-bind="kpi-orders-shipped-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-ok);">
           <div class="kpi-label"><span class="dot dot--ok"></span> Pick Accuracy</div>
-          <div class="kpi-value">98.7<span class="kpi-unit">%</span></div>
-          <div class="kpi-meta">12 errors / 2,394 picks</div>
+          <div class="kpi-value" data-bind="kpi-pick-accuracy">—<span class="kpi-unit">%</span></div>
+          <div class="kpi-meta" data-bind="kpi-pick-accuracy-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-info);">
           <div class="kpi-label"><span class="dot dot--info"></span> On-Time Ship Rate</div>
-          <div class="kpi-value">96.1<span class="kpi-unit">%</span></div>
-          <div class="kpi-meta">▲ 2.1 pts week-over-week</div>
+          <div class="kpi-value" data-bind="kpi-on-time">—<span class="kpi-unit">%</span></div>
+          <div class="kpi-meta" data-bind="kpi-on-time-meta">—</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-warn);">
           <div class="kpi-label"><span class="dot dot--warn"></span> FEFO Triggers</div>
-          <div class="kpi-value">3<span class="kpi-unit">LOTS</span></div>
-          <div class="kpi-meta">Within 7-day expiration window</div>
+          <div class="kpi-value" data-bind="kpi-fefo">—<span class="kpi-unit">LOTS</span></div>
+          <div class="kpi-meta" data-bind="kpi-fefo-meta">—</div>
         </article>
       </div>
     </section>
 
-    <!-- PICK QUEUE -->
+    <!-- PICK QUEUE
+         WIRING: shipping.js calls GET /api/v1/shipping/orders (existing).
+         Filter chips will pass a `status` query param once the endpoint
+         supports it. The text input will hit /shipping/orders/search (NOT YET BUILT).
+         Schema per row: { id, order_code, customer, priority, status,
+                          lines[], ship_by, truck_id } -->
     <section>
       <div class="section-head">
         <div class="section-head-left">
           <span class="section-eyebrow">Pick Queue</span>
           <h2 class="section-title">Pick <em>queue</em></h2>
         </div>
-        <span class="section-meta" data-bind="shipping-data-status">Demo data · sign in for live</span>
+        <span class="section-meta" data-bind="shipping-data-status">—</span>
       </div>
 
-      <!-- LIVE API FEED -->
-      <table class="data-table" style="margin-bottom: var(--space-6);">
+      <div class="filter-bar">
+        <input class="input" data-bind="shipping-search" placeholder="Search order #, customer, SKU, lot…" disabled />
+        <span class="filter-chip" data-active="true" data-filter="all">All</span>
+        <span class="filter-chip" data-filter="open">Unpicked</span>
+        <span class="filter-chip" data-filter="picking">In Progress</span>
+        <span class="filter-chip" data-filter="staged">Staged</span>
+        <span class="filter-chip" data-filter="fefo">FEFO</span>
+        <span class="filter-chip" data-filter="modified">Modified</span>
+      </div>
+
+      <table class="data-table">
         <thead>
           <tr>
             <th>Order</th>
@@ -120,111 +144,32 @@
           </tr>
         </thead>
         <tbody data-bind="shipping-orders-rows">
-          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load live order data</td></tr>
-        </tbody>
-      </table>
-
-      <div class="filter-bar">
-        <input class="input" placeholder="Search order #, customer, SKU, lot…" />
-        <span class="filter-chip" data-active="true">All</span>
-        <span class="filter-chip">Unpicked</span>
-        <span class="filter-chip">In Progress</span>
-        <span class="filter-chip">Staged</span>
-        <span class="filter-chip">FEFO</span>
-        <span class="filter-chip">Modified</span>
-      </div>
-
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="col-status"></th>
-            <th>Order #</th>
-            <th>Customer</th>
-            <th class="num">Lines</th>
-            <th class="num">Weight</th>
-            <th>Ship By</th>
-            <th>Strategy</th>
-            <th>Status</th>
-            <th class="col-action"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="col-status"><span class="dot dot--crit"></span></td>
-            <td>
-              <div class="row-title">SO-90142</div>
-              <div class="row-sub">3 lots · Multi-lot</div>
-            </td>
-            <td>Sysco · DAL</td>
-            <td class="num">14</td>
-            <td class="num">4,820 lbs</td>
-            <td class="mono">16:00 TODAY</td>
-            <td><span class="tag tag--warn">FEFO · 6d</span></td>
-            <td><span class="tag tag--crit">Awaiting pick</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Pick</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--amber"></span></td>
-            <td>
-              <div class="row-title">SO-90143</div>
-              <div class="row-sub">1 lot · Single-line</div>
-            </td>
-            <td>US Foods · HOU</td>
-            <td class="num">3</td>
-            <td class="num">1,200 lbs</td>
-            <td class="mono">17:30 TODAY</td>
-            <td><span class="tag tag--ok">FIFO</span></td>
-            <td><span class="tag tag--amber">In pick · 60%</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Resume</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--info"></span></td>
-            <td>
-              <div class="row-title">SO-90144</div>
-              <div class="row-sub">2 lots</div>
-            </td>
-            <td>Performance Food Group</td>
-            <td class="num">22</td>
-            <td class="num">6,140 lbs</td>
-            <td class="mono">TOMORROW · 06:00</td>
-            <td><span class="tag tag--ok">FIFO</span></td>
-            <td><span class="tag tag--info">Staged</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--warn"></span></td>
-            <td>
-              <div class="row-title">SO-90145</div>
-              <div class="row-sub">Modified post-pick</div>
-            </td>
-            <td>Reinhart Foodservice</td>
-            <td class="num">8</td>
-            <td class="num">2,400 lbs</td>
-            <td class="mono">TOMORROW · 10:00</td>
-            <td><span class="tag tag--ok">FIFO</span></td>
-            <td><span class="tag tag--warn">Awaiting Lvl 2</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Review</span></a></td>
-          </tr>
+          <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Sign in to load order data</td></tr>
         </tbody>
       </table>
     </section>
 
-    <!-- ORDER DETAIL · MULTI-LOT CONSOLIDATION -->
+    <!-- ORDER DETAIL · MULTI-LOT CONSOLIDATION
+         WIRING: when a row is selected, shipping.js calls
+         GET /api/v1/shipping/consolidation/{order_id}/{line_id} (existing).
+         Returns { lot_id, lot_code, sku_code, location_code, qty,
+                  expires_at, strategy } per pickable lot.
+         The "Confirm pick" button POSTs /shipping/picks (existing). -->
     <section class="page-row page-row--main-aside">
 
       <div>
         <div class="section-head">
           <div class="section-head-left">
-            <span class="section-eyebrow">Active Order · SO-90142</span>
+            <span class="section-eyebrow" data-bind="consolidation-eyebrow">Active Order</span>
             <h2 class="section-title">Multi-lot <em>consolidation</em></h2>
           </div>
-          <span class="section-meta">3 lots → 1 shipment</span>
+          <span class="section-meta" data-bind="consolidation-meta">—</span>
         </div>
 
         <div class="panel">
           <div class="panel-head">
             <span class="panel-title">Pick Plan</span>
-            <span class="tag tag--warn">FEFO Override · 6-day expiry</span>
+            <span class="tag" data-bind="consolidation-strategy-tag">—</span>
           </div>
           <table class="data-table" style="border: none;">
             <thead>
@@ -237,40 +182,22 @@
                 <th>Strategy</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td class="mono">LOT-32A-2026</td>
-                <td class="mono">SKU-22018</td>
-                <td class="mono">A-04-08</td>
-                <td class="num">410</td>
-                <td class="num">in 6 days</td>
-                <td><span class="tag tag--warn">FEFO</span></td>
-              </tr>
-              <tr>
-                <td class="mono">LOT-19B-2026</td>
-                <td class="mono">SKU-22018</td>
-                <td class="mono">B-09-22</td>
-                <td class="num">280</td>
-                <td class="num">in 21 days</td>
-                <td><span class="tag tag--ok">FIFO</span></td>
-              </tr>
-              <tr>
-                <td class="mono">LOT-44C-2026</td>
-                <td class="mono">SKU-22019</td>
-                <td class="mono">A-04-12</td>
-                <td class="num">160</td>
-                <td class="num">in 42 days</td>
-                <td><span class="tag tag--ok">FIFO</span></td>
-              </tr>
+            <tbody data-bind="consolidation-rows">
+              <tr><td colspan="6" class="muted" style="text-align:center;padding:24px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:var(--text-xs)">Select an order to load its pick plan</td></tr>
             </tbody>
           </table>
           <div class="panel-foot">
-            <span>Single packing slip will list all 3 lots + quantities</span>
-            <a href="#" class="btn btn--primary btn--sm btn-arrow"><span>Confirm pick</span></a>
+            <span>Single packing slip will list all lots + quantities</span>
+            <button class="btn btn--primary btn--sm btn-arrow" data-action="pick-confirm" disabled><span>Confirm pick</span></button>
           </div>
         </div>
       </div>
 
+      <!-- TRUCK LOAD ASIDE
+           WIRING: shipping.js calls GET /api/v1/shipping/truck/{shipment_id}
+           (NOT YET BUILT — needs to return capacity + loaded + remaining
+           computed from existing Shipment.truck_capacity_kg / loaded_weight_kg).
+           "Build a load" page-action drives the writes here. -->
       <aside>
         <div class="section-head">
           <div class="section-head-left">
@@ -281,19 +208,17 @@
 
         <div class="callout">
           <div class="callout-label">Truck Capacity</div>
-          <div class="callout-value">26,000<span class="kpi-unit">LBS MAX</span></div>
+          <div class="callout-value" data-bind="truck-capacity">—<span class="kpi-unit">LBS MAX</span></div>
           <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4);">
             <div>
               <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary);">
-                <span>Loaded</span><span><strong>18,420 lbs</strong> · 71%</span>
+                <span>Loaded</span><span data-bind="truck-loaded-summary">—</span>
               </div>
               <div class="meter" style="margin-top: var(--space-2);">
-                <div class="meter-fill meter-fill--ok" style="width: 71%;"></div>
+                <div class="meter-fill meter-fill--ok" data-bind="truck-loaded-meter" style="width: 0%;"></div>
               </div>
             </div>
-            <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);">
-              Remaining capacity · 7,580 lbs · ≈ 2 more orders
-            </div>
+            <div data-bind="truck-remaining" style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);">—</div>
           </div>
         </div>
       </aside>
@@ -308,20 +233,20 @@
     </div>
   </footer>
 
+  <!-- CHAT DOCK
+       WIRING: same as receiving.html — site-scoped operator chat, hooks to
+       /api/v1/chat/{site_id}/messages (NOT YET BUILT) with WS fan-out. -->
   <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
     <div class="chat-dock-head" id="chat-toggle">
-      <span class="chat-dock-title"><span class="dot dot--ok"></span> Floor Chat · Shift B</span>
+      <span class="chat-dock-title"><span class="dot"></span> Floor Chat</span>
       <span class="chat-caret" style="font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
     </div>
-    <div class="chat-dock-body">
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">System</span><span>14:30 · Auto</span></div>
-        <div class="chat-msg-body">SO-90142 FEFO trigger · LOT-32A-2026 expires in 6 days.</div>
-      </div>
+    <div class="chat-dock-body" data-bind="chat-messages">
+      <!-- chat messages inserted here when the chat endpoint ships -->
     </div>
     <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm">Send</button>
+      <input class="input input--mono" placeholder="// chat not yet available" disabled />
+      <button class="btn btn--primary btn--sm" disabled>Send</button>
     </form>
   </aside>
 

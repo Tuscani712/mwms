@@ -310,6 +310,60 @@
 
 .input--mono { font-family: var(--font-mono); }
 
+/* ── SELECT ─────────────────────────────────────────────────────────────
+   Mirrors .input but with a custom caret + dark-mode dropdown panel.
+   `color-scheme: dark` tells the browser to render the native option list
+   on a dark background, which is what fixes the original "gray-on-white,
+   illegible" issue on the users page filters. */
+.select {
+  width: 100%;
+  padding: var(--space-3) var(--space-9) var(--space-3) var(--space-4);
+  background-color: var(--inset);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-secondary) 50%),
+    linear-gradient(-45deg, transparent 50%, var(--ink-secondary) 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--rule-default);
+  border-radius: var(--radius-1);
+  color: var(--ink-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  color-scheme: dark;
+  cursor: pointer;
+  transition: border-color var(--dur-quick) var(--ease-out),
+              background-color var(--dur-quick) var(--ease-out);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--amber);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 3px var(--amber-glow);
+}
+
+.select:hover {
+  border-color: var(--rule-strong, var(--ink-tertiary));
+}
+
+.select option {
+  background: var(--surface);
+  color: var(--ink-primary);
+  font-family: var(--font-mono);
+}
+
+[data-theme="light"] .select {
+  color-scheme: light;
+}
+
 /* ── FIELD GROUPS ───────────────────────────────────────────────────── */
 
 .field {

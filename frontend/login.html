@@ -955,7 +955,7 @@
         if (err.message === 'Unauthorized') {
           showLoginError(`Login rejected. User "${employee_code}" is not assigned to ${site_id}, or password is incorrect.`);
         } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-          showLoginError('Backend unreachable. Start the server: `uvicorn wms.main:app --port 8000`');
+          showLoginError('Backend unreachable. Start the server: `uvicorn wms.main:app --port 8775`');
         } else {
           showLoginError(`Login failed: ${err.message}`);
         }

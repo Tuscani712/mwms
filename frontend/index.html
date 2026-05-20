@@ -46,8 +46,8 @@
           <span class="topbar-clock-date" id="clock-date">— · — · —</span>
         </div>
         <button class="user-chip" aria-label="Account" id="user-chip" title="Click to sign out">
-          <span class="user-avatar" data-bind="user-initial">M</span>
-          <span class="user-name" data-bind="user-name">M. Tuscani</span>
+          <span class="user-avatar" data-bind="user-initial">—</span>
+          <span class="user-name" data-bind="user-name">—</span>
         </button>
       </div>
 
@@ -56,25 +56,32 @@
 
   <!-- ═══════════════════════════════════════════════════════════════
        STATUS TICKER
+       WIRING: dashboard.js renders ticker items from
+       GET /api/v1/dashboard/ticker (NOT YET BUILT — feed will be the
+       union of in-flight dock states, running production lines, open QA
+       holds, safety-stock breaches, and active operators).
+       Site name comes from /auth/me via dashboard.js bootstrap.
        ═══════════════════════════════════════════════════════════════ -->
   <div class="status-ticker" aria-label="Operations ticker">
-    <div class="status-ticker-inner">
-      <span class="ticker-item"><span class="dot dot--ok"></span> SYSTEM · NOMINAL</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">DOCK 03 ▸ <strong>INBOUND</strong> · ASN-44820</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">PROD LINE 02 ▸ <strong>RUNNING</strong> · WO-9911</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">QA HOLD ▸ <strong>4 LOTS</strong> · OLDEST 11d</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item"><span class="dot dot--warn"></span> SAFETY STOCK · 2 SKUs LOW</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">SHIFT B ▸ <strong>14 OPERATORS</strong> ACTIVE</span>
+    <div class="status-ticker-inner" data-bind="dashboard-ticker">
+      <span class="ticker-item"><span class="dot"></span> Site · <strong data-bind="site-name">—</strong></span>
+      <!-- ticker items inserted here when the endpoint ships -->
     </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
        HERO — Editorial greeting + operational briefing
+       WIRING:
+         • Greeting name → first-name extracted from /auth/me (user.full_name)
+         • Hero date → live from JS clock (dashboard.js)
+         • Hero lede (alert counts + throughput) → from
+             GET /api/v1/dashboard/summary (NOT YET BUILT):
+             { active_alerts_total, alerts_by_module{rcv,qa,prd,inv,shp},
+               throughput_delta_pct_vs_30d }
+         • Operational briefing panel fields:
+             - Shift / Window / Lead → /api/v1/dashboard/shift (NOT YET BUILT)
+             - Site → /auth/me (existing)
+             - Weather → external integration (NOT YET BUILT — provider TBD)
        ═══════════════════════════════════════════════════════════════ -->
   <section class="hero">
 
@@ -83,41 +90,40 @@
         <span class="dot dot--amber"></span>
         <span>Console · 01</span>
         <span style="opacity: 0.4;">/</span>
-        <span id="hero-date">Thursday, May 15</span>
+        <span id="hero-date">—</span>
       </div>
 
       <h1 class="hero-greeting">
         Welcome back,<br>
-        <em>Meatbag.</em>
+        <em data-bind="user-first-name">Operator.</em>
       </h1>
 
-      <p class="hero-lede">
-        <strong>8 active alerts</strong> · 2 receiving · 4 quality · 1 ingredient shortage · 1 yield variance.
-        Throughput <strong>+4.2%</strong> vs 30-day baseline.
+      <p class="hero-lede" data-bind="hero-lede">
+        Sign in to load today's briefing.
       </p>
     </div>
 
     <aside class="hero-panel scanline-bg" aria-label="Operational briefing">
       <div class="hero-panel-label">
         <span>Operational Briefing</span>
-        <span class="dot dot--ok"></span>
+        <span class="dot" data-bind="briefing-status"></span>
       </div>
 
       <dl class="hero-panel-shift">
         <dt class="shift-label">Shift</dt>
-        <dd class="shift-value"><em>Bravo</em></dd>
+        <dd class="shift-value"><em data-bind="briefing-shift">—</em></dd>
 
         <dt class="shift-label">Window</dt>
-        <dd class="shift-value shift-value--mono">14:00 — 22:00</dd>
+        <dd class="shift-value shift-value--mono" data-bind="briefing-window">—</dd>
 
         <dt class="shift-label">Lead</dt>
-        <dd class="shift-value"><em>Sarah Mendez</em></dd>
+        <dd class="shift-value"><em data-bind="briefing-lead">—</em></dd>
 
         <dt class="shift-label">Site</dt>
-        <dd class="shift-value shift-value--mono" data-bind="site-name">WHS-001 · DAL</dd>
+        <dd class="shift-value shift-value--mono" data-bind="site-name">—</dd>
 
         <dt class="shift-label">Weather</dt>
-        <dd class="shift-value shift-value--mono">73°F · CLR · 8mph S</dd>
+        <dd class="shift-value shift-value--mono" data-bind="briefing-weather">—</dd>
       </dl>
     </aside>
 
@@ -125,6 +131,18 @@
 
   <!-- ═══════════════════════════════════════════════════════════════
        KPI INSTRUMENT CLUSTER
+       WIRING: dashboard.js calls GET /api/v1/dashboard/kpis
+       (NOT YET BUILT — will fan-in from receiving, shipping, production,
+       quality). Expected shape:
+         {
+           units_received_today, units_received_delta_pct, units_received_meta,
+           orders_shipped, orders_shipped_delta_pct, orders_shipped_meta,
+           production_yield_pct, production_yield_delta_pts, production_yield_meta,
+           qa_holds_open, qa_holds_delta_since_shift, qa_holds_meta
+         }
+       Refresh cadence: 5 min (server-side cache; same TTL as inventory.kpis).
+       Once SCO-52 (Reports) lands, the canonical endpoint becomes
+       /api/v1/reports/dashboard and this binding moves there.
        ═══════════════════════════════════════════════════════════════ -->
   <section class="section" id="kpis">
 
@@ -133,37 +151,37 @@
         <span class="section-eyebrow">Live Instruments</span>
         <h2 class="section-title">Today's <em>throughput</em></h2>
       </div>
-      <span class="section-meta">Refreshes every 5 min · Last <span id="kpi-refresh">just now</span></span>
+      <span class="section-meta">Refreshes every 5 min · Last <span id="kpi-refresh">—</span></span>
     </div>
 
     <div class="kpi-grid stagger">
 
       <article class="kpi" style="--kpi-accent: var(--amber);">
         <div class="kpi-label"><span class="dot dot--amber"></span> Units Received</div>
-        <div class="kpi-value">12,847<span class="kpi-unit">UNITS</span></div>
-        <div class="kpi-delta kpi-delta--up">▲ 6.4% vs. 30d avg</div>
-        <div class="kpi-meta">Across 4 dock doors · 11 trucks</div>
+        <div class="kpi-value" data-bind="kpi-units-received">—<span class="kpi-unit">UNITS</span></div>
+        <div class="kpi-delta" data-bind="kpi-units-received-delta">—</div>
+        <div class="kpi-meta" data-bind="kpi-units-received-meta">—</div>
       </article>
 
       <article class="kpi" style="--kpi-accent: var(--signal-ok);">
         <div class="kpi-label"><span class="dot dot--ok"></span> Orders Shipped</div>
-        <div class="kpi-value">2,394<span class="kpi-unit">ORDERS</span></div>
-        <div class="kpi-delta kpi-delta--up">▲ 4.2% · on track</div>
-        <div class="kpi-meta">98.7% accuracy · 96.1% on-time</div>
+        <div class="kpi-value" data-bind="kpi-orders-shipped">—<span class="kpi-unit">ORDERS</span></div>
+        <div class="kpi-delta" data-bind="kpi-orders-shipped-delta">—</div>
+        <div class="kpi-meta" data-bind="kpi-orders-shipped-meta">—</div>
       </article>
 
       <article class="kpi" style="--kpi-accent: var(--ember);">
         <div class="kpi-label"><span class="dot dot--info"></span> Production Yield</div>
-        <div class="kpi-value">94.8<span class="kpi-unit">%</span></div>
-        <div class="kpi-delta kpi-delta--down">▼ 0.6 pts · within tolerance</div>
-        <div class="kpi-meta">Recipe BR-1140 · WO-9911</div>
+        <div class="kpi-value" data-bind="kpi-production-yield">—<span class="kpi-unit">%</span></div>
+        <div class="kpi-delta" data-bind="kpi-production-yield-delta">—</div>
+        <div class="kpi-meta" data-bind="kpi-production-yield-meta">—</div>
       </article>
 
       <article class="kpi" style="--kpi-accent: var(--signal-warn);">
         <div class="kpi-label"><span class="dot dot--warn"></span> QA Holds</div>
-        <div class="kpi-value">14<span class="kpi-unit">LOTS</span></div>
-        <div class="kpi-delta kpi-delta--down">▲ 3 since last shift</div>
-        <div class="kpi-meta">Oldest: 17 days · Lvl-3 alert</div>
+        <div class="kpi-value" data-bind="kpi-qa-holds">—<span class="kpi-unit">LOTS</span></div>
+        <div class="kpi-delta" data-bind="kpi-qa-holds-delta">—</div>
+        <div class="kpi-meta" data-bind="kpi-qa-holds-meta">—</div>
       </article>
 
     </div>
@@ -175,7 +193,7 @@
   <section class="section">
     <div class="main-grid">
 
-      <!-- Actions -->
+      <!-- QUICK ACTIONS — pure navigation tiles, no live data needed -->
       <div>
         <div class="section-head">
           <div class="section-head-left">
@@ -226,101 +244,43 @@
         </div>
       </div>
 
-      <!-- Alerts feed -->
+      <!-- ALERTS FEED
+           WIRING: dashboard.js calls GET /api/v1/dashboard/alerts
+           (NOT YET BUILT — will fan-in from each module's "open" tables:
+             - QA holds older than `quality.hold_escalation_days` (SCO-50)
+             - ASN variances > 1% (existing receiving signal, needs surfacing)
+             - Production: ingredient shortages, yield variance (SCO-51)
+             - Inventory: safety-stock breaches (existing endpoint), FEFO triggers, slow-movers
+             - Cycle counts scheduled (NOT YET BUILT)
+           ).
+           Shape per alert: { id, severity (crit/warn/info), title, sub,
+                             timestamp, source_module (RCV/QA/PRD/INV/SHP) }.
+           "View All" → reports.html?report=alerts. -->
       <div>
         <div class="section-head">
           <div class="section-head-left">
             <span class="section-eyebrow">Active Alerts</span>
             <h2 class="section-title">Open <em>alerts</em></h2>
           </div>
-          <span class="section-meta">8 open</span>
+          <span class="section-meta" data-bind="alerts-count">—</span>
         </div>
 
         <div class="panel alerts">
-
-          <div class="alert">
-            <span class="dot dot--crit"></span>
-            <div>
-              <div class="alert-title">QA hold exceeded 21 days</div>
-              <div class="alert-sub">LOT-44820-A · escalate to Level 4</div>
+          <div class="alerts-list" data-bind="alerts-list">
+            <div class="alert">
+              <span class="dot"></span>
+              <div>
+                <div class="alert-title">Sign in to load alerts</div>
+                <div class="alert-sub">Open alerts will appear here once the dashboard endpoint is wired.</div>
+              </div>
+              <span class="alert-time">—</span>
+              <span class="alert-source">—</span>
             </div>
-            <span class="alert-time">14:38</span>
-            <span class="alert-source">QA</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--crit"></span>
-            <div>
-              <div class="alert-title">ASN variance &gt; 1%</div>
-              <div class="alert-sub">ASN-44820 · expected 2,400 · received 2,358</div>
-            </div>
-            <span class="alert-time">14:21</span>
-            <span class="alert-source">RCV</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--warn"></span>
-            <div>
-              <div class="alert-title">Ingredient shortage flagged</div>
-              <div class="alert-sub">WO-9911 needs 1,870 lbs · 1,210 lbs on hand</div>
-            </div>
-            <span class="alert-time">13:55</span>
-            <span class="alert-source">PRD</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--warn"></span>
-            <div>
-              <div class="alert-title">Yield variance + 1.4%</div>
-              <div class="alert-sub">Recipe BR-1140 · investigation suggested</div>
-            </div>
-            <span class="alert-time">13:42</span>
-            <span class="alert-source">PRD</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--info"></span>
-            <div>
-              <div class="alert-title">FEFO trigger · 6 days to expiry</div>
-              <div class="alert-sub">SKU-22018 · 410 units · Lot 32A</div>
-            </div>
-            <span class="alert-time">13:30</span>
-            <span class="alert-source">SHP</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--info"></span>
-            <div>
-              <div class="alert-title">Safety stock breach</div>
-              <div class="alert-sub">SKU-19044 · 22 units · reorder point 50</div>
-            </div>
-            <span class="alert-time">12:08</span>
-            <span class="alert-source">INV</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--info"></span>
-            <div>
-              <div class="alert-title">Slow-mover candidate</div>
-              <div class="alert-sub">SKU-30122 · 84 days no movement</div>
-            </div>
-            <span class="alert-time">10:50</span>
-            <span class="alert-source">INV</span>
-          </div>
-
-          <div class="alert">
-            <span class="dot dot--info"></span>
-            <div>
-              <div class="alert-title">Cycle-count scheduled</div>
-              <div class="alert-sub">Zone D · tomorrow 06:00</div>
-            </div>
-            <span class="alert-time">09:14</span>
-            <span class="alert-source">INV</span>
           </div>
 
           <div class="panel-foot">
-            <span>Showing 8 of 8 open</span>
-            <a href="#" class="btn btn--ghost btn--sm btn-arrow">View All</a>
+            <span data-bind="alerts-foot">—</span>
+            <a href="reports.html" class="btn btn--ghost btn--sm btn-arrow">View All</a>
           </div>
         </div>
       </div>
@@ -343,81 +303,64 @@
       <div class="footer-col">
         <h6>Operations</h6>
         <ul>
-          <li><a href="#">Receiving</a></li>
-          <li><a href="#">Shipping</a></li>
-          <li><a href="#">Production</a></li>
-          <li><a href="#">Quality</a></li>
+          <li><a href="receiving.html">Receiving</a></li>
+          <li><a href="shipping.html">Shipping</a></li>
+          <li><a href="production.html">Production</a></li>
+          <li><a href="quality.html">Quality</a></li>
         </ul>
       </div>
 
       <div class="footer-col">
         <h6>Insight</h6>
         <ul>
-          <li><a href="#">Reports</a></li>
-          <li><a href="#">Genealogy</a></li>
-          <li><a href="#">Suppliers</a></li>
-          <li><a href="#">Audit Trail</a></li>
+          <li><a href="reports.html">Reports</a></li>
+          <li><a href="reports.html">Genealogy</a></li>
+          <li><a href="reports.html">Suppliers</a></li>
+          <li><a href="reports.html">Audit Trail</a></li>
         </ul>
       </div>
 
       <div class="footer-col">
         <h6>System</h6>
         <ul>
-          <li><a href="#">Admin Panel</a></li>
-          <li><a href="#">Permissions</a></li>
-          <li><a href="#">Integrations</a></li>
-          <li><a href="#">Status</a></li>
+          <li><a href="admin.html">Admin Panel</a></li>
+          <li><a href="users.html">Permissions</a></li>
+          <li><a href="admin.html">Integrations</a></li>
+          <li><a href="admin.html">Status</a></li>
         </ul>
       </div>
     </div>
 
+    <!-- FOOTER STATUS LINE
+         WIRING: build number from /health (existing), API latency from a
+         lightweight ping measurement in dashboard.js (NOT YET BUILT). -->
     <div class="footer-bottom">
-      <span>WMS · v0.1.0 · Build 2026.05.15</span>
-      <span><span class="dot dot--ok" style="margin-right: 8px;"></span> All systems nominal · API 142ms</span>
+      <span data-bind="footer-build">WMS · v0.1.0</span>
+      <span><span class="dot" style="margin-right: 8px;" data-bind="footer-health-dot"></span> <span data-bind="footer-health">—</span></span>
     </div>
   </footer>
 
   <!-- ═══════════════════════════════════════════════════════════════
        PERSISTENT CHAT DOCK
+       WIRING: site-scoped operator chat. Same wiring target as the
+       receiving/shipping dock: /api/v1/chat/{site_id}/messages with
+       WebSocket fan-out (NOT YET BUILT). Until then dock is empty
+       + input is disabled so it doesn't look interactive.
        ═══════════════════════════════════════════════════════════════ -->
   <aside class="chat-dock" id="chat-dock" aria-label="Team chat">
     <div class="chat-dock-head" id="chat-toggle">
       <span class="chat-dock-title">
-        <span class="dot dot--ok"></span>
-        Floor Chat · Shift B
+        <span class="dot"></span>
+        Floor Chat
       </span>
       <span class="mono" style="font-size: var(--text-2xs); color: var(--ink-tertiary);">▾</span>
     </div>
-    <div class="chat-dock-body" id="chat-body">
-
-      <div class="chat-msg">
-        <div class="chat-msg-meta">
-          <span class="chat-msg-author">Sarah M.</span>
-          <span>14:22 · Lead</span>
-        </div>
-        <div class="chat-msg-body">Pulling LOT-44820-A for QA inspection. Need Level 3 sign-off on release.</div>
-      </div>
-
-      <div class="chat-msg">
-        <div class="chat-msg-meta">
-          <span class="chat-msg-author">David L.</span>
-          <span>14:25 · QA</span>
-        </div>
-        <div class="chat-msg-body">On my way. ETA 5 min.</div>
-      </div>
-
-      <div class="chat-msg">
-        <div class="chat-msg-meta">
-          <span class="chat-msg-author">System</span>
-          <span>14:30 · Auto</span>
-        </div>
-        <div class="chat-msg-body">ASN-44820 variance flagged · 1.75% short. Awaiting approval.</div>
-      </div>
-
+    <div class="chat-dock-body" id="chat-body" data-bind="chat-messages">
+      <!-- chat messages inserted here when the chat endpoint ships -->
     </div>
     <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm" type="submit">Send</button>
+      <input class="input input--mono" placeholder="// chat not yet available" disabled />
+      <button class="btn btn--primary btn--sm" type="submit" disabled>Send</button>
     </form>
   </aside>
 
