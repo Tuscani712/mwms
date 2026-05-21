@@ -23,6 +23,9 @@ fi
 log()   { printf "%s[wms]%s %s\n" "$C_BLU" "$C_RST" "$*"; }
 ok()    { printf "%s ✓ %s%s\n" "$C_GRN" "$*" "$C_RST"; }
 warn()  { printf "%s ⚠ %s%s\n" "$C_YEL" "$*" "$C_RST"; }
+# fail() must route through the EXIT trap so any already-started service is
+# stopped before bash terminates. Don't call shutdown() directly here — the trap
+# handles that, and double-invoking just adds noise (SHUTDOWN_DONE guards it).
 fail()  { printf "%s ✗ %s%s\n" "$C_RED" "$*" "$C_RST"; exit 1; }
 info()  { printf "%s   %s%s\n" "$C_DIM" "$*" "$C_RST"; }
 
@@ -83,9 +86,12 @@ shutdown() {
     fi
   done
   log "All services stopped. Logs preserved in $PID_DIR/"
-  exit 0
 }
-trap shutdown INT TERM
+# INT/TERM = Ctrl+C and `kill <pid>`. HUP = terminal window closed.
+# EXIT = catch-all for any other exit path (fail(), unexpected error under set -u,
+# normal completion). SHUTDOWN_DONE makes shutdown() idempotent under double-fire
+# (e.g. INT followed by EXIT).
+trap shutdown INT TERM HUP EXIT
 
 # ── PRE-FLIGHT ───────────────────────────────────────────────────────────────
 check_python() {
@@ -248,7 +254,10 @@ start_backend() {
     die_or_warn "Port $BACKEND_PORT not free — refusing to launch backend"
     return 1
   fi
-  ( cd "$BACKEND" && nohup "$UVICORN" wms.main:app \
+  # No nohup: we *want* the child to receive SIGHUP if the terminal closes,
+  # so it dies with us. The EXIT/HUP trap is the primary cleanup path; child
+  # SIGHUP is the safety net if the trap is somehow bypassed.
+  ( cd "$BACKEND" && "$UVICORN" wms.main:app \
       --host 127.0.0.1 --port "$BACKEND_PORT" \
       >"$BACKEND_LOG" 2>&1 & echo $! >"$BACKEND_PID_FILE" )
   local pid; pid="$(cat "$BACKEND_PID_FILE" 2>/dev/null || echo '?')"
@@ -282,7 +291,8 @@ start_frontend() {
     die_or_warn "Port $FRONTEND_PORT not free — refusing to launch frontend"
     return 1
   fi
-  ( cd "$FRONTEND" && nohup python3 -m http.server "$FRONTEND_PORT" \
+  # See start_backend: no nohup, child dies with terminal as safety net.
+  ( cd "$FRONTEND" && python3 -m http.server "$FRONTEND_PORT" \
       --bind 127.0.0.1 \
       >"$FRONTEND_LOG" 2>&1 & echo $! >"$FRONTEND_PID_FILE" )
   local pid; pid="$(cat "$FRONTEND_PID_FILE" 2>/dev/null || echo '?')"
@@ -491,7 +501,8 @@ menu_loop() {
     echo "  ${C_BLD}[r]${C_RST} Restart    ${C_BLD}[t]${C_RST} Smoke test         ${C_BLD}[o]${C_RST} Open login URL"
     echo "  ${C_BLD}[q]${C_RST} Quit"
     printf "%swms>%s " "$C_BLU" "$C_RST"
-    local cmd; read -r cmd || { echo; shutdown; }
+    # Ctrl+D (EOF) → fall through to exit; EXIT trap stops both services.
+    local cmd; read -r cmd || { echo; exit 0; }
     case "$cmd" in
       s|S|status) print_status ;;
       b|B) [[ -f "$BACKEND_LOG" ]] && tail -n 25 "$BACKEND_LOG" || warn "No backend log yet" ;;
@@ -515,7 +526,11 @@ menu_loop() {
         elif command -v open >/dev/null 2>&1; then open "$url" >/dev/null 2>&1 &
         else info "Open: $url"; fi
         ;;
-      q|Q|quit|exit) shutdown ;;
+      q|Q|quit|exit)
+        # EXIT trap will run shutdown() automatically and stop both services.
+        log "Quit requested — stopping services and exiting."
+        exit 0
+        ;;
       "") ;;  # ignore empty
       *) info "Unknown command: $cmd" ;;
     esac
