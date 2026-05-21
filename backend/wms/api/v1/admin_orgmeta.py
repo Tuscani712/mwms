@@ -12,7 +12,6 @@ from wms.core.deps import get_current_user, get_session
 from wms.models import Department, Role, Shift, Title, User
 from wms.services import orgmeta as svc
 
-
 # ── Schemas ───────────────────────────────────────────────────────────────
 
 class RoleCreate(BaseModel):
@@ -127,6 +126,23 @@ def _load_title(db: Session, title_id: int) -> Title:
     return title
 
 
+def _resolve_create_site_id(caller: User, payload_site_id: str | None, *, entity: str) -> str:
+    """Determine the site_id for a per-site create (Department/Shift).
+
+    Non-MCS callers default to their own site (back-compat). MCS Lvl 4+ callers
+    must send an explicit site_id — silent defaulting to MCS was the footgun that
+    let MCS-authored entries leak into the MCS site instead of the target warehouse.
+    """
+    if payload_site_id:
+        return payload_site_id
+    if caller.site_id == svc.MCS_SITE_ID and caller.permission_level >= 4:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{entity}: MCS admins must specify site_id explicitly",
+        )
+    return caller.site_id
+
+
 def _gate(e: Exception) -> HTTPException:
     if isinstance(e, svc.OrgMetaAuthorizationError):
         return HTTPException(status.HTTP_403_FORBIDDEN, str(e))
@@ -234,7 +250,7 @@ def create_department(
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
 ):
-    site_id = payload.site_id or caller.site_id
+    site_id = _resolve_create_site_id(caller, payload.site_id, entity="Department")
     try:
         return svc.create_department(db, caller, name=payload.name, site_id=site_id)
     except (svc.OrgMetaAuthorizationError, ValueError) as e:
@@ -304,7 +320,7 @@ def create_shift(
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
 ):
-    site_id = payload.site_id or caller.site_id
+    site_id = _resolve_create_site_id(caller, payload.site_id, entity="Shift")
     try:
         return svc.create_shift(
             db, caller,

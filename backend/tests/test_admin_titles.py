@@ -16,7 +16,6 @@ from datetime import time
 from wms.core.security import hash_password
 from wms.models import Department, Role, Shift, Site, Title, User
 
-
 # ── Helpers ─────────────────────────────────────────────────────────────
 
 

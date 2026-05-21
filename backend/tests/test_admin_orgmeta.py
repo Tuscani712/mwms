@@ -13,7 +13,6 @@ from __future__ import annotations
 from wms.core.security import hash_password
 from wms.models import Site, User
 
-
 # ── Helpers ─────────────────────────────────────────────────────────────
 
 def _seed_admin(db, *, site_id="WHS-001", code="WHS-001-ADMIN", level=4) -> User:
@@ -238,3 +237,94 @@ def test_shift_uniqueness_within_site(client, seeded_db):
     assert client.post("/api/v1/admin/shifts", json=payload, headers=_h(token)).status_code == 201
     r2 = client.post("/api/v1/admin/shifts", json=payload, headers=_h(token))
     assert r2.status_code == 400
+
+
+# ── SCO-115: MCS cross-site authoring + default-hardening ───────────────
+
+def test_mcs_dept_missing_site_id_returns_400(client, seeded_db):
+    """MCS admin must specify site_id — silent fallback to MCS would have masked the bug."""
+    _seed_mcs(seeded_db)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.post(
+        "/api/v1/admin/departments",
+        json={"name": "Orphan"},
+        headers=_h(token),
+    )
+    assert r.status_code == 400
+    assert "site_id" in r.json()["detail"]
+
+
+def test_mcs_shift_missing_site_id_returns_400(client, seeded_db):
+    _seed_mcs(seeded_db)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.post(
+        "/api/v1/admin/shifts",
+        json={"name": "Graveyard", "start_time": "22:00:00", "end_time": "06:00:00"},
+        headers=_h(token),
+    )
+    assert r.status_code == 400
+
+
+def test_mcs_creates_department_at_other_site(client, seeded_db):
+    """The whole point of SCO-115 — MCS authoring per-site entries for WHS-001."""
+    _seed_mcs(seeded_db)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.post(
+        "/api/v1/admin/departments",
+        json={"name": "Receiving", "site_id": "WHS-001"},
+        headers=_h(token),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["site_id"] == "WHS-001"
+
+
+def test_mcs_creates_shift_at_other_site(client, seeded_db):
+    _seed_mcs(seeded_db)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.post(
+        "/api/v1/admin/shifts",
+        json={"name": "Day", "start_time": "06:00:00", "end_time": "14:00:00",
+              "site_id": "WHS-001"},
+        headers=_h(token),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["site_id"] == "WHS-001"
+
+
+def test_mcs_creates_title_at_other_site(client, seeded_db):
+    _seed_mcs(seeded_db)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.post(
+        "/api/v1/admin/titles",
+        json={"name": "Plant Supervisor", "site_id": "WHS-001"},
+        headers=_h(token),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["site_id"] == "WHS-001"
+
+
+def test_mcs_dept_list_filter_by_site_id(client, seeded_db):
+    """MCS admin can list dept at any site via ?site_id=."""
+    _seed_mcs(seeded_db)
+    from wms.models import Department
+    seeded_db.add(Department(name="Local-MCS", site_id="MCS"))
+    seeded_db.add(Department(name="Local-WHS", site_id="WHS-001"))
+    seeded_db.commit()
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.get("/api/v1/admin/departments?site_id=WHS-001", headers=_h(token))
+    assert r.status_code == 200
+    names = {row["name"] for row in r.json()}
+    assert names == {"Local-WHS"}
+
+
+def test_non_mcs_dept_create_still_defaults_to_own_site(client, seeded_db):
+    """Back-compat: non-MCS callers without site_id continue defaulting to own site."""
+    _seed_admin(seeded_db, code="WHS-001-LEAD", level=3)
+    token = _login(client, "WHS-001-LEAD")
+    r = client.post(
+        "/api/v1/admin/departments",
+        json={"name": "Quality"},
+        headers=_h(token),
+    )
+    assert r.status_code == 201
+    assert r.json()["site_id"] == "WHS-001"

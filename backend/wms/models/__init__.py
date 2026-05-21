@@ -11,7 +11,6 @@ from wms.models.core import (
     UserProfileField,
 )
 from wms.models.inventory import SKU, Location, Lot, LotGenealogy
-from wms.models.orgmeta import Department, Role, Shift, Title
 from wms.models.ops import (
     ASN,
     ASNLine,
@@ -23,6 +22,7 @@ from wms.models.ops import (
     ReceiptLine,
     Shipment,
 )
+from wms.models.orgmeta import Department, Role, Shift, Title
 
 __all__ = [
     "ASN",
