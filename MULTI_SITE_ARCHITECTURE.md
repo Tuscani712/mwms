@@ -295,5 +295,37 @@ Switching site causes **all 5 values to repoint** to the new site's endpoints �
 
 ---
 
-**Version**: 1.0
-**Status**: Architecture approved · awaiting Phase 1.5 implementation start
+**Version**: 1.1
+**Status**: Architecture approved · frontend dummy-form scaffolding shipped (SCO-118, 2026-05-21) · awaiting test VMs for backend wire-up
+
+---
+
+## FRONTEND SCAFFOLDING STATUS (SCO-118)
+
+The Admin · Sites page now visualizes the full lifecycle / enrollment model *ahead* of the backend implementing it. All not-yet-wired fields and actions are visible-but-disabled with "wire-up pending" tooltips so admins can see the shape of what's coming.
+
+Scaffolded surfaces (see `frontend/admin-sites.html` + `frontend/scripts/admin-sites.js` for inline wiring-contract comments):
+
+| Surface | Endpoint (pending) | Today | Once wired |
+|---|---|---|---|
+| Lifecycle filter chips | `GET /sites?lifecycle=…` | Online/Offline live, others "—" | All 5 chips functional |
+| Lifecycle status pill (6 states) | `site.lifecycle` column | Derived from `is_online` | Real state from schema |
+| Enrollment status pill (4 states) | `site.enrollment.status` | Always "enrolled" | Real state from schema |
+| Site Type dropdown | `POST /sites` body | Disabled, defaults to warehouse | Persisted, drives routing |
+| Address (host or IP:port) | `POST /sites` body | Captured, not persisted | Validated + reachability-probed |
+| Test Connection button | `GET <site>/api/health/ping` | Disabled | Cross-origin proxy or direct probe |
+| Authentication Method | `POST /sites` body | Enrollment Key only | mTLS + SSO in Phase 2 |
+| Enrollment expiry | `POST /sites` body | Disabled | Backend enforces |
+| Enrollment key block | `POST /sites` response | Client-generated 256-bit token | Server-generated, hash-stored, shown once |
+| Copy install command | n/a | `curl ... \| SITE_ID=... ENROLLMENT_KEY=... bash` | Real installer URL |
+| MCS Subscriptions | `POST /sites` body | Disabled | Drives subscription replication |
+| Provisioning Model | `POST /sites` body | Pattern A only | Pattern B routes through MCS user federation |
+| Decommission action | `POST /sites/{id}/decommission` | Stub modal | Soft-retire, reversible |
+| Archive action | `POST /sites/{id}/archive` | Stub modal | Long-term storage, decommissioned-only |
+| Rotate key action | `POST /sites/{id}/enrollment/rotate` | Stub modal | Invalidate old key, issue new, show once |
+| Revoke action | `POST /sites/{id}/enrollment/revoke` | Stub modal | Immediate MCS handshake block |
+| Hard delete action | `DELETE /sites/{id}` (existing) | Typed-confirm with site ID | Same — server still refuses on dependencies |
+| Lifecycle history drawer | `GET /sites/{id}/lifecycle-events` | Empty-state scaffold | Audit timeline per site |
+| Archived collapsible section | `GET /sites?include_lifecycle=archived` | Empty-state scaffold | List of archived sites with restore option |
+
+When the two Ubuntu test VMs are in hand, wire-up becomes a series of small per-endpoint diffs — the contracts, validation, and UX are already designed and visible.

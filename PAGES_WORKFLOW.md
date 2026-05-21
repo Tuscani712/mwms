@@ -16,10 +16,10 @@
 | `index.html` (dashboard) | ⚠️ partial | ⚠️ partial | KPI tiles currently mock; no `/reports/dashboard` endpoint yet — SCO-52 |
 | `profile.html` | ✅ | ✅ | Full identity + password + MFA + avatar upload |
 | `users.html` | ✅ | ✅ | Admin user CRUD + hierarchy + **hard-purge w/ typed-DELETE modal (SCO-85)** |
-| `admin.html` | ✅ | ✅ | Subnav + tile grid wired to Users / Org Metadata / Sites / Branding |
+| `admin.html` | ✅ | ✅ | 4-tile hub (Users / Org Metadata / Sites / Branding) — dead nav + mock data purged (SCO-116); activity panels render empty-state until `/admin/approvals` + `/admin/audit` land |
 | `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82) |
-| `admin-sites.html` | ✅ | ✅ | **NEW (SCO-84)** — site CRUD + toggle-online + master-site protection |
-| `admin-branding.html` | ❌ | ⚠️ localStorage-only | No server persistence — folded into SCO-53 |
+| `admin-sites.html` | ✅ | ✅ (lifecycle scaffold disabled) | Site CRUD live (SCO-84). Full lifecycle UI scaffolded **visible-but-disabled** (SCO-118): filter chips, lifecycle + enrollment pills, extended add form (type/address/auth/expiry/subscriptions/model), enrollment-key one-shot block, per-card Decommission/Archive/Rotate/Revoke/Detail actions, lifecycle history drawer. Backend wire-up deferred until test VMs land. |
+| `admin-branding.html` | ❌ | ⚠️ localStorage-only | Logo + page-icon/favicon (SCO-109). No server persistence — folded into SCO-53. All native popups replaced with `confirmModal.alert` (SCO-117). |
 | `receiving.html` | ✅ | ✅ | Wired |
 | `shipping.html` | ✅ | ✅ | Wired |
 | `inventory.html` | ✅ | ✅ | **DONE (SCO-49)** — lot search + KPIs + adjust |
