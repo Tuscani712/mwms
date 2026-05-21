@@ -81,6 +81,16 @@
       Disable to hide from new-user pickers (existing users keep theirs);
       delete is hard-removal and only allowed when zero users reference the entry.
     </p>
+    <!-- SCO-115: MCS Lvl4+ filter to view + author entries at any site. Hidden for non-MCS callers. -->
+    <div id="om-site-filter-row" hidden style="margin-top:var(--space-3);display:flex;gap:var(--space-3);align-items:end">
+      <label style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--ink-secondary)">
+        Viewing site
+        <select class="select" id="om-site-filter" style="margin-top:4px;min-width:240px"></select>
+      </label>
+      <small style="color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
+        MCS admin view — switch sites to see + author per-site Departments / Shifts / Roles / Titles.
+      </small>
+    </div>
   </div>
 
   <main class="page">
@@ -105,11 +115,14 @@
             </label>
             <label>Scope
               <select class="select" id="role-scope">
-                <option value="site">Own site</option>
+                <option value="site">Site-specific</option>
                 <option value="global">Global (MCS only)</option>
               </select>
             </label>
           </div>
+          <label class="om-site-row" hidden>Target site
+            <select class="select" data-om-site-target></select>
+          </label>
           <button type="submit" class="btn btn--primary btn--sm">Add role</button>
         </form>
       </section>
@@ -117,10 +130,14 @@
       <!-- DEPARTMENTS -->
       <section class="om-card">
         <h2>Departments</h2>
-        <div class="om-meta">Per-site — your site only</div>
+        <div class="om-meta" id="depts-meta">Per-site</div>
         <ul class="om-list" id="depts-list"></ul>
         <form class="om-form" id="dept-form">
           <label>Name <input class="input" id="dept-name" required maxlength="60"></label>
+          <!-- SCO-115: site target for MCS admins. Hidden for non-MCS (defaults server-side to caller's site). -->
+          <label class="om-site-row" hidden>Target site
+            <select class="select" data-om-site-target></select>
+          </label>
           <button type="submit" class="btn btn--primary btn--sm">Add department</button>
         </form>
       </section>
@@ -132,22 +149,23 @@
         <ul class="om-list" id="titles-list"></ul>
         <form class="om-form" id="title-form">
           <label>Name <input class="input" id="title-name" required maxlength="60" placeholder="Plant Supervisor"></label>
-          <div class="om-row">
-            <label>Scope
-              <select class="select" id="title-scope">
-                <option value="site">Own site</option>
-                <option value="global">Global (MCS only)</option>
-              </select>
-            </label>
-            <button type="submit" class="btn btn--primary btn--sm">Add title</button>
-          </div>
+          <label>Scope
+            <select class="select" id="title-scope">
+              <option value="site">Site-specific</option>
+              <option value="global">Global (MCS only)</option>
+            </select>
+          </label>
+          <label class="om-site-row" hidden>Target site
+            <select class="select" data-om-site-target></select>
+          </label>
+          <button type="submit" class="btn btn--primary btn--sm">Add title</button>
         </form>
       </section>
 
       <!-- SHIFTS -->
       <section class="om-card">
         <h2>Shifts</h2>
-        <div class="om-meta">Per-site — your site only</div>
+        <div class="om-meta" id="shifts-meta">Per-site</div>
         <ul class="om-list" id="shifts-list"></ul>
         <form class="om-form" id="shift-form">
           <label>Name <input class="input input--mono" id="shift-name" required maxlength="40" placeholder="Swing"></label>
@@ -155,6 +173,9 @@
             <label>Start <input class="input input--mono" type="time" id="shift-start" required></label>
             <label>End <input class="input input--mono" type="time" id="shift-end" required></label>
           </div>
+          <label class="om-site-row" hidden>Target site
+            <select class="select" data-om-site-target></select>
+          </label>
           <button type="submit" class="btn btn--primary btn--sm">Add shift</button>
         </form>
       </section>

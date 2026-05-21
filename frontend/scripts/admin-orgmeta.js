@@ -15,7 +15,17 @@
   if (!window.WMS_API || !WMS_API.isAuthed()) return;
 
   const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
   const toastEl = $('#toast');
+
+  // SCO-115: caller identity + site picker state. callerIsMCS gates the
+  // page-wide "Viewing site" filter and the per-form Target-site rows.
+  // siteState.target = current site for both list-reads and form-writes.
+  // For non-MCS callers it locks to their own site; MCS can switch freely.
+  let callerSiteId = null;
+  let callerIsMCS = false;
+  let allSites = [];
+  const siteState = { target: null };
 
   function toast(kind, msg) {
     toastEl.textContent = msg;
@@ -61,7 +71,10 @@
 
   async function renderRoles() {
     try {
-      const roles = await WMS_API.orgmeta.roles();
+      // MCS: scope list to selected target site. Non-MCS: server defaults to
+      // own site + globals (no params needed).
+      const params = callerIsMCS ? { site_id: siteState.target } : {};
+      const roles = await WMS_API.orgmeta.roles(params);
       const list = $('#roles-list');
       list.innerHTML = '';
       const globals = roles.filter((r) => r.site_id === null);
@@ -99,7 +112,7 @@
     const payload = {
       name: $('#role-name').value.trim(),
       default_permission_level: Number($('#role-level').value),
-      site_id: scope === 'global' ? null : undefined,
+      site_id: siteIdForCreate({ scope }),
     };
     try {
       await WMS_API.orgmeta.createRole(payload);
@@ -140,7 +153,8 @@
 
   async function renderTitles() {
     try {
-      const titles = await WMS_API.orgmeta.titles();
+      const params = callerIsMCS ? { site_id: siteState.target } : {};
+      const titles = await WMS_API.orgmeta.titles(params);
       const list = $('#titles-list');
       list.innerHTML = '';
       const globals = titles.filter((t) => t.site_id === null);
@@ -179,7 +193,7 @@
     const scope = $('#title-scope').value;
     const payload = {
       name: $('#title-name').value.trim(),
-      site_id: scope === 'global' ? null : undefined,
+      site_id: siteIdForCreate({ scope }),
     };
     try {
       await WMS_API.orgmeta.createTitle(payload);
@@ -220,7 +234,7 @@
 
   async function renderDepts() {
     try {
-      const depts = await WMS_API.orgmeta.departments();
+      const depts = await WMS_API.orgmeta.departments(callerIsMCS ? siteState.target : undefined);
       const list = $('#depts-list');
       list.innerHTML = '';
       if (!depts.length) {
@@ -246,8 +260,11 @@
   $('#dept-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = $('#dept-name').value.trim();
+    const payload = { name };
+    const sid = siteIdForCreate();
+    if (sid !== undefined) payload.site_id = sid;
     try {
-      await WMS_API.orgmeta.createDepartment({ name });
+      await WMS_API.orgmeta.createDepartment(payload);
       toast('ok', `Department "${name}" added`);
       $('#dept-name').value = '';
       renderDepts();
@@ -282,7 +299,7 @@
 
   async function renderShifts() {
     try {
-      const shifts = await WMS_API.orgmeta.shifts();
+      const shifts = await WMS_API.orgmeta.shifts(callerIsMCS ? siteState.target : undefined);
       const list = $('#shifts-list');
       list.innerHTML = '';
       if (!shifts.length) {
@@ -316,6 +333,8 @@
       start_time: $('#shift-start').value + ':00',
       end_time: $('#shift-end').value + ':00',
     };
+    const sid = siteIdForCreate();
+    if (sid !== undefined) payload.site_id = sid;
     try {
       await WMS_API.orgmeta.createShift(payload);
       toast('ok', `Shift "${payload.name}" added`);
@@ -350,9 +369,82 @@
     }
   });
 
+  // ── SCO-115: caller + sites bootstrap ─────────────────────────────────
+
+  async function bootSiteContext() {
+    try {
+      const me = await WMS_API.me();
+      callerSiteId = me.site_id;
+      // MCS Lvl4+ unlocks cross-site authoring. Same gate the backend uses.
+      callerIsMCS = (me.site_id === 'MCS' && (me.permission_level || 0) >= 4);
+      siteState.target = callerSiteId;
+    } catch (e) {
+      toast('err', `Auth check failed: ${e.message}`);
+      return;
+    }
+
+    if (!callerIsMCS) {
+      // Non-MCS: keep the UI exactly as before. Lists scoped to own site by
+      // backend default; forms send no site_id (server fills caller's site).
+      renderAll();
+      return;
+    }
+
+    // MCS path: fetch site list, wire the page filter + per-form pickers.
+    try {
+      allSites = await WMS_API.sites();
+      if (!allSites.find((s) => s.id === callerSiteId)) {
+        allSites.unshift({ id: callerSiteId, name: callerSiteId });
+      }
+    } catch (e) {
+      toast('err', `Sites load failed: ${e.message}`);
+      allSites = [{ id: callerSiteId, name: 'MCS' }];
+    }
+
+    const filterRow = $('#om-site-filter-row');
+    const filterSel = $('#om-site-filter');
+    filterRow.hidden = false;
+    filterSel.innerHTML = allSites
+      .map((s) => `<option value="${s.id}">${s.id} — ${s.name}</option>`)
+      .join('');
+    filterSel.value = callerSiteId;
+    filterSel.addEventListener('change', () => {
+      siteState.target = filterSel.value;
+      syncSitePickers();
+      renderAll();
+    });
+
+    // Per-form Target-site pickers: same population, all driven by siteState.
+    $$('[data-om-site-target]').forEach((sel) => {
+      sel.innerHTML = allSites
+        .map((s) => `<option value="${s.id}">${s.id} — ${s.name}</option>`)
+        .join('');
+      sel.closest('.om-site-row').hidden = false;
+    });
+    syncSitePickers();
+    renderAll();
+  }
+
+  function syncSitePickers() {
+    $$('[data-om-site-target]').forEach((sel) => { sel.value = siteState.target; });
+  }
+
+  // For Roles/Titles: scope=global → null; scope=site → explicit site_id.
+  // For Departments/Shifts: always explicit site_id (or undefined → server
+  // defaults to caller's site for non-MCS callers).
+  function siteIdForCreate(opts = {}) {
+    if (opts.scope === 'global') return null;
+    if (!callerIsMCS) return undefined;  // server fills caller.site_id
+    return siteState.target;
+  }
+
+  function renderAll() {
+    renderRoles();
+    renderTitles();
+    renderDepts();
+    renderShifts();
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────────
-  renderRoles();
-  renderTitles();
-  renderDepts();
-  renderShifts();
+  bootSiteContext();
 })();
