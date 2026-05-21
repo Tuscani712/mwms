@@ -53,6 +53,18 @@
     });
   }
 
+  // Client favicon (page icon) — uploaded via admin-branding.html.
+  const storedFavicon = localStorage.getItem('wms.clientFavicon');
+  if (storedFavicon) {
+    let link = document.querySelector('link[rel~="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = storedFavicon;
+  }
+
   const storedName = localStorage.getItem('wms.clientName');
   if (storedName) {
     document.querySelectorAll('[data-bind="client-name"]').forEach(el => {

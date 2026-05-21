@@ -6,11 +6,16 @@
  * confirmations until the user hard-refreshed. See
  * memory/feedback_no_native_browser_popups.md for the rule.
  *
- * Two flavours:
+ * Four flavours:
  *   confirmModal.simple({title, body, confirmLabel, cancelLabel, danger})
  *     → Promise<boolean>
  *   confirmModal.typed({title, body, confirmWord, confirmLabel, cancelLabel})
  *     → Promise<boolean>  // user must type confirmWord to enable confirm
+ *   confirmModal.form({title, body, fields, confirmLabel, cancelLabel})
+ *     → Promise<Record<string,string>|null>  // null on cancel
+ *     where fields = [{ name, label, value?, placeholder?, required?, type? }]
+ *   confirmModal.alert({title, body, confirmLabel, danger})
+ *     → Promise<void>  // single-button info dialog, replaces native alert()
  *
  * Self-injecting DOM + CSS on first call. Uses a `cm-*` class prefix so it
  * never collides with the inline modal styles in users.html. Drop the
@@ -79,6 +84,29 @@
         letter-spacing: 0.1em;
       }
       .cm-typed-input:focus { outline: none; border-color: var(--signal-crit, #e35); box-shadow: 0 0 0 2px rgba(238,51,85,0.25); }
+      .cm-fields { display: flex; flex-direction: column; gap: var(--space-3, 16px); margin-bottom: var(--space-2, 12px); }
+      .cm-field-label {
+        display: block;
+        font-family: var(--font-mono, monospace);
+        font-size: 11px;
+        letter-spacing: var(--tracking-wide, 0.06em);
+        text-transform: uppercase;
+        color: var(--ink-tertiary, #888);
+        margin-bottom: 6px;
+      }
+      .cm-field-label .cm-required { color: var(--signal-crit, #e35); margin-left: 4px; }
+      .cm-field-input {
+        width: 100%; box-sizing: border-box;
+        padding: 8px 10px;
+        background: var(--surface-2, rgba(255,255,255,0.04));
+        border: 1px solid var(--rule-default, rgba(255,255,255,0.12));
+        border-radius: 4px;
+        color: var(--ink-primary, #fff);
+        font-family: var(--font-mono, monospace);
+        font-size: 14px;
+      }
+      .cm-field-input:focus { outline: none; border-color: var(--amber, #ff6b1a); box-shadow: 0 0 0 2px rgba(255,107,26,0.18); }
+      .cm-field-input[aria-invalid="true"] { border-color: var(--signal-crit, #e35); }
       .cm-footer {
         display: flex; justify-content: flex-end; gap: var(--space-2, 12px);
         margin-top: var(--space-4, 20px);
@@ -115,6 +143,7 @@
           <label class="cm-typed-label" id="cm-typed-label"></label>
           <input class="cm-typed-input" id="cm-typed-input" type="text" autocomplete="off" />
         </div>
+        <div class="cm-fields" id="cm-fields" hidden></div>
         <div class="cm-footer">
           <button type="button" class="cm-btn" id="cm-cancel">Cancel</button>
           <button type="button" class="cm-btn" id="cm-confirm">Confirm</button>
@@ -141,25 +170,87 @@
     });
   }
 
+  // Active mode: 'simple' | 'typed' | 'form'. Drives what close() resolves with.
+  let activeMode = 'simple';
+  let activeFields = null;
+
+  function collectFormValues() {
+    const fieldsEl = document.getElementById('cm-fields');
+    const out = {};
+    let firstInvalid = null;
+    (activeFields || []).forEach((f) => {
+      const el = fieldsEl.querySelector(`[name="${f.name}"]`);
+      const v = (el && el.value != null) ? String(el.value).trim() : '';
+      if (f.required && !v) {
+        el.setAttribute('aria-invalid', 'true');
+        if (!firstInvalid) firstInvalid = el;
+      } else if (el) {
+        el.removeAttribute('aria-invalid');
+      }
+      out[f.name] = v;
+    });
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return null;
+    }
+    return out;
+  }
+
   function close(result) {
     const root = document.getElementById('cm-backdrop');
     if (!root) return;
+    // For form mode: result=true means "confirm pressed" → collect values; null if invalid (don't close).
+    if (activeMode === 'form' && result === true) {
+      const values = collectFormValues();
+      if (values === null) return; // keep modal open on validation fail
+      result = values;
+    } else if (activeMode === 'form' && result === false) {
+      result = null;
+    }
     root.dataset.open = 'false';
     const r = activeResolver;
     activeResolver = null;
+    activeMode = 'simple';
+    activeFields = null;
     if (r) r(result);
   }
 
-  function open({ title, body, confirmLabel, cancelLabel, danger, typed, confirmWord }) {
+  function renderFields(fields) {
+    const wrap = document.getElementById('cm-fields');
+    wrap.innerHTML = '';
+    fields.forEach((f, idx) => {
+      const fieldId = `cm-field-${idx}`;
+      const row = document.createElement('div');
+      row.innerHTML = `
+        <label class="cm-field-label" for="${fieldId}">${escapeHtml(f.label || f.name)}${f.required ? '<span class="cm-required">*</span>' : ''}</label>
+        <input class="cm-field-input" id="${fieldId}" name="${escapeHtml(f.name)}"
+               type="${escapeHtml(f.type || 'text')}"
+               value="${escapeHtml(f.value ?? '')}"
+               placeholder="${escapeHtml(f.placeholder || '')}"
+               autocomplete="off" />
+      `;
+      wrap.appendChild(row);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function open({ title, body, confirmLabel, cancelLabel, danger, typed, confirmWord, form, fields, alertOnly }) {
     inject();
     return new Promise((resolve) => {
       // If a previous modal is somehow still open, resolve it as cancelled.
       if (activeResolver) {
         const r = activeResolver;
         activeResolver = null;
-        r(false);
+        r(activeMode === 'form' ? null : false);
       }
       activeResolver = resolve;
+      activeMode = form ? 'form' : (typed ? 'typed' : 'simple');
+      activeFields = form ? (fields || []) : null;
 
       const titleEl = document.getElementById('cm-title');
       titleEl.textContent = title || 'Confirm';
@@ -167,30 +258,50 @@
 
       document.getElementById('cm-body').textContent = body || '';
 
-      const wrap = document.getElementById('cm-typed-wrap');
-      const labelEl = document.getElementById('cm-typed-label');
-      const input = document.getElementById('cm-typed-input');
+      const typedWrap = document.getElementById('cm-typed-wrap');
+      const fieldsWrap = document.getElementById('cm-fields');
+      const typedLabel = document.getElementById('cm-typed-label');
+      const typedInput = document.getElementById('cm-typed-input');
       const confirmBtn = document.getElementById('cm-confirm');
 
-      if (typed && confirmWord) {
-        wrap.hidden = false;
-        labelEl.innerHTML = `Type <strong>${confirmWord}</strong> to confirm`;
-        input.value = '';
-        input.placeholder = confirmWord;
-        input.dataset.expected = confirmWord;
+      if (form) {
+        typedWrap.hidden = true;
+        fieldsWrap.hidden = false;
+        renderFields(activeFields);
+        confirmBtn.disabled = false;
+      } else if (typed && confirmWord) {
+        typedWrap.hidden = false;
+        fieldsWrap.hidden = true;
+        typedLabel.innerHTML = `Type <strong>${escapeHtml(confirmWord)}</strong> to confirm`;
+        typedInput.value = '';
+        typedInput.placeholder = confirmWord;
+        typedInput.dataset.expected = confirmWord;
         confirmBtn.disabled = true;
       } else {
-        wrap.hidden = true;
+        typedWrap.hidden = true;
+        fieldsWrap.hidden = true;
         confirmBtn.disabled = false;
       }
 
-      confirmBtn.textContent = confirmLabel || (danger ? 'Delete' : 'Confirm');
+      confirmBtn.textContent = confirmLabel || (danger ? 'Delete' : (form ? 'Save' : (alertOnly ? 'OK' : 'Confirm')));
       confirmBtn.classList.toggle('cm-btn--danger', !!danger);
-      document.getElementById('cm-cancel').textContent = cancelLabel || 'Cancel';
+      const cancelBtn = document.getElementById('cm-cancel');
+      cancelBtn.textContent = cancelLabel || 'Cancel';
+      cancelBtn.hidden = !!alertOnly;
 
       document.getElementById('cm-backdrop').dataset.open = 'true';
-      // Focus: input for typed, confirm button for simple (so Enter works)
-      setTimeout(() => (typed && confirmWord ? input.focus() : confirmBtn.focus()), 0);
+      // Focus: first form field for form mode, typed input for typed, confirm button for simple
+      setTimeout(() => {
+        if (form) {
+          const first = fieldsWrap.querySelector('.cm-field-input');
+          (first || confirmBtn).focus();
+          if (first && first.value) first.select();
+        } else if (typed && confirmWord) {
+          typedInput.focus();
+        } else {
+          confirmBtn.focus();
+        }
+      }, 0);
     });
   }
 
@@ -202,5 +313,9 @@
         title, body, confirmLabel, cancelLabel,
         danger: true, typed: true, confirmWord: confirmWord || 'DELETE',
       }),
+    form: ({ title, body, fields, confirmLabel, cancelLabel } = {}) =>
+      open({ title, body, confirmLabel, cancelLabel, form: true, fields: fields || [] }),
+    alert: ({ title, body, confirmLabel, danger } = {}) =>
+      open({ title, body, confirmLabel, danger, alertOnly: true }).then(() => undefined),
   };
 })();

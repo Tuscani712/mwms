@@ -264,7 +264,7 @@
     <h1 class="page-title"><em>Branding</em></h1>
 
     <p class="page-lede">
-      Upload your company logo and set the facility name. These appear on the login page, packing slips, and exported reports.
+      Upload your company logo, page icon (browser favicon), and set the facility name. These appear on the login page, browser tabs, packing slips, and exported reports.
     </p>
   </div>
 
@@ -292,6 +292,34 @@
         </div>
         <input type="file" id="logo-file" accept="image/svg+xml,image/png,image/jpeg" />
       </label>
+
+      <div style="height: var(--space-8);"></div>
+
+      <div class="section-head" style="margin-bottom: var(--space-5);">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Page icon</span>
+          <h2 class="section-title">Browser <em>favicon</em></h2>
+        </div>
+      </div>
+
+      <label class="upload-zone" id="favicon-zone" for="favicon-file">
+        <span class="upload-glyph">★</span>
+        <span class="upload-headline">Drop icon or <em>click to browse</em></span>
+        <span class="upload-sub">Shows in the browser tab. ICO, SVG, or PNG. ≤ 256KB. Square aspect (32×32 or larger).</span>
+        <div class="upload-rules">
+          <span class="upload-rule">ICO · SVG · PNG</span>
+          <span class="upload-rule">≤ 256KB</span>
+          <span class="upload-rule">Square aspect</span>
+        </div>
+        <input type="file" id="favicon-file" accept="image/x-icon,image/vnd.microsoft.icon,image/svg+xml,image/png" />
+      </label>
+
+      <div style="display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4);">
+        <img id="favicon-preview" alt="Favicon preview" style="width: 32px; height: 32px; object-fit: contain; border: 1px solid var(--rule-default); background: var(--inset);" />
+        <span style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);">
+          Preview at 32×32 — what users see in the browser tab.
+        </span>
+      </div>
 
       <div style="height: var(--space-8);"></div>
 
@@ -365,22 +393,39 @@
   <script>
     const fileInput = document.getElementById('logo-file');
     const dropZone = document.getElementById('upload-zone');
+    const faviconInput = document.getElementById('favicon-file');
+    const faviconZone = document.getElementById('favicon-zone');
+    const faviconPreview = document.getElementById('favicon-preview');
     const nameInput = document.getElementById('client-name-input');
     const siteInput = document.getElementById('site-name-input');
     const previewLogo = document.getElementById('preview-logo');
     const previewName = document.getElementById('preview-name');
+
+    const FAVICON_DEFAULT = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="%23111"/><text x="50%" y="55%" font-family="serif" font-style="italic" font-size="20" fill="%23ff6b1a" text-anchor="middle" dominant-baseline="middle">W</text></svg>';
+
+    function applyFavicon(href) {
+      let link = document.querySelector('link[rel~="icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = href;
+    }
 
     // Load any previously saved
     (() => {
       const storedLogo = localStorage.getItem('wms.clientLogo');
       const storedName = localStorage.getItem('wms.clientName');
       const storedSite = localStorage.getItem('wms.siteName');
+      const storedFavicon = localStorage.getItem('wms.clientFavicon');
       if (storedLogo) previewLogo.src = storedLogo;
       if (storedName) {
         nameInput.value = storedName;
         previewName.innerHTML = `<em>${storedName}</em>`;
       }
       if (storedSite) siteInput.value = storedSite;
+      faviconPreview.src = storedFavicon || FAVICON_DEFAULT;
     })();
 
     // Live update name preview
@@ -393,7 +438,11 @@
     function handleFile(file) {
       if (!file) return;
       if (file.size > 2 * 1024 * 1024) {
-        alert('File exceeds 2MB. Please choose a smaller file.');
+        confirmModal.alert({
+          title: 'Logo too large',
+          body: 'File exceeds 2MB. Please choose a smaller file.',
+          danger: true,
+        });
         return;
       }
       const reader = new FileReader();
@@ -422,10 +471,50 @@
       handleFile(e.dataTransfer.files[0]);
     });
 
+    // Favicon handling
+    function handleFavicon(file) {
+      if (!file) return;
+      if (file.size > 256 * 1024) {
+        confirmModal.alert({
+          title: 'Favicon too large',
+          body: 'File exceeds 256KB. Please choose a smaller file.',
+          danger: true,
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        faviconPreview.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    faviconInput.addEventListener('change', (e) => handleFavicon(e.target.files[0]));
+
+    ['dragenter', 'dragover'].forEach(ev => {
+      faviconZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        faviconZone.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      faviconZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        faviconZone.classList.remove('is-dragover');
+      });
+    });
+    faviconZone.addEventListener('drop', (e) => {
+      handleFavicon(e.dataTransfer.files[0]);
+    });
+
     function saveBranding() {
       localStorage.setItem('wms.clientLogo', previewLogo.src);
       localStorage.setItem('wms.clientName', nameInput.value.trim());
       localStorage.setItem('wms.siteName', siteInput.value.trim());
+      if (faviconPreview.src && faviconPreview.src !== FAVICON_DEFAULT) {
+        localStorage.setItem('wms.clientFavicon', faviconPreview.src);
+        applyFavicon(faviconPreview.src);
+      }
       // TODO: replace with API POST /api/branding once backend wired
       const btn = document.querySelector('button[type="submit"]');
       const orig = btn.innerHTML;
@@ -437,12 +526,18 @@
       localStorage.removeItem('wms.clientLogo');
       localStorage.removeItem('wms.clientName');
       localStorage.removeItem('wms.siteName');
+      localStorage.removeItem('wms.clientFavicon');
       previewLogo.src = 'assets/client-logo.svg';
       nameInput.value = 'Your Facility';
       siteInput.value = 'WHS-001 · DAL';
       previewName.innerHTML = '<em>Your Facility</em>';
+      faviconPreview.src = FAVICON_DEFAULT;
+      const existing = document.querySelector('link[rel~="icon"]');
+      if (existing) existing.remove();
     }
   </script>
 
+  <script src="scripts/confirm-modal.js"></script>
+  <script src="scripts/shell.js"></script>
 </body>
 </html>

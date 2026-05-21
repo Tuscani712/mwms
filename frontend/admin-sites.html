@@ -115,6 +115,220 @@
       background: rgba(255,107,26,0.08);
       display: none;
     }
+
+    /* ── SCO-118 LIFECYCLE SCAFFOLDING ──────────────────────────────────
+       Visible-but-disabled convention: fields/buttons that aren't wired
+       yet stay on screen with reduced opacity + crosshatch cursor and a
+       "pending wire-up" tooltip. The visual reminder beats a hidden TODO. */
+    .field--pending,
+    .btn--pending {
+      opacity: 0.55;
+      cursor: not-allowed !important;
+      position: relative;
+    }
+    .field--pending input,
+    .field--pending select,
+    .field--pending textarea {
+      pointer-events: none;
+    }
+    .pending-badge {
+      display: inline-block;
+      margin-left: var(--space-2);
+      padding: 1px 6px;
+      font-family: var(--font-mono); font-size: 9px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      color: var(--amber);
+      border: 1px solid var(--amber);
+      background: rgba(255,107,26,0.08);
+    }
+
+    /* Filter chip row */
+    .filter-chips {
+      display: flex; gap: var(--space-2); flex-wrap: wrap;
+      margin: var(--space-3) 0 var(--space-1);
+    }
+    .filter-chip {
+      padding: 4px var(--space-3);
+      font-family: var(--font-mono); font-size: 11px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      color: var(--ink-secondary);
+      background: transparent;
+      border: 1px solid var(--rule-default);
+      cursor: pointer;
+    }
+    .filter-chip:hover { color: var(--ink-primary); border-color: var(--ink-tertiary); }
+    .filter-chip[aria-pressed="true"] {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: rgba(255,107,26,0.08);
+    }
+    .filter-chip[disabled] {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    .filter-chip-count {
+      margin-left: 6px; color: var(--ink-tertiary);
+    }
+    .filter-chip[aria-pressed="true"] .filter-chip-count { color: var(--amber); }
+
+    /* Status pills (replace binary tag) */
+    .pill {
+      padding: 2px var(--space-2);
+      border: 1px solid var(--rule-default);
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      color: var(--ink-secondary);
+    }
+    .pill--lifecycle-online      { color: var(--signal-ok);   border-color: var(--signal-ok); }
+    .pill--lifecycle-offline     { color: var(--signal-crit); border-color: var(--signal-crit); }
+    .pill--lifecycle-provisioning{ color: var(--amber);       border-color: var(--amber); }
+    .pill--lifecycle-degraded    { color: var(--amber);       border-color: var(--amber); }
+    .pill--lifecycle-decommissioned { color: var(--ink-tertiary); border-color: var(--ink-tertiary); }
+    .pill--lifecycle-archived    { color: var(--ink-muted);   border-color: var(--ink-muted); background: var(--inset); }
+
+    .pill--enroll-pending   { color: var(--amber);       border-color: var(--amber); border-style: dashed; }
+    .pill--enroll-enrolled  { color: var(--signal-ok);   border-color: var(--signal-ok); }
+    .pill--enroll-revoked   { color: var(--signal-crit); border-color: var(--signal-crit); }
+    .pill--enroll-expired   { color: var(--signal-crit); border-color: var(--signal-crit); border-style: dashed; }
+
+    /* Enrollment key block (one-shot copy display) */
+    .key-block {
+      margin-top: var(--space-3);
+      padding: var(--space-4);
+      border: 1px dashed var(--amber);
+      background: rgba(255,107,26,0.06);
+    }
+    .key-block-banner {
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: var(--space-2);
+    }
+    .key-block-row {
+      display: flex; gap: var(--space-2); align-items: center;
+    }
+    .key-block input {
+      flex: 1; font-family: var(--font-mono); font-size: 12px;
+      padding: 6px 8px; background: var(--surface-2, rgba(255,255,255,0.04));
+      border: 1px solid var(--rule-default); color: var(--ink-primary);
+      letter-spacing: 0.04em;
+    }
+    .key-block .btn { white-space: nowrap; }
+
+    /* Install command block */
+    .install-cmd {
+      margin-top: var(--space-3);
+      padding: var(--space-3);
+      background: var(--inset);
+      border: 1px solid var(--rule-default);
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--ink-secondary);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* MCS subscriptions checklist */
+    .sub-checklist {
+      display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-4);
+      padding: var(--space-3);
+      border: 1px solid var(--rule-default);
+      background: var(--inset);
+    }
+    .sub-checklist label {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: 11px;
+      text-transform: none; letter-spacing: 0;
+      color: var(--ink-secondary);
+    }
+
+    /* Provisioning model radio group */
+    .radio-group {
+      display: flex; gap: var(--space-4);
+      padding: var(--space-2) 0;
+    }
+    .radio-group label {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 11px;
+      text-transform: none; letter-spacing: 0;
+      color: var(--ink-secondary);
+    }
+
+    /* Archive section toggle */
+    .archive-section-toggle {
+      margin-top: var(--space-7);
+      padding: var(--space-3) var(--space-4);
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid var(--rule-default);
+      color: var(--ink-secondary);
+      font-family: var(--font-mono); font-size: 11px;
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      cursor: pointer;
+    }
+    .archive-section-toggle:hover { color: var(--ink-primary); border-color: var(--ink-tertiary); }
+    .archive-section-toggle::before { content: "▸ "; }
+    .archive-section[data-open="true"] .archive-section-toggle::before { content: "▾ "; }
+    .archive-section-body { display: none; padding: var(--space-4); border: 1px solid var(--rule-default); border-top: 0; }
+    .archive-section[data-open="true"] .archive-section-body { display: block; }
+
+    /* Empty-state (mirrors admin.html honest-UI pattern) */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; gap: var(--space-2);
+      padding: var(--space-7) var(--space-5);
+      text-align: center;
+      color: var(--ink-tertiary);
+    }
+    .empty-state-glyph {
+      font-family: var(--font-display); font-style: italic;
+      font-size: var(--text-3xl); color: var(--ink-muted); line-height: 1;
+    }
+    .empty-state-text {
+      font-family: var(--font-mono); font-size: 12px;
+      letter-spacing: var(--tracking-wide); color: var(--ink-secondary);
+    }
+    .empty-state-sub {
+      font-family: var(--font-mono); font-size: 10px;
+      letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);
+    }
+    .empty-state-sub code {
+      font-family: var(--font-mono); color: var(--ink-secondary);
+      background: var(--inset); padding: 1px 6px;
+    }
+
+    /* Lifecycle drawer (slide-in panel for card detail / history) */
+    .lifecycle-drawer-backdrop {
+      position: fixed; inset: 0;
+      background: var(--scrim, rgba(0,0,0,0.66));
+      z-index: 90;
+      display: none;
+    }
+    .lifecycle-drawer-backdrop[data-open="true"] { display: block; }
+    .lifecycle-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: min(480px, 100%);
+      background: var(--elevated, #1A1A20);
+      border-left: 1px solid var(--rule-default);
+      z-index: 91;
+      transform: translateX(100%);
+      transition: transform var(--dur-default, 180ms) var(--ease-out, ease-out);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .lifecycle-drawer[data-open="true"] { transform: translateX(0); }
+    .lifecycle-drawer-head {
+      padding: var(--space-5); border-bottom: 1px solid var(--rule-default);
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .lifecycle-drawer-body { padding: var(--space-5); }
+    .lifecycle-drawer-close {
+      background: transparent; border: 1px solid var(--rule-default);
+      color: var(--ink-secondary); padding: 4px 10px; cursor: pointer;
+      font-family: var(--font-mono); font-size: 11px;
+    }
+
+    /* Card pill row */
+    .site-pills { display: flex; gap: var(--space-2); flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -169,8 +383,44 @@
         <span class="section-meta" id="sites-meta">Loading…</span>
       </div>
 
+      <!--
+        SCO-118.A — Lifecycle filter chips
+        Wiring contract: counts derived client-side from sites[].lifecycle until
+        the backend grows /api/v1/sites/lifecycle-counts. Today only online +
+        offline are populated from is_online; provisioning/decommissioned/
+        archived stay at "—" since the schema doesn't carry them yet.
+      -->
+      <div class="filter-chips" id="lifecycle-filters" role="tablist" aria-label="Filter sites by lifecycle">
+        <button class="filter-chip" data-filter="all" aria-pressed="true">All <span class="filter-chip-count" data-bind="filter-count-all">—</span></button>
+        <button class="filter-chip" data-filter="online">Online <span class="filter-chip-count" data-bind="filter-count-online">—</span></button>
+        <button class="filter-chip" data-filter="offline">Offline <span class="filter-chip-count" data-bind="filter-count-offline">—</span></button>
+        <button class="filter-chip" data-filter="decommissioned" disabled title="Lifecycle backend not yet wired">Decommissioned <span class="filter-chip-count" data-bind="filter-count-decommissioned">—</span><span class="pending-badge">soon</span></button>
+        <button class="filter-chip" data-filter="archived" disabled title="Lifecycle backend not yet wired">Archived <span class="filter-chip-count" data-bind="filter-count-archived">—</span><span class="pending-badge">soon</span></button>
+      </div>
+
       <div class="sites-grid" id="sites-grid">
         <!-- cards populated by JS -->
+      </div>
+    </section>
+
+    <!--
+      SCO-118.E — Decommissioned & Archived sites section
+      Collapsed by default. Empty-state today; will populate once
+      GET /api/v1/sites?include_lifecycle=archived lands. Lifecycle field
+      additions: { lifecycle: 'decommissioned'|'archived', decommissioned_at,
+      archived_at, archive_reason }.
+    -->
+    <section class="archive-section" id="archive-section" data-open="false">
+      <button type="button" class="archive-section-toggle" id="archive-toggle">
+        Decommissioned &amp; archived sites
+        <span class="pending-badge" style="margin-left:auto;">wire-up pending</span>
+      </button>
+      <div class="archive-section-body">
+        <div class="empty-state">
+          <span class="empty-state-glyph">∅</span>
+          <span class="empty-state-text">No decommissioned or archived sites.</span>
+          <span class="empty-state-sub">Endpoint <code>GET /api/v1/sites?include_lifecycle=archived</code> not yet wired.</span>
+        </div>
       </div>
     </section>
 
@@ -181,6 +431,20 @@
           <h2 class="section-title">Add <em>site</em></h2>
         </div>
       </div>
+      <!--
+        SCO-118.C — Extended add-site form
+        Live fields (today's POST /api/v1/sites accepts):
+          id, name, city, timezone, build_version, is_online
+        Pending fields (visible but disabled until backend lands):
+          site_type, address, auth_method, enrollment_key (server-generated),
+          enrollment_expires_in, mcs_subscriptions, provisioning_model
+        Wire-up shape:
+          POST /api/v1/sites { ...current..., site_type, address, auth_method,
+                              enrollment: { expires_in }, subscriptions: [...],
+                              provisioning_model }
+          → 201 { ...site..., enrollment: { key, expires_at } }
+            (key is shown ONCE; never re-fetchable; site row stores hash only)
+      -->
       <div class="add-card">
         <form class="add-form" id="site-form">
           <div class="add-form-row">
@@ -191,28 +455,176 @@
               <input class="input" id="site-name" required maxlength="120" placeholder="San Antonio DC">
             </label>
           </div>
+
           <div class="add-form-row">
+            <label class="field--pending" title="Backend wiring pending — defaults to Warehouse on submit">Site type<span class="pending-badge">soon</span>
+              <select class="input input--mono" id="site-type" disabled>
+                <option value="warehouse" selected>Warehouse</option>
+                <option value="dc">Distribution Center</option>
+                <option value="plant">Plant</option>
+                <option value="cold_storage">Cold Storage</option>
+                <option value="reverse_logistics">Reverse Logistics</option>
+                <option value="mcs">Master Control (MCS)</option>
+              </select>
+            </label>
             <label>City
               <input class="input" id="site-city" required maxlength="80" placeholder="San Antonio, TX">
             </label>
+          </div>
+
+          <div class="add-form-row">
             <label>Timezone
               <input class="input input--mono" id="site-tz" maxlength="40" value="America/Chicago">
             </label>
-          </div>
-          <div class="add-form-row">
             <label>Build version
               <input class="input input--mono" id="site-build" maxlength="20" value="v0.1.0">
+            </label>
+          </div>
+
+          <!--
+            Address: hostname or IPv4/IPv6 with optional port. Validated
+            client-side; backend will re-validate + reachability-probe on
+            enroll. Accepts: https://dal.wms.example.com, 10.0.5.12:8443,
+            [2001:db8::1]:8443. Free-text vs three-field decomposition chosen
+            because install scripts take one paste-friendly value.
+          -->
+          <div class="add-form-row">
+            <label class="field--pending" title="Backend wiring pending — captured but not yet persisted">
+              Address (host or IP:port)<span class="pending-badge">soon</span>
+              <div style="display: flex; gap: var(--space-2);">
+                <input class="input input--mono" id="site-address"
+                       placeholder="https://10.0.5.12:8443 or dal.wms.example.com"
+                       maxlength="200"
+                       pattern="^(https?:\/\/)?(\[[0-9a-fA-F:]+\]|[a-zA-Z0-9._-]+)(:\d{2,5})?(\/.*)?$"
+                       disabled />
+                <button type="button" class="btn btn--ghost btn--xs btn--pending" id="test-connection-btn"
+                        disabled title="GET /api/health/ping — backend wiring pending">
+                  Test connection
+                </button>
+              </div>
+              <span style="font-family: var(--font-mono); font-size: 10px; color: var(--ink-tertiary);">
+                Hostname or IP (with optional :port). Defaults to https:// scheme.
+              </span>
+            </label>
+            <label class="field--pending" title="Backend wiring pending — Enrollment Key is the only path for now">
+              Authentication method<span class="pending-badge">soon</span>
+              <select class="input input--mono" id="site-auth-method" disabled>
+                <option value="enrollment_key" selected>Enrollment Key</option>
+                <option value="mtls" disabled>mTLS Certificate (Phase 2)</option>
+                <option value="sso" disabled>Federated SSO (Phase 2)</option>
+              </select>
+            </label>
+          </div>
+
+          <!--
+            Enrollment expiry: lets admin issue short-lived keys when handing
+            them to contractors doing the VM install. Backend will enforce.
+          -->
+          <div class="add-form-row">
+            <label class="field--pending" title="Backend wiring pending — expiry not yet enforced">
+              Enrollment expiry<span class="pending-badge">soon</span>
+              <select class="input input--mono" id="site-enroll-expiry" disabled>
+                <option value="24h">24 hours</option>
+                <option value="7d" selected>7 days</option>
+                <option value="30d">30 days</option>
+                <option value="never">No expiry (not recommended)</option>
+              </select>
             </label>
             <label style="flex-direction: row; align-items: center; gap: var(--space-2);">
               <input type="checkbox" id="site-online" checked>
               <span style="text-transform: none; letter-spacing: 0; color: var(--ink-secondary); font-size: 12px;">Online at create</span>
             </label>
           </div>
+
+          <!--
+            Provisioning model — Pattern A (site-local) vs Pattern B (federated)
+            per MULTI_SITE_ARCHITECTURE §USER PROVISIONING MODELS. Default = A.
+          -->
+          <div class="field--pending" title="Backend wiring pending — defaults to Site-Local">
+            <span style="display: block; font-size: 11px; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: var(--tracking-wide); margin-bottom: 4px;">
+              Provisioning model<span class="pending-badge">soon</span>
+            </span>
+            <div class="radio-group">
+              <label><input type="radio" name="provisioning-model" value="site_local" checked disabled> Site-Local (Pattern A — users created at the site)</label>
+              <label><input type="radio" name="provisioning-model" value="federated" disabled> Federated (Pattern B — users provisioned from MCS)</label>
+            </div>
+          </div>
+
+          <!--
+            MCS subscriptions — per data-ownership matrix, sites optionally
+            subscribe to corporate master data (templates, recipes, customers,
+            suppliers). Multi-check; defaults vary by org policy.
+          -->
+          <div class="field--pending" title="Backend wiring pending — selections captured for documentation only">
+            <span style="display: block; font-size: 11px; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: var(--tracking-wide); margin-bottom: 4px;">
+              MCS subscriptions<span class="pending-badge">soon</span>
+            </span>
+            <div class="sub-checklist">
+              <label><input type="checkbox" name="mcs-sub" value="permission_templates" checked disabled> Permission Templates</label>
+              <label><input type="checkbox" name="mcs-sub" value="recipes_boms" disabled> Recipes / BOMs</label>
+              <label><input type="checkbox" name="mcs-sub" value="customer_master" disabled> Customer Master</label>
+              <label><input type="checkbox" name="mcs-sub" value="supplier_master" disabled> Supplier Master</label>
+            </div>
+          </div>
+
           <button type="submit" class="btn btn--primary btn--sm">Add site</button>
         </form>
+
+        <!--
+          Post-create enrollment key block. Shown ONLY after a successful
+          create, hidden otherwise. The key is generated client-side here for
+          scaffolding visibility; the real key will come from the backend
+          response and the server will only persist a hash. Display-once
+          pattern modeled on AWS API key issuance.
+        -->
+        <div class="key-block" id="enrollment-key-block" hidden>
+          <div class="key-block-banner">
+            ⚠ Shown only at creation — copy and store securely now. The site cannot enroll without this key.
+          </div>
+          <div class="key-block-row">
+            <input type="text" id="enrollment-key-display" readonly />
+            <button type="button" class="btn btn--ghost btn--xs" id="enrollment-key-copy">Copy key</button>
+          </div>
+          <div class="install-cmd" id="install-cmd-display"></div>
+          <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+            <button type="button" class="btn btn--ghost btn--xs" id="install-cmd-copy">Copy install command</button>
+            <button type="button" class="btn btn--ghost btn--xs" id="enrollment-key-dismiss" style="margin-left: auto;">I've stored it — dismiss</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
+
+  <!--
+    SCO-118.E — Lifecycle history drawer (slide-in panel)
+    Opens on site-card click; shows immutable timeline of lifecycle events
+    for the selected site. Empty-state scaffold today.
+    Wiring contract:
+      GET /api/v1/sites/{id}/lifecycle-events
+        → { items: [{ ts, event_type: 'provisioned'|'commissioned'|'offline_toggled'|
+                                     'decommissioned'|'archived'|'enrollment_rotated'|
+                                     'enrollment_revoked',
+                      actor: { id, name }, detail: object,
+                      from_ip?, reason? }] }
+  -->
+  <div class="lifecycle-drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="lifecycle-drawer" id="lifecycle-drawer" aria-hidden="true" role="dialog" aria-labelledby="drawer-title">
+    <div class="lifecycle-drawer-head">
+      <h2 id="drawer-title" style="margin:0; font-family: var(--font-display); font-style: italic;">Site detail</h2>
+      <button type="button" class="lifecycle-drawer-close" id="drawer-close">Close ✕</button>
+    </div>
+    <div class="lifecycle-drawer-body">
+      <div id="drawer-summary" style="margin-bottom: var(--space-4); font-family: var(--font-mono); font-size: 12px; color: var(--ink-secondary);">
+        <!-- Populated by JS — site id, address, lifecycle, enrollment status. -->
+      </div>
+      <h3 style="font-family: var(--font-display); font-style: italic; font-size: var(--text-lg); margin: 0 0 var(--space-3);">Lifecycle history</h3>
+      <div class="empty-state">
+        <span class="empty-state-glyph">∅</span>
+        <span class="empty-state-text">No lifecycle events to show.</span>
+        <span class="empty-state-sub">Endpoint <code>GET /api/v1/sites/{id}/lifecycle-events</code> not yet wired.</span>
+      </div>
+    </div>
+  </aside>
 
   <div id="toast" class="toast"></div>
 

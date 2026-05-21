@@ -15,6 +15,53 @@
   <link rel="stylesheet" href="styles/components.css">
   <link rel="stylesheet" href="styles/dashboard.css">
   <link rel="stylesheet" href="styles/page.css">
+  <style>
+    /* Empty-state pattern — used while backend wiring is pending.
+       Promote to components.css once a second page needs it. */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-8) var(--space-6);
+      text-align: center;
+      color: var(--ink-tertiary);
+    }
+    .empty-state-glyph {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: var(--text-3xl);
+      color: var(--ink-muted);
+      line-height: 1;
+    }
+    .empty-state-text {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-secondary);
+    }
+    .empty-state-sub {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-tertiary);
+    }
+    .empty-state-sub code {
+      font-family: var(--font-mono);
+      color: var(--ink-secondary);
+      background: var(--inset);
+      padding: 1px 6px;
+    }
+    .panel-list, .audit-feed {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    /* When the list has children, JS toggles .has-items on the panel to hide the empty-state. */
+    .panel:not(.has-items) #approvals-list:empty + .empty-state,
+    .panel:not(.has-items) #audit-list:empty + .empty-state { display: flex; }
+    .panel.has-items .empty-state { display: none; }
+  </style>
 </head>
 <body>
 
@@ -40,17 +87,22 @@
     </div>
   </header>
 
+  <!--
+    STATUS TICKER — counts populated by admin.js once wired.
+    Wiring contract:
+      GET /api/v1/admin/overview → { users_active: int, titles_defined: int, pending_approvals: int }
+      Render: set textContent on each [data-bind="ticker-*"] node; show "—" when null.
+      Refresh: on page load + after any mutation in users/orgmeta/approvals.
+  -->
   <div class="status-ticker">
     <div class="status-ticker-inner">
       <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
       <span class="ticker-sep"></span>
-      <span class="ticker-item">USERS ACTIVE ▸ <strong>14</strong></span>
+      <span class="ticker-item">USERS ACTIVE ▸ <strong data-bind="ticker-users-active">—</strong></span>
       <span class="ticker-sep"></span>
-      <span class="ticker-item">TITLES DEFINED ▸ <strong>8</strong></span>
+      <span class="ticker-item">TITLES DEFINED ▸ <strong data-bind="ticker-titles-defined">—</strong></span>
       <span class="ticker-sep"></span>
-      <span class="ticker-item">PERMISSION TEMPLATES ▸ <strong>11</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">PENDING APPROVALS ▸ <strong>3</strong></span>
+      <span class="ticker-item">PENDING APPROVALS ▸ <strong data-bind="ticker-pending-approvals">—</strong></span>
     </div>
   </div>
 
@@ -62,24 +114,11 @@
     </div>
     <h1 class="page-title"><em>Admin</em></h1>
     <p class="page-lede">
-      Manage users, titles, permission templates, sites, branding, and audit trail.
+      Manage users, org metadata, sites, and branding.
     </p>
   </div>
 
   <main class="page">
-
-    <!-- SUBNAV -->
-    <nav class="subnav" aria-label="Admin sections">
-      <a href="admin.html" class="subnav-item" data-active="true">Overview</a>
-      <a href="users.html" class="subnav-item">Users</a>
-      <a href="admin-orgmeta.html" class="subnav-item">Org Metadata</a>
-      <a href="#" class="subnav-item">Permission Templates</a>
-      <a href="#" class="subnav-item">Granular Permissions</a>
-      <a href="admin-sites.html" class="subnav-item">Sites</a>
-      <a href="admin-branding.html" class="subnav-item">Branding</a>
-      <a href="#" class="subnav-item">Audit Trail</a>
-      <a href="#" class="subnav-item">Settings</a>
-    </nav>
 
     <!-- ADMIN TILES -->
     <section>
@@ -98,22 +137,10 @@
           <span class="action-tile-desc">Create, edit, deactivate operators. Assign supervisors, departments, shifts.</span>
         </a>
 
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">ADM.TITLES</span>
-          <span class="action-tile-title">Custom<br>titles</span>
-          <span class="action-tile-desc">Define organizational roles (Picker, Lead, Inspector). Attach permission templates.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">ADM.TEMPLATES</span>
-          <span class="action-tile-title">Permission<br>templates</span>
-          <span class="action-tile-desc">Reusable bundles of permissions. Apply to titles for consistent role-out.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">ADM.GRANULAR</span>
-          <span class="action-tile-title">Granular<br>overrides</span>
-          <span class="action-tile-desc">Per-user grant or revoke at the function level. For senior staff exceptions.</span>
+        <a href="admin-orgmeta.html" class="action-tile">
+          <span class="action-tile-code">ADM.ORGMETA</span>
+          <span class="action-tile-title">Org<br>metadata</span>
+          <span class="action-tile-desc">Roles · Departments · Titles · Shifts. The vocabulary attached to every user.</span>
         </a>
 
         <a href="admin-sites.html" class="action-tile">
@@ -125,25 +152,38 @@
         <a href="admin-branding.html" class="action-tile">
           <span class="action-tile-code">ADM.BRANDING</span>
           <span class="action-tile-title">Facility<br>branding</span>
-          <span class="action-tile-desc">Upload company logo, set display name and site identifier.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">ADM.AUDIT</span>
-          <span class="action-tile-title">Audit<br>trail</span>
-          <span class="action-tile-desc">Searchable log of every override, permission change, and decision. Immutable.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">ADM.SETTINGS</span>
-          <span class="action-tile-title">System<br>settings</span>
-          <span class="action-tile-desc">FEFO thresholds, yield variance limits, alert tiers, reason codes.</span>
+          <span class="action-tile-desc">Upload company logo, page icon, and set display name + site identifier.</span>
         </a>
 
       </div>
+
+      <p style="margin-top: var(--space-5); font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);">
+        ▴ Coming: Permission Templates · Granular Overrides · Audit Trail · System Settings.
+      </p>
     </section>
 
-    <!-- PENDING APPROVALS + RECENT AUDIT -->
+    <!--
+      PENDING APPROVALS + RECENT AUDIT
+      Both panels render dynamic data once the backend lands. Until then they
+      show an empty-state. Mock content was removed 2026-05-21 to keep this
+      page honest — see "honest-UI shell pass" (commit 35239ec) for the same
+      treatment applied elsewhere.
+
+      Approvals wiring contract:
+        GET  /api/v1/admin/approvals?status=open
+          → { items: [{ id, severity: 'crit'|'warn'|'info', title, sub,
+                        source: 'QA'|'USR'|'RCV'|'PROD', created_at }],
+              total, lvl4_count }
+        POST /api/v1/admin/approvals/{id}/decision  { decision, reason }
+        Render: clone #approval-row-template per item into #approvals-list.
+        Section meta: "{total} open · Lvl {min_level} attention" or "All clear".
+
+      Audit feed contract:
+        GET /api/v1/admin/audit?limit=10&order=desc
+          → { items: [{ ts, actor, action, target, reason? }] }
+        Render: clone #audit-row-template per item into #audit-list.
+        "Full audit trail" CTA links to audit.html once that page lands.
+    -->
     <section class="page-row page-row--main-aside">
 
       <div>
@@ -152,41 +192,31 @@
             <span class="section-eyebrow">Pending Approvals</span>
             <h2 class="section-title">Pending <em>approvals</em></h2>
           </div>
-          <span class="section-meta">3 open · Lvl 4 attention</span>
+          <span class="section-meta" data-bind="approvals-meta">— · awaiting wire-up</span>
         </div>
 
         <div class="panel">
-          <div class="alert">
-            <span class="dot dot--crit"></span>
-            <div>
-              <div class="alert-title">Destroy request · LOT-44515-B · $1,290</div>
-              <div class="alert-sub">Requested by J. Patel (QA Inspector) · 32d hold</div>
-            </div>
-            <span class="alert-time">14:08</span>
-            <span class="alert-source">QA</span>
+          <ul id="approvals-list" class="panel-list" aria-live="polite" aria-busy="false">
+            <!-- Populated by admin.js. Falls back to .empty-state below until then. -->
+          </ul>
+          <div class="empty-state" data-bind="approvals-empty">
+            <span class="empty-state-glyph">∅</span>
+            <span class="empty-state-text">No pending approvals to show.</span>
+            <span class="empty-state-sub">Endpoint <code>GET /api/v1/admin/approvals</code> not yet wired.</span>
           </div>
-          <div class="alert">
-            <span class="dot dot--warn"></span>
-            <div>
-              <div class="alert-title">Permission grant request</div>
-              <div class="alert-sub">D. Lopez requests can_destroy_items · reason: senior QA promo</div>
-            </div>
-            <span class="alert-time">13:14</span>
-            <span class="alert-source">USR</span>
-          </div>
-          <div class="alert">
-            <span class="dot dot--warn"></span>
-            <div>
-              <div class="alert-title">ASN variance approval</div>
-              <div class="alert-sub">ASN-44820 · 1.75% short · receiving blocked</div>
-            </div>
-            <span class="alert-time">14:21</span>
-            <span class="alert-source">RCV</span>
-          </div>
-          <div class="panel-foot">
-            <span>All approvals captured in audit trail with reason</span>
-            <a href="#" class="btn btn--ghost btn--sm btn-arrow"><span>Review queue</span></a>
-          </div>
+          <!-- Row template (cloned by admin.js):
+          <template id="approval-row-template">
+            <li class="alert">
+              <span class="dot" data-bind-class="severity"></span>
+              <div>
+                <div class="alert-title" data-bind-text="title"></div>
+                <div class="alert-sub" data-bind-text="sub"></div>
+              </div>
+              <span class="alert-time" data-bind-text="time"></span>
+              <span class="alert-source" data-bind-text="source"></span>
+            </li>
+          </template>
+          -->
         </div>
       </div>
 
@@ -199,28 +229,23 @@
         </div>
 
         <div class="panel">
-          <div class="panel-body" style="display: flex; flex-direction: column; gap: var(--space-3);">
-
-            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
-              <span style="color: var(--amber);">14:38</span> · M. Tuscani granted <strong style="color: var(--ink-primary);">can_override_fifo</strong> to J. Park (reason: senior picker promotion)
+          <div class="panel-body">
+            <ul id="audit-list" class="audit-feed" aria-live="polite" aria-busy="false">
+              <!-- Populated by admin.js. Falls back to .empty-state below until then. -->
+            </ul>
+            <div class="empty-state" data-bind="audit-empty">
+              <span class="empty-state-glyph">∅</span>
+              <span class="empty-state-text">No recent activity to show.</span>
+              <span class="empty-state-sub">Endpoint <code>GET /api/v1/admin/audit</code> not yet wired.</span>
             </div>
-            <hr class="rule">
-
-            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
-              <span style="color: var(--amber);">13:42</span> · S. Mendez edited template <strong style="color: var(--ink-primary);">Warehouse_Manager_Template</strong> (added can_approve_destruction)
-            </div>
-            <hr class="rule">
-
-            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
-              <span style="color: var(--amber);">12:08</span> · System auto-fired <strong style="color: var(--ink-primary);">Lvl 3 alert</strong> · LOT-44820-A (17d hold)
-            </div>
-            <hr class="rule">
-
-            <div style="font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary); line-height: 1.5;">
-              <span style="color: var(--amber);">09:14</span> · M. Tuscani created title <strong style="color: var(--ink-primary);">Senior Picker</strong> (template: Picking_Template + 2 overrides)
-            </div>
-
-            <a href="#" class="btn btn--ghost btn-arrow" style="margin-top: var(--space-2);"><span>Full audit trail</span></a>
+            <!-- Row template (cloned by admin.js):
+            <template id="audit-row-template">
+              <li class="audit-row">
+                <span class="audit-time" data-bind-text="time"></span>
+                <span class="audit-text" data-bind-html="text"></span>
+              </li>
+            </template>
+            -->
           </div>
         </div>
       </aside>

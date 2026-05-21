@@ -37,6 +37,16 @@
       el.style.display = 'none';
     });
   }
+  const storedFavicon = localStorage.getItem('wms.clientFavicon');
+  if (storedFavicon) {
+    let link = document.querySelector('link[rel~="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = storedFavicon;
+  }
   const activeSiteLabel =
     localStorage.getItem('wms.activeSiteLabel') ||
     localStorage.getItem('wms.siteName');
