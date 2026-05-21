@@ -308,6 +308,13 @@
   box-shadow: 0 0 0 3px var(--amber-glow);
 }
 
+/* SCO-114: ~25% shorter vertical padding for dense forms (user-creation
+   modal — 12 fields tall otherwise breaks small viewports). Horizontal
+   padding unchanged so the text still has breathing room. */
+.input--compact {
+  padding-block: 9px;
+}
+
 .input--mono { font-family: var(--font-mono); }
 
 /* ── SELECT ─────────────────────────────────────────────────────────────
