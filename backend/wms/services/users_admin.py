@@ -16,7 +16,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from wms.core.security import hash_password
-from wms.models import AuditLog, Department, Role, Shift, User
+from wms.models import AuditLog, Department, Role, Shift, Title, User
 from wms.models.core import ProfileChangeRequest, UserMFA
 
 MCS_SITE_ID = "MCS"
@@ -98,6 +98,21 @@ def _resolve_shift(db: Session, shift_id: int | None, site_id: str) -> Shift | N
     return shift
 
 
+def _resolve_title(db: Session, title_id: int | None, site_id: str) -> Title | None:
+    """Validate title_id exists and is usable at site_id. Mirrors Role: globals allowed."""
+    if title_id is None:
+        return None
+    title = db.query(Title).filter(Title.id == title_id).one_or_none()
+    if title is None:
+        raise ValueError(f"Title {title_id} not found")
+    if title.site_id is not None and title.site_id != site_id:
+        raise ValueError(
+            f"Title '{title.name}' belongs to site {title.site_id}, "
+            f"cannot assign to user at site {site_id}"
+        )
+    return title
+
+
 def create_user(db: Session, caller: User, *, payload: dict) -> User:
     require_admin(caller)
 
@@ -114,6 +129,10 @@ def create_user(db: Session, caller: User, *, payload: dict) -> User:
     role_obj = _resolve_role(db, payload.get("role_id"), site_id)
     dept_obj = _resolve_department(db, payload.get("department_id"), site_id)
     shift_obj = _resolve_shift(db, payload.get("shift_id"), site_id)
+    title_obj = _resolve_title(db, payload.get("title_id"), site_id)
+    custom_title = (payload.get("custom_title") or None)
+    if isinstance(custom_title, str):
+        custom_title = custom_title.strip() or None
 
     explicit_level = payload.get("permission_level")
     if explicit_level is not None:
@@ -152,6 +171,8 @@ def create_user(db: Session, caller: User, *, payload: dict) -> User:
         department_id=dept_obj.id if dept_obj else None,
         shift=shift_str,
         shift_id=shift_obj.id if shift_obj else None,
+        title_id=title_obj.id if title_obj else None,
+        custom_title=custom_title,
         is_active=True,
         # SCO-99: admin-set passwords are one-time. Forces the new user
         # through PUT /profile/password before any other route is reachable.
@@ -195,6 +216,16 @@ def update_user(db: Session, caller: User, target: User, payload: dict) -> User:
         target.shift_id = shift_obj.id if shift_obj else None
         if shift_obj is not None:
             target.shift = shift_obj.name
+        changed = True
+    if "title_id" in payload:
+        title_obj = _resolve_title(db, payload["title_id"], target.site_id)
+        target.title_id = title_obj.id if title_obj else None
+        changed = True
+    if "custom_title" in payload:
+        val = payload["custom_title"]
+        if isinstance(val, str):
+            val = val.strip() or None
+        target.custom_title = val
         changed = True
 
     if "permission_level" in payload and payload["permission_level"] is not None:

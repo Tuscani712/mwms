@@ -640,3 +640,102 @@ def test_update_user_refuses_cross_site_shift(client, seeded_db):
     )
     assert r.status_code == 400
     assert "WHS-002" in r.json()["detail"]
+
+
+# ── SCO-104: title_id + custom_title on user create/update ──────────────
+
+
+def _seed_title(db, *, name="Plant Supervisor", site_id=None):
+    from wms.models import Title
+    t = Title(name=name, site_id=site_id)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+def test_create_user_with_title_id(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    title = _seed_title(seeded_db, name="Plant Supervisor", site_id=None)
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-T01",
+            "email": "t01@wms.local",
+            "full_name": "Titled User",
+            "permission_level": 1,
+            "password": "tempPass1!",
+            "title_id": title.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["title_id"] == title.id
+    assert body["custom_title"] is None
+
+
+def test_create_user_with_custom_title(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-T02",
+            "email": "t02@wms.local",
+            "full_name": "Custom Titled",
+            "permission_level": 1,
+            "password": "tempPass1!",
+            "custom_title": "  Forklift Captain  ",
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["title_id"] is None
+    assert body["custom_title"] == "Forklift Captain"
+
+
+def test_create_user_refuses_cross_site_title(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    foreign = _seed_title(seeded_db, name="Foreign Title", site_id="WHS-002")
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.post(
+        "/api/v1/admin/users",
+        json={
+            "employee_code": "WHS-001-T03",
+            "email": "t03@wms.local",
+            "full_name": "Cross Site Title",
+            "permission_level": 1,
+            "password": "tempPass1!",
+            "title_id": foreign.id,
+        },
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "WHS-002" in r.json()["detail"]
+
+
+def test_update_user_swap_title_to_custom(client, seeded_db):
+    _seed_admin(seeded_db, level=4)
+    title = _seed_title(seeded_db, name="Manager")
+    token = _login(client, "WHS-001-ADMIN")
+    list_resp = client.get("/api/v1/admin/users", headers=_headers(token)).json()
+    op_id = next(u["id"] for u in list_resp["items"] if u["employee_code"] == "WHS-001-001")
+    r1 = client.put(
+        f"/api/v1/admin/users/{op_id}",
+        json={"title_id": title.id},
+        headers=_headers(token),
+    )
+    assert r1.status_code == 200 and r1.json()["title_id"] == title.id
+    r2 = client.put(
+        f"/api/v1/admin/users/{op_id}",
+        json={"title_id": None, "custom_title": "Acting Lead"},
+        headers=_headers(token),
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["title_id"] is None
+    assert r2.json()["custom_title"] == "Acting Lead"

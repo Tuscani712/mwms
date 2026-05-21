@@ -295,6 +295,17 @@
             Auto-fills from the role's default. Override only for interim leadership.
           </small>
         </label>
+        <label>Title
+          <select class="select" id="form-title_id">
+            <option value="">— None —</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--ink-secondary);font-weight:normal">
+            <input type="checkbox" id="form-title-custom-toggle" />
+            Custom title
+          </label>
+          <input class="input" type="text" id="form-custom_title" maxlength="60"
+                 placeholder="e.g. Floor Captain" hidden style="margin-top:6px" />
+        </label>
         <label>Department
           <select class="select" id="form-department_id">
             <option value="">— None —</option>

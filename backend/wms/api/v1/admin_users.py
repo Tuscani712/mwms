@@ -37,6 +37,10 @@ class UserCreate(BaseModel):
     role_id: int | None = None
     department_id: int | None = None
     shift_id: int | None = None
+    # SCO-104: job title — either curated (title_id) or free-text (custom_title).
+    # UI enforces mutual exclusion; backend renders custom_title with precedence.
+    title_id: int | None = None
+    custom_title: str | None = Field(default=None, max_length=60)
 
     @field_validator("password")
     @classmethod
@@ -56,6 +60,8 @@ class UserUpdate(BaseModel):
     role_id: int | None = None
     department_id: int | None = None
     shift_id: int | None = None
+    title_id: int | None = None
+    custom_title: str | None = Field(default=None, max_length=60)
 
 
 class UserAdminOut(BaseModel):
@@ -71,6 +77,8 @@ class UserAdminOut(BaseModel):
     role_id: int | None = None
     department_id: int | None = None
     shift_id: int | None = None
+    title_id: int | None = None
+    custom_title: str | None = None
     is_active: bool
     supervisor_id: int | None
     display_name: str | None

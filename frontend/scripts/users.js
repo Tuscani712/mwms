@@ -223,15 +223,16 @@
 
   // ── Modal (create / edit) ──────────────────────────────────────────
   // SCO-81: dropdown caches so we don't re-fetch on every modal open
-  const orgmeta = { roles: null, departments: null, shifts: null };
+  const orgmeta = { roles: null, departments: null, shifts: null, titles: null };
 
   async function loadOrgmeta() {
-    if (orgmeta.roles && orgmeta.departments && orgmeta.shifts) return;
+    if (orgmeta.roles && orgmeta.departments && orgmeta.shifts && orgmeta.titles) return;
     try {
-      const [roles, depts, shifts] = await Promise.all([
+      const [roles, depts, shifts, titles] = await Promise.all([
         A.orgmeta.roles(),
         A.orgmeta.departments(),
         A.orgmeta.shifts(),
+        A.orgmeta.titles(),
       ]);
       // SCO-97: roles sorted by default_permission_level DESC, tie-break by name.
       // Highest tier (admin/L5) at top so the dropdown matches the org chart.
@@ -241,9 +242,10 @@
                        || a.name.localeCompare(b.name));
       orgmeta.departments = depts.filter((d) => d.is_active);
       orgmeta.shifts = shifts.filter((s) => s.is_active);
+      orgmeta.titles = titles.filter((t) => t.is_active);
     } catch (e) {
       console.warn('orgmeta fetch failed', e);
-      orgmeta.roles = []; orgmeta.departments = []; orgmeta.shifts = [];
+      orgmeta.roles = []; orgmeta.departments = []; orgmeta.shifts = []; orgmeta.titles = [];
     }
   }
 
@@ -285,6 +287,19 @@
     fillSelect($('#form-shift_id'), orgmeta.shifts,
       (s) => `${s.name} · ${(s.start_time || '').slice(0,5)}–${(s.end_time || '').slice(0,5)}`,
       user?.shift_id);
+    // SCO-104: Title curated dropdown + Custom Title toggle. If the user
+    // already has a custom_title, default the toggle to "custom" mode so the
+    // admin sees what's currently set; otherwise show the dropdown.
+    fillSelect($('#form-title_id'), orgmeta.titles,
+      (t) => `${t.name}${t.site_id ? '' : ' · global'}`, user?.title_id);
+    const customToggle = $('#form-title-custom-toggle');
+    const customInput  = $('#form-custom_title');
+    const titleSelect  = $('#form-title_id');
+    const hasCustom = !!(user?.custom_title);
+    customToggle.checked = hasCustom;
+    customInput.value = user?.custom_title || '';
+    customInput.hidden = !hasCustom;
+    titleSelect.hidden = hasCustom;
 
     $('#form-permission_level').value = user?.permission_level || 1;
     $('#form-password').value = '';
@@ -303,6 +318,16 @@
       if (!roleId || !orgmeta.roles) return;
       const role = orgmeta.roles.find((r) => r.id === roleId);
       if (role) $('#form-permission_level').value = role.default_permission_level;
+    }
+    // SCO-104: swap between curated dropdown and free-text input. Mutual
+    // exclusion is enforced at the UI; the inactive control is hidden AND
+    // its value cleared at submit time so the backend gets a clean payload.
+    if (e.target && e.target.id === 'form-title-custom-toggle') {
+      const useCustom = e.target.checked;
+      $('#form-title_id').hidden = useCustom;
+      $('#form-custom_title').hidden = !useCustom;
+      if (useCustom) $('#form-title_id').value = '';
+      else $('#form-custom_title').value = '';
     }
   });
 
@@ -341,6 +366,9 @@
     const roleId = $('#form-role_id').value;
     const deptId = $('#form-department_id').value;
     const shiftId = $('#form-shift_id').value;
+    const useCustomTitle = $('#form-title-custom-toggle').checked;
+    const titleId = $('#form-title_id').value;
+    const customTitle = $('#form-custom_title').value.trim();
     const firstName = $('#form-first_name').value.trim();
     const lastName  = $('#form-last_name').value.trim();
     const body = {
@@ -351,6 +379,9 @@
       role_id: roleId ? Number(roleId) : null,
       department_id: deptId ? Number(deptId) : null,
       shift_id: shiftId ? Number(shiftId) : null,
+      // SCO-104: send exactly one of (title_id, custom_title); other is null.
+      title_id: useCustomTitle ? null : (titleId ? Number(titleId) : null),
+      custom_title: useCustomTitle ? (customTitle || null) : null,
     };
     const supId = $('#form-supervisor_id').value;
     const supervisorId = supId ? Number(supId) : null;
