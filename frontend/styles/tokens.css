@@ -44,6 +44,22 @@
   --elevated:   #1A1A20;  /* modals, popovers */
   --inset:      #050507;  /* inputs, recessed areas */
 
+  /* SCO-94 follow-up: modal-specific tokens. Themes override these in one
+     place rather than every .modal rule across pages. `--modal-surface` is
+     fully opaque so the underlying page is not visible through the panel;
+     `--scrim` dims the rest of the page so the modal reads as foreground. */
+  --modal-surface: var(--elevated);
+  --modal-border:  var(--rule-default);
+  --scrim:         rgba(0, 0, 0, 0.82);
+
+  /* Compatibility aliases — some inline page styles use a numbered
+     "elevation" naming (--surface-1, --surface-2) and a shorter rule
+     alias (--rule-mid). Aliased to the canonical tokens so themes still
+     flow through. New code should use the canonical names. */
+  --surface-1: var(--surface);
+  --surface-2: var(--elevated);
+  --rule-mid:  var(--rule-default);
+
   /* Borders / Rules — typographic discipline */
   --rule-faint:    rgba(244, 244, 241, 0.06);
   --rule-subtle:   rgba(244, 244, 241, 0.10);
@@ -151,4 +167,10 @@
   --ink-secondary: #4D4A42;
   --ink-tertiary: #807B70;
   --ink-muted: #B5B0A2;
+  /* Light-theme modal: stronger border for definition against the warm canvas;
+     scrim stays dark (its job is to dim underlying content, regardless of
+     theme) but slightly less heavy than the dark theme's. */
+  --modal-surface: #FFFFFF;
+  --modal-border:  rgba(7, 7, 10, 0.22);
+  --scrim:         rgba(26, 24, 20, 0.70);
 }

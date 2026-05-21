@@ -75,21 +75,31 @@
     }
     .modal-backdrop {
       position: fixed; inset: 0;
-      background: rgba(0,0,0,0.72);
+      /* Token-driven so themes can dial the scrim per palette. */
+      background: var(--scrim);
+      /* Slight blur lifts the modal off whatever's behind it without making
+         the underlying content totally illegible — feels like real "above"
+         depth instead of just a flat overlay. Falls back to plain scrim on
+         older browsers. */
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
       display: none;
       align-items: flex-start;
       justify-content: center;
       padding: 80px 16px;
-      z-index: 100;
+      z-index: var(--z-modal);
     }
     .modal-backdrop[data-open="true"] { display: flex; }
     .modal {
-      background: var(--surface-1);
-      border: 1px solid var(--rule-mid);
+      /* Fully opaque modal-surface (previously was var(--surface-1) which
+         wasn't defined — resolved to transparent and let the page bleed
+         through). Tokenized so the light theme can override in one place. */
+      background: var(--modal-surface);
+      border: 1px solid var(--modal-border);
       padding: var(--space-6);
       width: 100%;
       max-width: 560px;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      box-shadow: var(--shadow-3);
     }
     .modal h2 { margin: 0 0 var(--space-4); font-family: var(--font-serif); }
     .modal-form { display: grid; gap: var(--space-3); }
