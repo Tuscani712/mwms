@@ -92,7 +92,13 @@ def update_email(db: Session, user: User, new_email: str) -> User:
 def update_password(db: Session, user: User, current: str, new: str) -> User:
     if not verify_password(current, user.hashed_password):
         raise ValueError("Current password is incorrect")
+    if current == new:
+        # SCO-99: prevents trivially "rotating" the temp password to itself.
+        raise ValueError("New password must differ from the current one")
     user.hashed_password = hash_password(new)
+    # SCO-99: any successful self-service password change clears the
+    # force-change flag, releasing the rest of the app to the user.
+    user.must_change_password = False
     db.commit()
     db.refresh(user)
     return user

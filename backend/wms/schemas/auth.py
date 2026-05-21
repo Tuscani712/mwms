@@ -20,6 +20,9 @@ class TokenResponse(BaseModel):
     mfa_required: bool = False
     mfa_enrolled: bool = False
     mfa_challenge_token: str | None = None
+    # SCO-99: signals the frontend to push the user into a forced
+    # password-change flow before any other route is reachable.
+    must_change_password: bool = False
 
 
 class MFAChallenge(BaseModel):

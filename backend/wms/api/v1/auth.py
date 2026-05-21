@@ -81,6 +81,9 @@ def login(
         # If policy requires MFA but user isn't enrolled, the frontend treats this
         # as a forced-enrollment session (token is valid for /profile/mfa/setup).
         mfa_enrolled=enrolled,
+        # SCO-99: signal force-change so the frontend can route to the modal
+        # before exposing the user to any other page chrome.
+        must_change_password=user.must_change_password,
     )
 
 

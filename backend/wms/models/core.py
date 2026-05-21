@@ -39,6 +39,12 @@ class User(Base):
     permission_level: Mapped[int] = mapped_column(default=1)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # SCO-99: forces a password change on next login. Admin-created accounts
+    # land with this true (one-time temp password); cleared when the user
+    # rotates via PUT /profile/password.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

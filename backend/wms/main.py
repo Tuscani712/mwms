@@ -33,6 +33,28 @@ settings = get_settings()
 settings.assert_secure_for_env()
 
 
+def _ensure_columns(engine, table: str, columns: dict[str, str]) -> None:
+    """Idempotent additive migration for new columns on an existing table.
+
+    SQLAlchemy's create_all() creates tables but never ALTERs them, so adding
+    a column to a model leaves pre-existing dev DBs missing the column. We
+    inspect `table` and ALTER for each missing entry. SQLite ignores complex
+    DEFAULT/NOT NULL combinations on ADD COLUMN if the table is empty, but for
+    our small-data dev DBs the simple form works fine.
+    """
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if table not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns(table)}
+    with engine.begin() as conn:
+        for name, ddl in columns.items():
+            if name in existing:
+                continue
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="WMS API",
@@ -50,6 +72,10 @@ def create_app() -> FastAPI:
 
     # Create tables for dev convenience. In prod, use Alembic migrations.
     Base.metadata.create_all(bind=engine)
+    # SCO-99: lightweight runtime migration for the must_change_password
+    # column. create_all() never ALTERs existing tables, so we add the column
+    # by hand if it's missing on a pre-existing dev DB.
+    _ensure_columns(engine, "users", {"must_change_password": "BOOLEAN NOT NULL DEFAULT 0"})
 
     api_prefix = "/api/v1"
     app.include_router(health.router, prefix=api_prefix)

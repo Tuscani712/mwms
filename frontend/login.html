@@ -624,6 +624,38 @@
         </p>
 
       </form>
+
+      <!-- SCO-99: Forced password-change form, revealed when login response
+           carries must_change_password=true. The login form above hides
+           itself; the user cannot navigate away until they rotate. -->
+      <form class="login-form" id="force-change-form" onsubmit="return false;" style="display:none;">
+        <span class="login-eyebrow" style="color: var(--signal-crit);">Password change required</span>
+        <h2 class="login-title">Set a new <em>password.</em></h2>
+        <p class="login-sub">
+          Your admin assigned a one-time password. Choose a new one before continuing — your account is locked to this screen until you do.
+        </p>
+        <div class="login-fields">
+          <div class="field">
+            <label class="field-label" for="fc-current">Current (temporary) password</label>
+            <input class="input input--mono" type="password" id="fc-current" autocomplete="current-password" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="fc-new">New password</label>
+            <input class="input input--mono" type="password" id="fc-new" autocomplete="new-password" minlength="4" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="fc-confirm">Confirm new password</label>
+            <input class="input input--mono" type="password" id="fc-confirm" autocomplete="new-password" minlength="4" required>
+          </div>
+          <div id="fc-error" style="display:none;color:var(--signal-crit);font-family:var(--font-mono);font-size:11px;padding:8px 10px;background:var(--surface-2);border-left:3px solid var(--signal-crit);border-radius:4px;"></div>
+        </div>
+        <button class="btn btn--primary btn--lg btn-arrow" type="submit" id="fc-submit" style="justify-content: space-between;">
+          <span>Save and continue</span>
+        </button>
+        <p class="login-foot">
+          Your audit log records the password rotation but not the password itself.
+        </p>
+      </form>
     </section>
 
   </main>
@@ -932,6 +964,48 @@
       if (banner) banner.remove();
     }
 
+    // SCO-99: force-change submit handler. The user is already authenticated
+    // (we have a token from the prior login) — we only need to PUT the new
+    // password. Backend clears must_change_password on success.
+    const fcForm = document.getElementById('force-change-form');
+    if (fcForm) {
+      const fcSubmit = document.getElementById('fc-submit');
+      const fcErr = document.getElementById('fc-error');
+      const fcCurrent = document.getElementById('fc-current');
+      const fcNew = document.getElementById('fc-new');
+      const fcConfirm = document.getElementById('fc-confirm');
+      function fcShow(msg) {
+        fcErr.textContent = msg;
+        fcErr.style.display = '';
+      }
+      function fcClear() { fcErr.style.display = 'none'; }
+      fcForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        fcClear();
+        const current = fcCurrent.value;
+        const next = fcNew.value;
+        const confirm = fcConfirm.value;
+        if (next !== confirm) { fcShow('New password and confirmation do not match.'); return; }
+        if (next === current) { fcShow('New password must differ from the temporary one.'); return; }
+        if (next.length < 4) { fcShow('New password must be at least 4 characters.'); return; }
+        fcSubmit.disabled = true;
+        const span = fcSubmit.querySelector('span');
+        const origLabel = span.textContent;
+        span.textContent = 'Saving…';
+        try {
+          await WMS_API.request('/profile/password', {
+            method: 'PUT',
+            body: { current_password: current, new_password: next },
+          });
+          window.location.href = 'index.html';
+        } catch (err) {
+          fcShow(err.message || 'Password change failed.');
+          fcSubmit.disabled = false;
+          span.textContent = origLabel;
+        }
+      });
+    }
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearLoginError();
@@ -951,6 +1025,17 @@
         const data = await WMS_API.login(employee_code, password, site_id);
         WMS_API.setSession(data);
         localStorage.setItem('wms.activeSiteLabel', siteLabel);
+        // SCO-99: backend signals that this account's first/temp password
+        // must be rotated before any other route is reachable. Hide the
+        // login form, reveal the force-change form, and pre-fill current.
+        if (data.must_change_password) {
+          loginForm.style.display = 'none';
+          const fc = document.getElementById('force-change-form');
+          fc.style.display = '';
+          document.getElementById('fc-current').value = password;
+          document.getElementById('fc-new').focus();
+          return;
+        }
         window.location.href = 'index.html';
       } catch (err) {
         if (submitBtn) submitBtn.textContent = originalBtnText;

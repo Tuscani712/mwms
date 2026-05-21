@@ -254,12 +254,20 @@
       <h2 id="modal-title">Edit user</h2>
       <form class="modal-form" id="user-form">
         <input type="hidden" id="form-user-id" />
-        <label>Employee code
+        <label>Login / Employee code
           <input class="input input--mono" type="text" id="form-employee_code" required minlength="2" maxlength="20" />
+          <small style="display:block;margin-top:4px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
+            This is the username the user signs in with.
+          </small>
         </label>
-        <label>Full name
-          <input class="input" type="text" id="form-full_name" required maxlength="120" />
-        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)">
+          <label>First name
+            <input class="input" type="text" id="form-first_name" required maxlength="60" autocomplete="given-name" />
+          </label>
+          <label>Last name
+            <input class="input" type="text" id="form-last_name" required maxlength="60" autocomplete="family-name" />
+          </label>
+        </div>
         <label>Email
           <input class="input" type="text" id="form-email" required />
         </label>

@@ -233,7 +233,12 @@
         A.orgmeta.departments(),
         A.orgmeta.shifts(),
       ]);
-      orgmeta.roles = roles.filter((r) => r.is_active);
+      // SCO-97: roles sorted by default_permission_level DESC, tie-break by name.
+      // Highest tier (admin/L5) at top so the dropdown matches the org chart.
+      orgmeta.roles = roles
+        .filter((r) => r.is_active)
+        .sort((a, b) => (b.default_permission_level - a.default_permission_level)
+                       || a.name.localeCompare(b.name));
       orgmeta.departments = depts.filter((d) => d.is_active);
       orgmeta.shifts = shifts.filter((s) => s.is_active);
     } catch (e) {
@@ -260,7 +265,13 @@
     $('#form-user-id').value = user?.id || '';
     $('#form-employee_code').value = user?.employee_code || '';
     $('#form-employee_code').disabled = !!user;  // code immutable post-create
-    $('#form-full_name').value = user?.full_name || '';
+    // SCO-96: full_name split → First / Last. Split on the FIRST space so
+    // multi-word last names ("De La Cruz") survive prefill. New users get
+    // both blank; on save we re-concatenate with a single space.
+    const fn = (user?.full_name || '').trim();
+    const spaceIdx = fn.indexOf(' ');
+    $('#form-first_name').value = spaceIdx === -1 ? fn : fn.slice(0, spaceIdx);
+    $('#form-last_name').value  = spaceIdx === -1 ? '' : fn.slice(spaceIdx + 1).trim();
     $('#form-email').value = user?.email || '';
 
     await loadOrgmeta();
@@ -330,8 +341,11 @@
     const roleId = $('#form-role_id').value;
     const deptId = $('#form-department_id').value;
     const shiftId = $('#form-shift_id').value;
+    const firstName = $('#form-first_name').value.trim();
+    const lastName  = $('#form-last_name').value.trim();
     const body = {
-      full_name: $('#form-full_name').value.trim(),
+      // SCO-96: backend still takes a single `full_name` column.
+      full_name: `${firstName} ${lastName}`.trim().replace(/\s+/g, ' '),
       email: $('#form-email').value.trim(),
       permission_level: Number($('#form-permission_level').value),
       role_id: roleId ? Number(roleId) : null,

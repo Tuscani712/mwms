@@ -251,6 +251,16 @@ def test_top_down_hierarchy_chain_creates_full_org(client, seeded_db):
         new_token = _login(client, new_code)
         assert new_token, f"{new_code} could not log in after creation"
 
+        # SCO-99: admin-created users land with must_change_password=True,
+        # which would 403 their subsequent admin/list calls in this chain.
+        # The test is about hierarchy, not password rotation — clear the
+        # flag directly so the next iteration can use this user as a caller.
+        new_user = (
+            seeded_db.query(User).filter(User.employee_code == new_code).first()
+        )
+        new_user.must_change_password = False
+        seeded_db.commit()
+
     # Final assertion: full org tree is in place
     final_codes = {
         u.employee_code
@@ -480,6 +490,7 @@ def _seed_dept(db, *, name="Receiving-Test", site_id="WHS-001"):
 
 def _seed_shift(db, *, name="Morning-Test", site_id="WHS-001"):
     from datetime import time
+
     from wms.models import Shift
     s = Shift(name=name, site_id=site_id, start_time=time(6, 0), end_time=time(14, 0))
     db.add(s)

@@ -153,6 +153,9 @@ def create_user(db: Session, caller: User, *, payload: dict) -> User:
         shift=shift_str,
         shift_id=shift_obj.id if shift_obj else None,
         is_active=True,
+        # SCO-99: admin-set passwords are one-time. Forces the new user
+        # through PUT /profile/password before any other route is reachable.
+        must_change_password=True,
     )
     db.add(user)
     db.commit()
