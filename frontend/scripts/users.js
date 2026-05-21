@@ -290,6 +290,37 @@
     });
   }
 
+  // SCO-114: derive which site the form's FKs should be valid at.
+  // Edit: target user's site (immutable from here — use Move site to change).
+  // Create + MCS: whatever the Site picker currently shows.
+  // Create + non-MCS: caller's own site (the only one they can create at).
+  function targetSiteForForm(user) {
+    if (user) return user.site_id;
+    if (callerIsMCS) return $('#form-site_id').value || callerSiteId;
+    return callerSiteId;
+  }
+
+  // SCO-114: filter the four site-aware dropdowns by the active target site.
+  // Re-runs when the Site picker changes so the modal stays consistent.
+  function populateScopedDropdowns(user, siteId) {
+    const roles = orgmeta.roles.filter((r) => r.site_id === null || r.site_id === siteId);
+    const depts = orgmeta.departments.filter((d) => d.site_id === siteId);
+    const shifts = orgmeta.shifts.filter((s) => s.site_id === siteId);
+    const titles = orgmeta.titles.filter((t) => t.site_id === null || t.site_id === siteId);
+    fillSelect(
+      $('#form-role_id'),
+      roles,
+      (r) => `${r.name} (default L${r.default_permission_level})${r.site_id ? '' : ' · global'}`,
+      user?.role_id,
+    );
+    fillSelect($('#form-department_id'), depts, (d) => d.name, user?.department_id);
+    fillSelect($('#form-shift_id'), shifts,
+      (s) => `${s.name} · ${(s.start_time || '').slice(0,5)}–${(s.end_time || '').slice(0,5)}`,
+      user?.shift_id);
+    fillSelect($('#form-title_id'), titles,
+      (t) => `${t.name}${t.site_id ? '' : ' · global'}`, user?.title_id);
+  }
+
   async function openModal(user) {
     state.editing = user;
     $('#modal-title').textContent = user ? `Edit · ${user.employee_code}` : 'New user';
@@ -326,21 +357,10 @@
     }
 
     await loadOrgmeta();
-    fillSelect(
-      $('#form-role_id'),
-      orgmeta.roles,
-      (r) => `${r.name} (default L${r.default_permission_level})${r.site_id ? '' : ' · global'}`,
-      user?.role_id,
-    );
-    fillSelect($('#form-department_id'), orgmeta.departments, (d) => d.name, user?.department_id);
-    fillSelect($('#form-shift_id'), orgmeta.shifts,
-      (s) => `${s.name} · ${(s.start_time || '').slice(0,5)}–${(s.end_time || '').slice(0,5)}`,
-      user?.shift_id);
-    // SCO-104: Title curated dropdown + Custom Title toggle. If the user
-    // already has a custom_title, default the toggle to "custom" mode so the
-    // admin sees what's currently set; otherwise show the dropdown.
-    fillSelect($('#form-title_id'), orgmeta.titles,
-      (t) => `${t.name}${t.site_id ? '' : ' · global'}`, user?.title_id);
+    // SCO-114: dropdowns must be filtered by the target site or the backend's
+    // cross-site FK guards reject the create. Departments + Shifts are strictly
+    // site-scoped (no globals); Role + Title accept globals (site_id IS NULL).
+    populateScopedDropdowns(user, targetSiteForForm(user));
     const customToggle = $('#form-title-custom-toggle');
     const customInput  = $('#form-custom_title');
     const titleSelect  = $('#form-title_id');
@@ -367,6 +387,13 @@
       if (!roleId || !orgmeta.roles) return;
       const role = orgmeta.roles.find((r) => r.id === roleId);
       if (role) $('#form-permission_level').value = role.default_permission_level;
+    }
+    // SCO-114: site picker changed → re-filter dependent dropdowns. Only
+    // fires in create mode (the picker is hidden on edit). The user's
+    // previous Role/Dept/Shift/Title selections fall away naturally since
+    // they're not in the new site's valid set.
+    if (e.target && e.target.id === 'form-site_id') {
+      if (!state.editing) populateScopedDropdowns(null, e.target.value);
     }
     // SCO-104: swap between curated dropdown and free-text input. Mutual
     // exclusion is enforced at the UI; the inactive control is hidden AND
