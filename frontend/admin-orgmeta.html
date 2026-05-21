@@ -16,8 +16,9 @@
   <link rel="stylesheet" href="styles/dashboard.css">
   <link rel="stylesheet" href="styles/page.css">
   <style>
-    .om-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-6); }
-    @media (max-width: 1100px) { .om-grid { grid-template-columns: 1fr; } }
+    .om-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-6); }
+    @media (max-width: 1400px) { .om-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 800px) { .om-grid { grid-template-columns: 1fr; } }
     .om-card { border: 1px solid var(--rule-default); padding: var(--space-5); background: var(--surface); }
     .om-card h2 { font-family: var(--font-display); font-style: italic; font-size: var(--text-xl); margin: 0 0 var(--space-3); }
     .om-list { list-style: none; padding: 0; margin: 0 0 var(--space-4); max-height: 320px; overflow-y: auto; }
@@ -31,6 +32,15 @@
     .om-row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); align-items: end; }
     .om-times { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
     .om-empty { color: var(--ink-tertiary); font-family: var(--font-mono); font-size: 11px; padding: var(--space-3) 0; }
+    /* SCO-100/107/109: row actions group. Trash icon disabled with tooltip
+       when refs > 0; delete is irreversible so styled to read as destructive. */
+    .om-actions { display: inline-flex; gap: var(--space-1); }
+    .om-actions .btn--danger {
+      color: var(--signal-crit); border-color: var(--signal-crit);
+      background: rgba(239, 68, 68, 0.06);
+    }
+    .om-actions .btn--danger:hover { background: rgba(239, 68, 68, 0.14); }
+    .om-actions .btn[disabled] { opacity: 0.35; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -66,8 +76,10 @@
     </div>
     <h1 class="page-title"><em>Org</em> metadata</h1>
     <p class="page-lede">
-      Curate the Roles, Departments, and Shifts that drive user-creation pickers.
-      Roles can be global (NULL site) or site-specific. Departments + Shifts are per-site.
+      Curate the Roles, Titles, Departments, and Shifts that drive user-creation pickers.
+      Roles + Titles can be global (NULL site) or site-specific; Departments + Shifts are per-site.
+      Disable to hide from new-user pickers (existing users keep theirs);
+      delete is hard-removal and only allowed when zero users reference the entry.
     </p>
   </div>
 
@@ -110,6 +122,25 @@
         <form class="om-form" id="dept-form">
           <label>Name <input class="input" id="dept-name" required maxlength="60"></label>
           <button type="submit" class="btn btn--primary btn--sm">Add department</button>
+        </form>
+      </section>
+
+      <!-- TITLES (SCO-100) -->
+      <section class="om-card">
+        <h2>Titles</h2>
+        <div class="om-meta" id="titles-meta">Loading…</div>
+        <ul class="om-list" id="titles-list"></ul>
+        <form class="om-form" id="title-form">
+          <label>Name <input class="input" id="title-name" required maxlength="60" placeholder="Plant Supervisor"></label>
+          <div class="om-row">
+            <label>Scope
+              <select class="select" id="title-scope">
+                <option value="site">Own site</option>
+                <option value="global">Global (MCS only)</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn--primary btn--sm">Add title</button>
+          </div>
         </form>
       </section>
 

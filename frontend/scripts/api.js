@@ -138,6 +138,32 @@ window.WMS_API = (() => {
         request(`/admin/shifts/${id}`, { method: 'PUT', body: payload }),
       deactivateShift: (id) =>
         request(`/admin/shifts/${id}`, { method: 'DELETE' }),
+
+      // SCO-100: titles. site_id NULL = global.
+      titles: (params = {}) => {
+        const qs = new URLSearchParams();
+        if (params.site_id) qs.set('site_id', params.site_id);
+        if (params.include_globals === false) qs.set('include_globals', 'false');
+        const t = qs.toString();
+        return request(`/admin/titles${t ? `?${t}` : ''}`);
+      },
+      createTitle: (payload) =>
+        request('/admin/titles', { method: 'POST', body: payload }),
+      updateTitle: (id, payload) =>
+        request(`/admin/titles/${id}`, { method: 'PUT', body: payload }),
+      deactivateTitle: (id) =>
+        request(`/admin/titles/${id}`, { method: 'DELETE' }),
+
+      // SCO-107: hard-delete with ref-count guard. Server returns 204 on
+      // success, 409 with {detail, ref_count, entity} when in use.
+      purgeRole: (id) =>
+        request(`/admin/roles/${id}/purge`, { method: 'DELETE' }),
+      purgeDepartment: (id) =>
+        request(`/admin/departments/${id}/purge`, { method: 'DELETE' }),
+      purgeShift: (id) =>
+        request(`/admin/shifts/${id}/purge`, { method: 'DELETE' }),
+      purgeTitle: (id) =>
+        request(`/admin/titles/${id}/purge`, { method: 'DELETE' }),
     },
     sitesAdmin: {
       // SCO-54: master-site CRUD for sites. Write endpoints require MCS Lvl 5
