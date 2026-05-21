@@ -207,11 +207,20 @@
         </label>
       </div>
 
+      <!-- Bulk action toolbar (visible when 1+ rows selected) -->
+      <div id="bulk-toolbar" hidden style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:var(--space-3) 0;background:var(--surface-2);border:1px solid var(--signal-crit);border-radius:6px;">
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-primary);"><strong id="bulk-count">0</strong> selected</span>
+        <button type="button" class="btn btn--sm" id="bulk-delete" style="color:var(--signal-crit);border-color:var(--signal-crit);">Delete selected</button>
+        <button type="button" class="btn btn--sm" id="bulk-clear">Clear selection</button>
+        <span style="margin-left:auto;color:var(--ink-tertiary);font-size:11px;">Lvl 5 only · per-row hierarchy still enforced</span>
+      </div>
+
       <!-- Table -->
       <div id="users-table-wrap">
         <table class="users-table">
           <thead>
             <tr>
+              <th style="width:32px"><input type="checkbox" id="select-all" title="Select all visible rows" /></th>
               <th>Code</th>
               <th>Name</th>
               <th>Tier</th>
@@ -294,14 +303,18 @@
 
   <!-- Hard-delete (purge) confirmation modal — typed DELETE required -->
   <div class="modal-backdrop" id="purge-backdrop">
-    <div class="modal" style="max-width: 480px;">
-      <h2 style="color: var(--signal-crit);">Permanently delete user?</h2>
-      <p style="color: var(--ink-secondary); font-size: 13px; line-height: 1.55; margin: var(--space-2) 0 var(--space-4);">
+    <div class="modal" style="max-width: 520px;">
+      <h2 id="purge-modal-title" style="color: var(--signal-crit);">Permanently delete user?</h2>
+      <p id="purge-modal-body" style="color: var(--ink-secondary); font-size: 13px; line-height: 1.55; margin: var(--space-2) 0 var(--space-4);">
         This will <strong style="color: var(--ink-primary);">irreversibly remove</strong> the user
         <strong id="purge-target-name" style="color: var(--ink-primary); font-family: var(--font-mono);">—</strong>
         from the system. Their audit history is preserved (anonymized), but the user record itself is gone.
         Prefer <strong style="color: var(--ink-primary);">Deactivate</strong> if the person may return.
       </p>
+      <div id="bulk-failed-panel" hidden style="margin: var(--space-2) 0 var(--space-4); padding: 10px 12px; background: var(--surface-2); border-left: 3px solid var(--signal-crit); border-radius: 4px; max-height: 200px; overflow-y: auto;">
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-tertiary); text-transform: uppercase; margin-bottom: 6px;">Per-row failures</div>
+        <ul id="bulk-failed-list" style="margin: 0; padding-left: 18px; font-size: 12px; color: var(--ink-secondary); line-height: 1.6;"></ul>
+      </div>
       <label style="display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-tertiary); margin-bottom: 6px;">
         Type <strong style="color: var(--signal-crit);">DELETE</strong> to confirm
       </label>

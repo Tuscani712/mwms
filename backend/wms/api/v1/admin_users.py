@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -197,6 +197,123 @@ def reactivate_user(
         return svc.reactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+# ── Bulk purge (SCO-89/90) ────────────────────────────────────────────
+#
+# Declared BEFORE /{user_id}/purge so /admin/users/bulk-purge matches this
+# route. FastAPI would still skip the int-typed /{user_id} on a string
+# segment, but ordering by specificity is clearer.
+
+BULK_PURGE_MAX = 200
+
+
+class BulkPurgeRequest(BaseModel):
+    user_ids: list[int] = Field(min_length=1, max_length=BULK_PURGE_MAX)
+
+
+class BulkPurgeFailure(BaseModel):
+    user_id: int
+    reason: str
+
+
+class BulkPurgeResponse(BaseModel):
+    bulk_operation_id: str
+    requested: int
+    purged: list[int]
+    failed: list[BulkPurgeFailure]
+
+
+@router.post(
+    "/bulk-purge",
+    response_model=BulkPurgeResponse,
+    summary="Permanently delete a batch of users (Lvl 5 only) — IRREVERSIBLE",
+    description=(
+        "Bulk counterpart of POST /admin/users/{id}/purge. Iterates the given "
+        "ids, applying the same per-row safety rails (self-purge, last-admin, "
+        "active subordinates, hierarchy). Partial failures are itemized in "
+        "the `failed` array instead of aborting the batch.\n\n"
+        "Returns 200 if every id purged, 207 Multi-Status if any failed. "
+        "Batch capped at 200 ids; over that returns 422. Each successful "
+        "purge emits a `user.purged` audit event tagged with a shared "
+        "`bulk_operation_id` so the batch is queryable as one action."
+    ),
+    responses={
+        200: {"description": "All requested users purged"},
+        207: {"description": "Some users purged, others failed — see `failed`"},
+        403: {"description": "Caller is not Lvl 5"},
+        422: {"description": "Invalid payload (empty, > 200 ids, malformed)"},
+    },
+)
+def bulk_purge_users(
+    payload: BulkPurgeRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> BulkPurgeResponse:
+    """Bulk hard-delete. Lvl 5 only, per-row enforcement, partial-failure tolerant.
+
+    Frontend gates this behind ONE typed-DELETE confirmation for the entire
+    batch (the per-row safety rails are still enforced server-side).
+    """
+    if caller.permission_level < 5:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Level 5 required to permanently delete users"
+        )
+
+    import uuid
+
+    from wms.services import audit_log
+
+    bulk_id = uuid.uuid4().hex
+    purged: list[int] = []
+    failed: list[BulkPurgeFailure] = []
+    # De-dupe input so a repeated id can't claim two slots in the response.
+    seen: set[int] = set()
+    ordered_ids = [i for i in payload.user_ids if not (i in seen or seen.add(i))]
+
+    for uid in ordered_ids:
+        target = db.query(User).filter(User.id == uid).one_or_none()
+        if target is None:
+            failed.append(BulkPurgeFailure(user_id=uid, reason="not_found"))
+            continue
+        try:
+            snapshot = svc.purge_user(db, caller, target)
+        except svc.AdminAuthorizationError as e:
+            msg = str(e)
+            # Map service-layer messages to stable machine codes for the UI.
+            if "yourself" in msg:
+                reason = "cannot_delete_self"
+            elif "last Level 5" in msg:
+                reason = "last_admin_protection"
+            else:
+                reason = "hierarchy_violation"
+            failed.append(BulkPurgeFailure(user_id=uid, reason=reason))
+            continue
+        except ValueError as e:
+            reason = "has_subordinates" if "subordinate" in str(e) else "conflict"
+            failed.append(BulkPurgeFailure(user_id=uid, reason=reason))
+            continue
+        snapshot["bulk_operation_id"] = bulk_id
+        audit_log.record(
+            db,
+            event_type="user.purged",
+            actor_id=caller.id,
+            site_id=snapshot["site_id"],
+            request=request,
+            detail=snapshot,
+        )
+        purged.append(uid)
+
+    if failed:
+        response.status_code = status.HTTP_207_MULTI_STATUS
+    return BulkPurgeResponse(
+        bulk_operation_id=bulk_id,
+        requested=len(ordered_ids),
+        purged=purged,
+        failed=failed,
+    )
 
 
 @router.post(

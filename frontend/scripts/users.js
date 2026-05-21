@@ -22,6 +22,13 @@
     tiers: {},
     rolesSeen: new Set(),
     editing: null, // user object being edited, or null for create
+    // SCO-91/92: selection persists across pagination by user id (not row idx).
+    // The Map carries display labels too so the bulk-confirm modal can show
+    // something useful even after the rows have scrolled out of view.
+    selected: new Map(), // id -> "Full Name (CODE)"
+    // Index of users currently rendered, used to drive master-checkbox state
+    // and to apply "select all visible" without re-fetching.
+    pageRows: [], // list of {id, label} for current rendered page
   };
 
   // ── Toast ──────────────────────────────────────────────────────────
@@ -124,10 +131,16 @@
   function renderTable(items) {
     const tbody = $('#users-tbody');
     tbody.innerHTML = '';
+    state.pageRows = items.map((u) => ({
+      id: u.id,
+      label: `${u.full_name} (${u.employee_code})`,
+    }));
     items.forEach((u) => {
       const tr = document.createElement('tr');
       tr.dataset.inactive = (!u.is_active).toString();
+      const checked = state.selected.has(u.id) ? 'checked' : '';
       tr.innerHTML = `
+        <td><input type="checkbox" class="row-select" data-id="${u.id}" data-label="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" ${checked} /></td>
         <td><strong>${escapeHtml(u.employee_code)}</strong></td>
         <td>${escapeHtml(u.full_name)}<div style="color:var(--ink-tertiary);font-size:10px">${escapeHtml(u.email)}</div></td>
         <td>${tierPill(u.permission_level)}</td>
@@ -145,6 +158,28 @@
         </div></td>`;
       tbody.appendChild(tr);
     });
+    refreshSelectionUI();
+  }
+
+  // ── Multi-select state (SCO-91/92) ──────────────────────────────────
+  // Updates the master checkbox indeterminate/checked state, the count
+  // chip, and the toolbar visibility from the current selection set.
+  function refreshSelectionUI() {
+    const master = $('#select-all');
+    const onPage = state.pageRows.length;
+    const selectedOnPage = state.pageRows.filter((r) => state.selected.has(r.id)).length;
+    if (onPage === 0) {
+      master.checked = false; master.indeterminate = false;
+    } else if (selectedOnPage === 0) {
+      master.checked = false; master.indeterminate = false;
+    } else if (selectedOnPage === onPage) {
+      master.checked = true; master.indeterminate = false;
+    } else {
+      master.checked = false; master.indeterminate = true;
+    }
+    const n = state.selected.size;
+    $('#bulk-count').textContent = n;
+    $('#bulk-toolbar').hidden = n === 0;
   }
 
   // ── Modal (create / edit) ──────────────────────────────────────────
@@ -317,18 +352,93 @@
     }
   });
 
+  // ── Row checkbox + master-select (SCO-91) ──────────────────────────
+  $('#users-tbody').addEventListener('change', (e) => {
+    const cb = e.target.closest('input.row-select');
+    if (!cb) return;
+    const id = Number(cb.dataset.id);
+    if (cb.checked) state.selected.set(id, cb.dataset.label || `#${id}`);
+    else state.selected.delete(id);
+    refreshSelectionUI();
+  });
+
+  $('#select-all').addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    state.pageRows.forEach((r) => {
+      if (checked) state.selected.set(r.id, r.label);
+      else state.selected.delete(r.id);
+    });
+    // Re-tick the visible row checkboxes; selection lives in state.selected.
+    $$('#users-tbody input.row-select').forEach((cb) => { cb.checked = checked; });
+    refreshSelectionUI();
+  });
+
+  $('#bulk-clear').addEventListener('click', () => {
+    state.selected.clear();
+    $$('#users-tbody input.row-select').forEach((cb) => { cb.checked = false; });
+    refreshSelectionUI();
+  });
+
+  $('#bulk-delete').addEventListener('click', () => {
+    if (state.selected.size === 0) return;
+    openBulkPurgeModal();
+  });
+
   // ── Purge (hard-delete) modal — typed DELETE required ──────────────
-  const purgeState = { id: null };
+  // Dual-mode: single-target (existing per-row "Delete" button) or bulk
+  // (the toolbar "Delete selected" button). `purgeState.mode` switches
+  // the confirm handler between POST /{id}/purge and POST /bulk-purge.
+  const purgeState = { mode: 'single', id: null, ids: [] };
   const purgeBackdrop = $('#purge-backdrop');
   const purgeInput = $('#purge-confirm-input');
   const purgeBtn = $('#purge-confirm');
   const purgeErr = $('#purge-error');
+  const purgeTitle = $('#purge-modal-title');
+  const purgeBody = $('#purge-modal-body');
+  const purgeBodyDefault = purgeBody.innerHTML; // preserve single-mode copy
+  const bulkFailedPanel = $('#bulk-failed-panel');
+  const bulkFailedList = $('#bulk-failed-list');
 
   function openPurgeModal(id, name) {
+    purgeState.mode = 'single';
     purgeState.id = id;
+    purgeState.ids = [];
+    purgeTitle.textContent = 'Permanently delete user?';
+    purgeBody.innerHTML = purgeBodyDefault;
     $('#purge-target-name').textContent = name;
+    bulkFailedPanel.hidden = true;
+    bulkFailedList.innerHTML = '';
     purgeInput.value = '';
     purgeErr.style.display = 'none';
+    purgeBtn.textContent = 'Delete forever';
+    purgeBtn.disabled = true;
+    purgeBtn.style.opacity = '0.5';
+    purgeBtn.style.cursor = 'not-allowed';
+    purgeBackdrop.dataset.open = 'true';
+    setTimeout(() => purgeInput.focus(), 30);
+  }
+
+  function openBulkPurgeModal() {
+    const ids = Array.from(state.selected.keys());
+    purgeState.mode = 'bulk';
+    purgeState.id = null;
+    purgeState.ids = ids;
+    purgeTitle.textContent = `Permanently delete ${ids.length} users?`;
+    // Show up to 8 labels then a "+N more" tail, so the modal stays bounded
+    // even if the user has selected 200.
+    const labels = Array.from(state.selected.values());
+    const shown = labels.slice(0, 8).map((l) => `<li>${escapeHtml(l)}</li>`).join('');
+    const more = labels.length > 8 ? `<li style="color:var(--ink-tertiary)">+ ${labels.length - 8} more</li>` : '';
+    purgeBody.innerHTML = `
+      This will <strong style="color: var(--ink-primary);">irreversibly remove</strong> the following users from the system.
+      Their audit history is preserved (anonymized), but the user records themselves are gone.
+      Per-row safety rails (last-admin protection, hierarchy, active subordinates) are still enforced by the server.
+      <ul style="margin: var(--space-3) 0 0; padding-left: 18px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-secondary); line-height: 1.6; max-height: 180px; overflow-y: auto;">${shown}${more}</ul>`;
+    bulkFailedPanel.hidden = true;
+    bulkFailedList.innerHTML = '';
+    purgeInput.value = '';
+    purgeErr.style.display = 'none';
+    purgeBtn.textContent = `Delete ${ids.length} forever`;
     purgeBtn.disabled = true;
     purgeBtn.style.opacity = '0.5';
     purgeBtn.style.cursor = 'not-allowed';
@@ -339,6 +449,7 @@
   function closePurgeModal() {
     purgeBackdrop.dataset.open = 'false';
     purgeState.id = null;
+    purgeState.ids = [];
     purgeInput.value = '';
   }
 
@@ -358,22 +469,62 @@
     if (e.key === 'Escape' && purgeBackdrop.dataset.open === 'true') closePurgeModal();
   });
 
+  // Friendly labels for backend failure reasons in bulk responses.
+  const BULK_REASONS = {
+    not_found: 'User no longer exists',
+    cannot_delete_self: 'You cannot delete yourself',
+    hierarchy_violation: 'Target outranks (or matches) your level',
+    last_admin_protection: 'Last Level-5 admin — promote another first',
+    has_subordinates: 'Has active subordinates — reassign them first',
+    conflict: 'Conflict (see audit log)',
+  };
+
   purgeBtn.addEventListener('click', async () => {
-    if (purgeInput.value !== 'DELETE' || !purgeState.id) return;
-    const id = purgeState.id;
+    if (purgeInput.value !== 'DELETE') return;
     purgeBtn.disabled = true;
+    const originalLabel = purgeBtn.textContent;
     purgeBtn.textContent = 'Deleting…';
     try {
-      await A.request(`/admin/users/${id}/purge`, { method: 'POST', body: {} });
-      toast('ok', 'User permanently deleted');
-      closePurgeModal();
-      loadList();
+      if (purgeState.mode === 'single') {
+        if (!purgeState.id) return;
+        await A.request(`/admin/users/${purgeState.id}/purge`, { method: 'POST', body: {} });
+        toast('ok', 'User permanently deleted');
+        closePurgeModal();
+        loadList();
+      } else {
+        const ids = purgeState.ids;
+        if (!ids.length) return;
+        const resp = await A.request('/admin/users/bulk-purge', {
+          method: 'POST', body: { user_ids: ids },
+        });
+        const ok = resp.purged.length;
+        const fail = resp.failed.length;
+        // Drop succeeded ids from selection so a repeat click only retries failures.
+        resp.purged.forEach((id) => state.selected.delete(id));
+        if (fail === 0) {
+          toast('ok', `${ok}/${resp.requested} users permanently deleted`);
+          closePurgeModal();
+        } else {
+          // Keep the modal open so the user can read the per-row reasons.
+          // The label-to-id map lets us show names instead of opaque ids.
+          const labelFor = (id) => state.selected.get(id) || `#${id}`;
+          bulkFailedList.innerHTML = resp.failed
+            .map((f) => `<li><strong>${escapeHtml(labelFor(f.user_id))}</strong> · ${BULK_REASONS[f.reason] || f.reason}</li>`)
+            .join('');
+          bulkFailedPanel.hidden = false;
+          purgeErr.textContent = `${ok}/${resp.requested} deleted, ${fail} failed`;
+          purgeErr.style.display = 'block';
+          purgeInput.value = '';
+          purgeBtn.textContent = `Retry ${state.selected.size} remaining`;
+        }
+        loadList();
+        refreshSelectionUI();
+      }
     } catch (err) {
       purgeErr.textContent = err.message;
       purgeErr.style.display = 'block';
       purgeBtn.disabled = false;
-    } finally {
-      purgeBtn.textContent = 'Delete forever';
+      purgeBtn.textContent = originalLabel;
     }
   });
 
