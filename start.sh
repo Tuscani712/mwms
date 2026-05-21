@@ -257,9 +257,16 @@ start_backend() {
   # No nohup: we *want* the child to receive SIGHUP if the terminal closes,
   # so it dies with us. The EXIT/HUP trap is the primary cleanup path; child
   # SIGHUP is the safety net if the trap is somehow bypassed.
-  ( cd "$BACKEND" && "$UVICORN" wms.main:app \
+  #
+  # `exec` is critical: without it, `( cd && cmd & echo $! )` captures the bash
+  # subshell's PID (the one running `cd && cmd`), not the server's. Killing the
+  # subshell then orphans the server child — the bug behind the survival of
+  # PIDs offset-by-one from what shutdown() reported killing. With `exec`, the
+  # subshell replaces itself with uvicorn, so $! == uvicorn PID.
+  ( cd "$BACKEND" && exec "$UVICORN" wms.main:app \
       --host 127.0.0.1 --port "$BACKEND_PORT" \
-      >"$BACKEND_LOG" 2>&1 & echo $! >"$BACKEND_PID_FILE" )
+      >"$BACKEND_LOG" 2>&1 ) &
+  echo $! >"$BACKEND_PID_FILE"
   local pid; pid="$(cat "$BACKEND_PID_FILE" 2>/dev/null || echo '?')"
   if ! wait_for_port_open "$BACKEND_PORT" "$BACKEND_READY_TIMEOUT"; then
     # Even if the process is alive, it didn't bind in time — capture last log lines.
@@ -291,10 +298,12 @@ start_frontend() {
     die_or_warn "Port $FRONTEND_PORT not free — refusing to launch frontend"
     return 1
   fi
-  # See start_backend: no nohup, child dies with terminal as safety net.
-  ( cd "$FRONTEND" && python3 -m http.server "$FRONTEND_PORT" \
+  # See start_backend: no nohup + `exec` so $! is the http.server PID directly,
+  # not the bash subshell that would otherwise wrap it.
+  ( cd "$FRONTEND" && exec python3 -m http.server "$FRONTEND_PORT" \
       --bind 127.0.0.1 \
-      >"$FRONTEND_LOG" 2>&1 & echo $! >"$FRONTEND_PID_FILE" )
+      >"$FRONTEND_LOG" 2>&1 ) &
+  echo $! >"$FRONTEND_PID_FILE"
   local pid; pid="$(cat "$FRONTEND_PID_FILE" 2>/dev/null || echo '?')"
   if ! wait_for_port_open "$FRONTEND_PORT" "$FRONTEND_READY_TIMEOUT"; then
     warn "Frontend did not become ready on :$FRONTEND_PORT within ${FRONTEND_READY_TIMEOUT}s"
