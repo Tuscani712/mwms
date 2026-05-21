@@ -321,8 +321,9 @@ def test_mcs_dept_list_returns_all_sites_without_filter(client, seeded_db):
     """User-create modal: MCS admin's blanket list_departments() must return
     WHS-001 entries so the modal can populate when target site = WHS-001."""
     _seed_mcs(seeded_db)
-    from wms.models import Department, Shift
     from datetime import time
+
+    from wms.models import Department, Shift
     seeded_db.add(Department(name="MCS-Office", site_id="MCS"))
     seeded_db.add(Department(name="WHS-Receiving", site_id="WHS-001"))
     seeded_db.add(Shift(name="MCS-Day", site_id="MCS",

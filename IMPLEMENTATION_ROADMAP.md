@@ -6,7 +6,7 @@
 
 ---
 
-## Current Status (2026-05-20)
+## Current Status (2026-05-21)
 
 ### ✅ Frontend Scaffold (v0.2)
 - **13 pages live**: Dashboard, Login (multi-site picker), Receiving, Shipping, Production, Quality, **Inventory (wired SCO-49)**, Reports, Admin, Admin-Branding, **Admin-Orgmeta (SCO-77..82)**, Users (with hard-purge modal SCO-85), **Admin-Sites (SCO-84)**
@@ -151,6 +151,23 @@ Distinct from the existing soft-archive (`DELETE /admin/users/{id}` unchanged). 
 - **Custom typed-confirmation modal**: no `window.confirm()` (clients can disable native dialogs). "Delete forever" button disabled until input value === `DELETE` (case-sensitive). Dismissible via Cancel/X/Escape/backdrop — none can trigger the purge.
 - 8 new pytest tests. Commit `f08233a`.
 
+### ✅ Titles entity + UX polish layer (SCO-88, SCO-94..99, SCO-100..108) — shipped 2026-05-20 → 21
+Closes the people-management gaps surfaced by client testing.
+- **SCO-88** — Multi-select + bulk-purge in users table. Confirmation modal listing each victim; refuses if any candidate is the caller, last Lvl 5, or has subordinates. Frontend self-delete affordances disabled (SCO-88 follow-up).
+- **SCO-94..99** — User-create modal UX pass: first-login forced password change, opaque-backdrop modal, `/auth/me`-sourced caller id (no more stale cache), site-aware error surfacing.
+- **SCO-100** — `Title` entity (parallel to `Role`, NULLABLE `site_id` for globals). Soft FK on `users.title_id`; new `custom_title` free-text override. Admin CRUD at `/admin/titles` with same Lvl 3+/MCS Lvl 4+ gates as roles.
+- **SCO-103/107/108** — Hard-delete (`/purge`) on every org-metadata entity. Returns 409 with `{detail, ref_count, entity}` when references exist; UI renders "in use by N users" toast inline.
+
+### ✅ MCS cross-site authoring + frontend safety hardening (SCO-110..115) — shipped 2026-05-21
+The MCS-Lvl4+ flow needed to actually work end-to-end for multi-site clients.
+- **SCO-112** — Reusable `confirm-modal.js` helper (typed-DELETE + simple-confirm). Self-injecting DOM/CSS; replaces every native `window.confirm()` across 8 sites. Native popups now banned project-wide (Chrome's "block additional dialogs" footgun could brick subsequent ops).
+- **SCO-113** — `PUT /admin/users/{id}/site` cross-site reassignment endpoint (MCS Lvl 4+). Auto-clears + warns on the site-bound FKs (`department_id`, `shift_id`, site-specific `role_id`/`title_id`) so a moved user doesn't drag stale references. Frontend: site picker in user-create modal (MCS-only), Site column, Move-site modal.
+- **SCO-114** — User-create modal: Dept/Shift/Role/Title dropdowns filter dynamically by selected target site so MCS admin doesn't see foreign-site entries.
+- **SCO-115** — Admin · Org Metadata page now exposes a "Viewing site" filter + per-form Target-site picker for MCS Lvl 4+. Backend hardened: `_resolve_create_site_id()` raises 400 when an MCS admin submits a Department/Shift create without explicit `site_id` (silent fallback to MCS was the footgun that let entries leak into the wrong warehouse). `list_departments` + `list_shifts` now return all sites for MCS Lvl 4+ when no filter is sent, mirroring `list_roles`/`list_titles`.
+- **SCO-110/111** — Filed for the remaining native-popup sites (`admin-sites.js` prompt() and `admin-branding.html` alert()).
+- Design system: new `.input--compact` (2px) and `.input--compact-md` / `.select--compact-md` (4px) padding modifiers — two named density steps for dense pages without per-page CSS overrides.
+- User table chrome aligned with the new vocabulary: Code → Login, Tier → Permissions, Site → Location; "Any tier" → "Any permission"; modal label "(tier)" parenthetical removed.
+
 ### 🔜 Next Up — see [`PAGES_WORKFLOW.md`](./PAGES_WORKFLOW.md) for full per-page workflow, endpoints, edge cases, and tests
 
 **Page completion path (dependency-ordered)**:
@@ -161,7 +178,7 @@ Distinct from the existing soft-archive (`DELETE /admin/users/{id}` unchanged). 
 5. **SCO-53** — Admin → System Settings page (registry-driven, type/bound-validated, branding upload, site-offline toggle)
 6. **Deployment review** (per Meatbag, queued after SCO-50..53): what to deploy, where (host/cloud), how clients connect to the master, security boundaries (TLS, secrets, multi-tenant isolation)
 
-**Test count trajectory**: 16 (initial) → 79 (SCO-37) → 125 (security pass) → 168 (orgmeta) → 180 (sites) → **188 (purge, current)**. Live smoke 13/13.
+**Test count trajectory**: 16 (initial) → 79 (SCO-37) → 125 (security pass) → 168 (orgmeta) → 180 (sites) → 188 (purge) → 231 (titles + cross-site) → **239 (SCO-115 dept/shift list fix, current)**. Live smoke 13/13. Ruff clean.
 
 Settings page lands **last** so it renders from a known registry (`SETTINGS_REGISTRY.md`) instead of speculating. Each page above appends its candidate knobs to the registry in the same commit that introduces the consumer code.
 
@@ -453,6 +470,6 @@ Settings page lands **last** so it renders from a known registry (`SETTINGS_REGI
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: 2026-05-15  
+**Version**: 1.1
+**Last Updated**: 2026-05-21
 **Owner**: Meatbag / Development Team
