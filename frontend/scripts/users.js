@@ -18,16 +18,43 @@
   // so by the time renderTable runs the id is already in hand. Cached
   // on window so a soft re-init reuses it.
   let callerId = window.__wmsCallerId ?? null;
+  let callerSiteId = null;
   if (callerId == null) {
     try {
       const me = await WMS_API.me();
       callerId = me?.id ?? null;
+      callerSiteId = me?.site_id ?? null;
       window.__wmsCallerId = callerId;
+      window.__wmsCallerSiteId = callerSiteId;
     } catch (e) {
       // If /auth/me fails the page-load redirect to login.html will fire
       // soon anyway; leaving callerId null just means the guard no-ops.
       console.warn('caller-id lookup failed:', e?.message || e);
     }
+  } else {
+    callerSiteId = window.__wmsCallerSiteId ?? null;
+  }
+  // SCO-113: MCS callers see Site dropdown on create, Site column in list,
+  // and the "Move site" row action. Backend still enforces; this is UI gating.
+  const callerIsMCS = (callerSiteId === 'MCS');
+
+  // SCO-113: surface the Site column in the table header when caller is MCS.
+  // (Per-row cells use the same callerIsMCS gate in the row template above.)
+  if (callerIsMCS) {
+    document.querySelectorAll('.col-site').forEach((el) => { el.hidden = false; });
+  }
+
+  // SCO-113: site list cache (populated lazily on first modal open).
+  let sitesCache = null;
+  async function loadSites() {
+    if (sitesCache) return sitesCache;
+    try {
+      sitesCache = await WMS_API.sites();
+    } catch (e) {
+      console.warn('sites fetch failed', e);
+      sitesCache = [];
+    }
+    return sitesCache;
   }
 
   const $ = (sel) => document.querySelector(sel);
@@ -176,12 +203,14 @@
         <td>${escapeHtml(u.full_name)}<div style="color:var(--ink-tertiary);font-size:10px">${escapeHtml(u.email)}</div></td>
         <td>${tierPill(u.permission_level)}</td>
         <td>${escapeHtml(u.role)}</td>
+        ${callerIsMCS ? `<td class="col-site">${escapeHtml(u.site_id || '—')}</td>` : ''}
         <td>${escapeHtml(u.department || '—')}</td>
         <td>${escapeHtml(u.shift || '—')}</td>
         <td>${u.supervisor_id ?? '—'}</td>
         <td>${statusPill(u)}</td>
         <td><div class="row-actions">
           <button class="btn btn--xs" data-act="edit" data-id="${u.id}">Edit</button>
+          ${callerIsMCS && !isSelf ? `<button class="btn btn--xs" data-act="move-site" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" data-site="${escapeHtml(u.site_id)}">Move site</button>` : ''}
           ${u.is_active
             ? (isSelf
                 ? `<button class="btn btn--xs" disabled title="You cannot deactivate your own account" style="color: var(--ink-tertiary); border-color: var(--ink-tertiary); cursor: not-allowed; opacity: 0.55;">Deactivate</button>`
@@ -275,6 +304,26 @@
     $('#form-first_name').value = spaceIdx === -1 ? fn : fn.slice(0, spaceIdx);
     $('#form-last_name').value  = spaceIdx === -1 ? '' : fn.slice(spaceIdx + 1).trim();
     $('#form-email').value = user?.email || '';
+
+    // SCO-113: Site picker. MCS callers on create get a required dropdown of
+    // all sites (defaulted to MCS). Non-MCS callers, or any edit, hide it —
+    // site is immutable from this modal; use the "Move site" action instead.
+    const siteRow = $('#form-site-row');
+    const siteSel = $('#form-site_id');
+    if (callerIsMCS && !user) {
+      const sites = await loadSites();
+      siteSel.innerHTML = '';
+      sites.forEach((s) => {
+        const opt = new Option(`${s.id} · ${s.name}`, s.id);
+        if (s.id === callerSiteId) opt.selected = true;
+        siteSel.appendChild(opt);
+      });
+      siteSel.required = true;
+      siteRow.hidden = false;
+    } else {
+      siteRow.hidden = true;
+      siteSel.required = false;
+    }
 
     await loadOrgmeta();
     fillSelect(
@@ -394,6 +443,12 @@
         const createBody = { ...body,
           employee_code: $('#form-employee_code').value.trim(),
           password: $('#form-password').value };
+        // SCO-113: only include site_id when the picker was actually shown
+        // (MCS caller on create). For non-MCS callers, omit and let the
+        // backend default to caller.site_id.
+        if (callerIsMCS) {
+          createBody.site_id = $('#form-site_id').value || callerSiteId;
+        }
         saved = await A.request('/admin/users', { method: 'POST', body: createBody });
       }
       // Only call the supervisor endpoint if the value actually changed
@@ -432,6 +487,8 @@
         await A.request(`/admin/users/${id}/reactivate`, { method: 'POST', body: {} });
         toast('ok', 'User reactivated');
         loadList();
+      } else if (act === 'move-site') {
+        openMoveSiteModal(id, btn.dataset.name || `user #${id}`, btn.dataset.site || '');
       } else if (act === 'purge') {
         openPurgeModal(id, btn.dataset.name || `user #${id}`);
       }
@@ -656,6 +713,63 @@
   $('#modal-cancel').addEventListener('click', closeModal);
   $('#modal-backdrop').addEventListener('click', (e) => {
     if (e.target.id === 'modal-backdrop') closeModal();
+  });
+
+  // ── Move-site modal (SCO-113, MCS-only) ────────────────────────────
+  // Populates a "destination site" dropdown excluding the user's current
+  // site, surfaces the destructive warning (dept/shift/supervisor cleared),
+  // and on confirm calls PUT /admin/users/{id}/site. Toast reports which
+  // FKs were cleared so the admin knows what to reassign.
+  const moveSiteBackdrop = $('#move-site-backdrop');
+  const moveSiteSelect   = $('#move-site-select');
+  const moveSiteState    = { id: null, currentSite: null };
+
+  async function openMoveSiteModal(userId, label, currentSite) {
+    moveSiteState.id = userId;
+    moveSiteState.currentSite = currentSite;
+    $('#move-site-target').textContent = label;
+    $('#move-site-current').textContent = currentSite || '(unknown)';
+    const sites = await loadSites();
+    moveSiteSelect.innerHTML = '';
+    sites.filter((s) => s.id !== currentSite).forEach((s) => {
+      moveSiteSelect.appendChild(new Option(`${s.id} · ${s.name}`, s.id));
+    });
+    if (moveSiteSelect.options.length === 0) {
+      moveSiteSelect.appendChild(new Option('(no other sites available)', ''));
+      $('#move-site-confirm').disabled = true;
+    } else {
+      $('#move-site-confirm').disabled = false;
+    }
+    moveSiteBackdrop.dataset.open = 'true';
+  }
+
+  function closeMoveSiteModal() {
+    moveSiteBackdrop.dataset.open = 'false';
+    moveSiteState.id = null;
+    moveSiteState.currentSite = null;
+  }
+
+  $('#move-site-cancel').addEventListener('click', closeMoveSiteModal);
+  moveSiteBackdrop.addEventListener('click', (e) => {
+    if (e.target.id === 'move-site-backdrop') closeMoveSiteModal();
+  });
+  $('#move-site-confirm').addEventListener('click', async () => {
+    const id = moveSiteState.id;
+    const newSite = moveSiteSelect.value;
+    if (!id || !newSite) return;
+    try {
+      const resp = await A.request(`/admin/users/${id}/site`,
+        { method: 'PUT', body: { site_id: newSite } });
+      const cleared = resp?.cleared_fields || [];
+      const msg = cleared.length
+        ? `Moved to ${newSite}. Cleared: ${cleared.join(', ')}. Re-assign at new site.`
+        : `Moved to ${newSite}.`;
+      toast('ok', msg);
+      closeMoveSiteModal();
+      loadList();
+    } catch (err) {
+      toast('err', err.message);
+    }
   });
 
   // ── Boot ───────────────────────────────────────────────────────────

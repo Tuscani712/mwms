@@ -235,6 +235,7 @@
               <th>Name</th>
               <th>Tier</th>
               <th>Role</th>
+              <th class="col-site" hidden>Site</th>
               <th>Dept</th>
               <th>Shift</th>
               <th>Supervisor</th>
@@ -264,6 +265,14 @@
       <h2 id="modal-title">Edit user</h2>
       <form class="modal-form" id="user-form">
         <input type="hidden" id="form-user-id" />
+        <!-- SCO-113: Site picker. Visible to MCS callers on create; hidden
+             on edit (site is immutable from this modal — use Move site). -->
+        <label id="form-site-row" hidden>Site
+          <select class="select" id="form-site_id"></select>
+          <small style="display:block;margin-top:4px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
+            The user can only log in at this site. Choose carefully — changes go through Move site.
+          </small>
+        </label>
         <label>Login / Employee code
           <input class="input input--mono" type="text" id="form-employee_code" required minlength="2" maxlength="20" />
           <small style="display:block;margin-top:4px;color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
@@ -352,6 +361,26 @@
       <div class="modal-footer" style="margin-top: var(--space-4);">
         <button type="button" class="btn" id="purge-cancel">Cancel</button>
         <button type="button" class="btn" id="purge-confirm" disabled style="background: var(--signal-crit); color: var(--ink-primary); border-color: var(--signal-crit); opacity: 0.5;">Delete forever</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCO-113: Move-site modal (MCS-only). Reuses the inline .modal styling. -->
+  <div class="modal-backdrop" id="move-site-backdrop">
+    <div class="modal" style="max-width: 520px;">
+      <h2 style="color: var(--amber);">Move user to another site</h2>
+      <p style="color: var(--ink-secondary); font-size: 13px; line-height: 1.55; margin: var(--space-2) 0 var(--space-4);">
+        Move <strong id="move-site-target" style="color: var(--ink-primary); font-family: var(--font-mono);">—</strong>
+        from <strong id="move-site-current" style="color: var(--ink-primary);">—</strong>
+        to a new site. <strong style="color: var(--ink-primary);">Their department, shift, supervisor, and any site-specific role/title will be cleared</strong>
+        — re-assign these at the new site after the move.
+      </p>
+      <label>Destination site
+        <select class="select" id="move-site-select"></select>
+      </label>
+      <div class="modal-footer" style="margin-top: var(--space-4);">
+        <button type="button" class="btn" id="move-site-cancel">Cancel</button>
+        <button type="button" class="btn" id="move-site-confirm" style="background: var(--amber); color: var(--ink-on-amber, #1a1a20); border-color: var(--amber);">Move user</button>
       </div>
     </div>
   </div>
