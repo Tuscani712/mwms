@@ -157,7 +157,17 @@ def purge_role(db: Session, caller: User, role: Role) -> None:
 # ── Departments ───────────────────────────────────────────────────────────
 
 def list_departments(db: Session, caller: User, *, site_id: str | None = None) -> list[Department]:
+    """List departments visible to caller.
+
+    SCO-115: when MCS Lvl4+ calls without an explicit site_id, return ALL
+    departments across all sites (mirrors list_roles/list_titles). This is
+    what lets the user-create modal populate WHS-001 departments for an
+    MCS admin creating a user there. Other callers continue to see only
+    their own site's departments.
+    """
     _require_admin(caller)
+    if site_id is None and caller.site_id == MCS_SITE_ID and caller.permission_level >= 4:
+        return db.query(Department).order_by(Department.site_id, Department.name).all()
     target = site_id or caller.site_id
     _require_site_access(caller, target)
     return (
@@ -218,7 +228,10 @@ def purge_department(db: Session, caller: User, dept: Department) -> None:
 # ── Shifts ────────────────────────────────────────────────────────────────
 
 def list_shifts(db: Session, caller: User, *, site_id: str | None = None) -> list[Shift]:
+    """Same MCS-blanket behavior as list_departments (SCO-115)."""
     _require_admin(caller)
+    if site_id is None and caller.site_id == MCS_SITE_ID and caller.permission_level >= 4:
+        return db.query(Shift).order_by(Shift.site_id, Shift.start_time).all()
     target = site_id or caller.site_id
     _require_site_access(caller, target)
     return (

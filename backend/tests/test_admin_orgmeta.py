@@ -317,6 +317,32 @@ def test_mcs_dept_list_filter_by_site_id(client, seeded_db):
     assert names == {"Local-WHS"}
 
 
+def test_mcs_dept_list_returns_all_sites_without_filter(client, seeded_db):
+    """User-create modal: MCS admin's blanket list_departments() must return
+    WHS-001 entries so the modal can populate when target site = WHS-001."""
+    _seed_mcs(seeded_db)
+    from wms.models import Department, Shift
+    from datetime import time
+    seeded_db.add(Department(name="MCS-Office", site_id="MCS"))
+    seeded_db.add(Department(name="WHS-Receiving", site_id="WHS-001"))
+    seeded_db.add(Shift(name="MCS-Day", site_id="MCS",
+                        start_time=time(8, 0), end_time=time(17, 0)))
+    seeded_db.add(Shift(name="WHS-Day", site_id="WHS-001",
+                        start_time=time(6, 0), end_time=time(14, 0)))
+    seeded_db.commit()
+    token = _login(client, "MCS-ADMIN", site="MCS")
+
+    r1 = client.get("/api/v1/admin/departments", headers=_h(token))
+    assert r1.status_code == 200
+    names = {row["name"] for row in r1.json()}
+    assert names == {"MCS-Office", "WHS-Receiving"}
+
+    r2 = client.get("/api/v1/admin/shifts", headers=_h(token))
+    assert r2.status_code == 200
+    shift_names = {row["name"] for row in r2.json()}
+    assert shift_names == {"MCS-Day", "WHS-Day"}
+
+
 def test_non_mcs_dept_create_still_defaults_to_own_site(client, seeded_db):
     """Back-compat: non-MCS callers without site_id continue defaulting to own site."""
     _seed_admin(seeded_db, code="WHS-001-LEAD", level=3)
