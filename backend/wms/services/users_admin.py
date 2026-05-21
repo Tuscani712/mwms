@@ -16,7 +16,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from wms.core.security import hash_password
-from wms.models import AuditLog, Department, Role, Shift, Title, User
+from wms.models import AuditLog, Department, Role, Shift, Site, Title, User
 from wms.models.core import ProfileChangeRequest, UserMFA
 
 MCS_SITE_ID = "MCS"
@@ -240,6 +240,73 @@ def update_user(db: Session, caller: User, target: User, payload: dict) -> User:
         db.commit()
         db.refresh(target)
     return target
+
+
+def change_user_site(
+    db: Session, caller: User, target: User, new_site_id: str
+) -> tuple[User, list[str]]:
+    """Move target user to a different site (MCS-Lvl4+ only).
+
+    Site-scoped FKs (department_id, shift_id, and site-specific role_id) are
+    auto-cleared because they reference entities at the old site. Global roles
+    survive. Legacy string fields (department, shift) are blanked alongside
+    their FKs so downstream consumers don't see stale labels.
+
+    Returns (updated_user, cleared_fields). cleared_fields names whatever was
+    nulled so the UI can prompt the admin to re-assign at the new site.
+    """
+    require_admin(caller)
+    if caller.site_id != MCS_SITE_ID or caller.permission_level < 4:
+        raise AdminAuthorizationError(
+            "Site reassignment requires MCS admin (Level 4+)"
+        )
+    if caller.id == target.id:
+        raise AdminAuthorizationError("You cannot move your own site")
+    if target.permission_level >= caller.permission_level:
+        raise AdminAuthorizationError(
+            f"Cannot move a user at permission level {target.permission_level} "
+            f"— your level is {caller.permission_level}"
+        )
+
+    if new_site_id == target.site_id:
+        raise ValueError(f"User is already at site {new_site_id}")
+
+    site = db.query(Site).filter(Site.id == new_site_id).one_or_none()
+    if site is None:
+        raise ValueError(f"Site {new_site_id} not found")
+
+    cleared: list[str] = []
+    if target.department_id is not None:
+        target.department_id = None
+        target.department = None
+        cleared.append("department")
+    if target.shift_id is not None:
+        target.shift_id = None
+        target.shift = None
+        cleared.append("shift")
+    if target.role_id is not None:
+        # Site-specific roles can't survive a move; globals (role.site_id is
+        # None) survive untouched.
+        role = db.query(Role).filter(Role.id == target.role_id).one_or_none()
+        if role is not None and role.site_id is not None:
+            target.role_id = None
+            cleared.append("role")
+    if target.title_id is not None:
+        # Same rule as Role: globals survive, site-specific gets cleared.
+        title = db.query(Title).filter(Title.id == target.title_id).one_or_none()
+        if title is not None and title.site_id is not None:
+            target.title_id = None
+            cleared.append("title")
+    if target.supervisor_id is not None:
+        # Supervisor link can't span sites — break it so target can be
+        # reassigned at the new site.
+        target.supervisor_id = None
+        cleared.append("supervisor")
+
+    target.site_id = new_site_id
+    db.commit()
+    db.refresh(target)
+    return target, cleared
 
 
 def deactivate_user(db: Session, caller: User, target: User) -> User:

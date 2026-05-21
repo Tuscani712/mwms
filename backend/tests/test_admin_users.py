@@ -739,3 +739,139 @@ def test_update_user_swap_title_to_custom(client, seeded_db):
     assert r2.status_code == 200, r2.text
     assert r2.json()["title_id"] is None
     assert r2.json()["custom_title"] == "Acting Lead"
+
+
+# ── SCO-113: PUT /admin/users/{id}/site (cross-site reassignment) ───────
+
+
+def _site_change_setup(seeded_db, *, with_dept=True, with_shift=True,
+                       with_global_role=False, with_site_role=False):
+    """Seed MCS admin + 2nd site + target user with optional FK assignments."""
+    _seed_mcs(seeded_db)  # MCS-ADMIN at level 4
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    target = User(
+        site_id="WHS-001",
+        employee_code="WHS-001-MOVE",
+        email="move@wms.local",
+        full_name="Mover One",
+        role="operator",
+        permission_level=1,
+        hashed_password=hash_password("password123"),
+    )
+    if with_dept:
+        d = _seed_dept(seeded_db, name="MoveDept", site_id="WHS-001")
+        target.department_id = d.id
+        target.department = d.name
+    if with_shift:
+        s = _seed_shift(seeded_db, name="MoveShift", site_id="WHS-001")
+        target.shift_id = s.id
+        target.shift = s.name
+    if with_global_role:
+        r = _seed_role(seeded_db, name="global-mover", default_level=1, site_id=None)
+        target.role_id = r.id
+    if with_site_role:
+        r = _seed_role(seeded_db, name="local-mover", default_level=1, site_id="WHS-001")
+        target.role_id = r.id
+    seeded_db.add(target)
+    seeded_db.commit()
+    seeded_db.refresh(target)
+    return target
+
+
+def test_mcs_admin_moves_user_across_sites_clearing_scoped_fks(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_site_role=True)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "WHS-002"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["user"]["site_id"] == "WHS-002"
+    assert body["user"]["department_id"] is None
+    assert body["user"]["shift_id"] is None
+    assert body["user"]["role_id"] is None
+    assert set(body["cleared_fields"]) == {"department", "shift", "role"}
+
+
+def test_site_change_keeps_global_role(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_dept=False, with_shift=False,
+                                with_global_role=True)
+    role_id_before = target.role_id
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "WHS-002"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 200
+    assert r.json()["user"]["role_id"] == role_id_before
+    assert "role" not in r.json()["cleared_fields"]
+
+
+def test_non_mcs_admin_cannot_change_site(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_dept=False, with_shift=False)
+    _seed_admin(seeded_db, level=4)  # WHS-001-ADMIN at level 4, but not MCS
+    token = _login(client, "WHS-001-ADMIN")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "WHS-002"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+    assert "MCS" in r.json()["detail"]
+
+
+def test_mcs_lvl3_cannot_change_site(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_dept=False, with_shift=False)
+    # _seed_mcs already added MCS-ADMIN; add a lower-level MCS user
+    _seed_admin(seeded_db, site_id="MCS", code="MCS-LEAD", level=3)
+    token = _login(client, "MCS-LEAD", site="MCS")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "WHS-002"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+
+
+def test_site_change_rejects_self_move(client, seeded_db):
+    _seed_mcs(seeded_db)
+    seeded_db.add(Site(id="WHS-002", name="HOU", city="Houston"))
+    seeded_db.commit()
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    me = client.get("/api/v1/admin/users", headers=_headers(token)).json()
+    my_id = next(u["id"] for u in me["items"] if u["employee_code"] == "MCS-ADMIN")
+    r = client.put(
+        f"/api/v1/admin/users/{my_id}/site",
+        json={"site_id": "WHS-002"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 403
+    assert "own site" in r.json()["detail"].lower()
+
+
+def test_site_change_rejects_missing_site(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_dept=False, with_shift=False)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "DOES-NOT-EXIST"},
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "DOES-NOT-EXIST" in r.json()["detail"]
+
+
+def test_site_change_rejects_same_site(client, seeded_db):
+    target = _site_change_setup(seeded_db, with_dept=False, with_shift=False)
+    token = _login(client, "MCS-ADMIN", site="MCS")
+    r = client.put(
+        f"/api/v1/admin/users/{target.id}/site",
+        json={"site_id": "WHS-001"},  # already there
+        headers=_headers(token),
+    )
+    assert r.status_code == 400
+    assert "already" in r.json()["detail"].lower()

@@ -390,6 +390,15 @@ class ShiftChange(BaseModel):
     shift: str | None = Field(default=None, max_length=20)
 
 
+class SiteChange(BaseModel):
+    site_id: str = Field(min_length=1, max_length=20)
+
+
+class SiteChangeResponse(BaseModel):
+    user: UserAdminOut
+    cleared_fields: list[str]
+
+
 class HierarchyInfo(BaseModel):
     id: int
     employee_code: str
@@ -459,6 +468,26 @@ def change_shift(
         return hier_svc.change_shift(db, caller, target, payload.shift)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+# SCO-113: dedicated endpoint for moving a user across sites. Distinct from
+# PUT /admin/users/{id} so the destructive nature (clears site-scoped FKs) is
+# explicit at the route level. MCS-Lvl4+ only — see svc.change_user_site.
+@router.put("/{user_id}/site", response_model=SiteChangeResponse)
+def change_user_site(
+    user_id: int,
+    payload: SiteChange,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> SiteChangeResponse:
+    target = _load_target(db, user_id)
+    try:
+        updated, cleared = svc.change_user_site(db, caller, target, payload.site_id)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return SiteChangeResponse(user=UserAdminOut.model_validate(updated), cleared_fields=cleared)
 
 
 @router.get("/{user_id}/subordinates", response_model=list[HierarchyInfo])
