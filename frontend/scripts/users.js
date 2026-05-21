@@ -11,16 +11,24 @@
   }
 
   // ── Caller identity (for self-delete guard, SCO-88 follow-up) ───────
-  // shell.js caches the logged-in user under wms.user at login. We read
-  // it once here so we can disable the row checkbox + per-row Delete
-  // button for the caller's own row, preventing the foot-gun before it
-  // ever reaches the server (which still refuses, but the UI shouldn't
-  // even let the click happen — "save ourselves the IT tickets").
-  let callerId = null;
-  try {
-    const raw = localStorage.getItem('wms.user');
-    if (raw) callerId = JSON.parse(raw).id ?? null;
-  } catch (_) { /* ignore */ }
+  // We need the caller's numeric user id to disable their row in the
+  // table. The cached wms.user from setSession() doesn't carry an id
+  // (TokenResponse never exposed one), so hit /auth/me — the canonical
+  // source. Fetched once at module init, before the first list render,
+  // so by the time renderTable runs the id is already in hand. Cached
+  // on window so a soft re-init reuses it.
+  let callerId = window.__wmsCallerId ?? null;
+  if (callerId == null) {
+    try {
+      const me = await WMS_API.me();
+      callerId = me?.id ?? null;
+      window.__wmsCallerId = callerId;
+    } catch (e) {
+      // If /auth/me fails the page-load redirect to login.html will fire
+      // soon anyway; leaving callerId null just means the guard no-ops.
+      console.warn('caller-id lookup failed:', e?.message || e);
+    }
+  }
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
