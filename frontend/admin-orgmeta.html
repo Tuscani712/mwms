@@ -85,7 +85,7 @@
     <div id="om-site-filter-row" hidden style="margin-top:var(--space-3);display:flex;gap:var(--space-3);align-items:end">
       <label style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:var(--tracking-wide);color:var(--ink-secondary)">
         Viewing site
-        <select class="select" id="om-site-filter" style="margin-top:4px;min-width:240px"></select>
+        <select class="select select--compact-md" id="om-site-filter" style="margin-top:4px;min-width:240px"></select>
       </label>
       <small style="color:var(--ink-tertiary);font-family:var(--font-mono);font-size:10px">
         MCS admin view — switch sites to see + author per-site Departments / Shifts / Roles / Titles.
@@ -102,10 +102,10 @@
         <div class="om-meta" id="roles-meta">Loading…</div>
         <ul class="om-list" id="roles-list"></ul>
         <form class="om-form" id="role-form">
-          <label>Name <input class="input input--mono" id="role-name" required maxlength="60"></label>
+          <label>Name <input class="input input--mono input--compact-md" id="role-name" required maxlength="60"></label>
           <div class="om-row">
             <label>Default tier
-              <select class="select" id="role-level">
+              <select class="select select--compact-md" id="role-level">
                 <option value="1">L1 · Operator</option>
                 <option value="2">L2 · Lead</option>
                 <option value="3">L3 · Supervisor</option>
@@ -114,14 +114,14 @@
               </select>
             </label>
             <label>Scope
-              <select class="select" id="role-scope">
+              <select class="select select--compact-md" id="role-scope">
                 <option value="site">Site-specific</option>
                 <option value="global">Global (MCS only)</option>
               </select>
             </label>
           </div>
           <label class="om-site-row" hidden>Target site
-            <select class="select" data-om-site-target></select>
+            <select class="select select--compact-md" data-om-site-target></select>
           </label>
           <button type="submit" class="btn btn--primary btn--sm">Add role</button>
         </form>
@@ -133,10 +133,10 @@
         <div class="om-meta" id="depts-meta">Per-site</div>
         <ul class="om-list" id="depts-list"></ul>
         <form class="om-form" id="dept-form">
-          <label>Name <input class="input" id="dept-name" required maxlength="60"></label>
+          <label>Name <input class="input input--compact-md" id="dept-name" required maxlength="60"></label>
           <!-- SCO-115: site target for MCS admins. Hidden for non-MCS (defaults server-side to caller's site). -->
           <label class="om-site-row" hidden>Target site
-            <select class="select" data-om-site-target></select>
+            <select class="select select--compact-md" data-om-site-target></select>
           </label>
           <button type="submit" class="btn btn--primary btn--sm">Add department</button>
         </form>
@@ -148,15 +148,15 @@
         <div class="om-meta" id="titles-meta">Loading…</div>
         <ul class="om-list" id="titles-list"></ul>
         <form class="om-form" id="title-form">
-          <label>Name <input class="input" id="title-name" required maxlength="60" placeholder="Plant Supervisor"></label>
+          <label>Name <input class="input input--compact-md" id="title-name" required maxlength="60" placeholder="Plant Supervisor"></label>
           <label>Scope
-            <select class="select" id="title-scope">
+            <select class="select select--compact-md" id="title-scope">
               <option value="site">Site-specific</option>
               <option value="global">Global (MCS only)</option>
             </select>
           </label>
           <label class="om-site-row" hidden>Target site
-            <select class="select" data-om-site-target></select>
+            <select class="select select--compact-md" data-om-site-target></select>
           </label>
           <button type="submit" class="btn btn--primary btn--sm">Add title</button>
         </form>
@@ -168,13 +168,13 @@
         <div class="om-meta" id="shifts-meta">Per-site</div>
         <ul class="om-list" id="shifts-list"></ul>
         <form class="om-form" id="shift-form">
-          <label>Name <input class="input input--mono" id="shift-name" required maxlength="40" placeholder="Swing"></label>
+          <label>Name <input class="input input--mono input--compact-md" id="shift-name" required maxlength="40" placeholder="Swing"></label>
           <div class="om-times">
-            <label>Start <input class="input input--mono" type="time" id="shift-start" required></label>
-            <label>End <input class="input input--mono" type="time" id="shift-end" required></label>
+            <label>Start <input class="input input--mono input--compact-md" type="time" id="shift-start" required></label>
+            <label>End <input class="input input--mono input--compact-md" type="time" id="shift-end" required></label>
           </div>
           <label class="om-site-row" hidden>Target site
-            <select class="select" data-om-site-target></select>
+            <select class="select select--compact-md" data-om-site-target></select>
           </label>
           <button type="submit" class="btn btn--primary btn--sm">Add shift</button>
         </form>
