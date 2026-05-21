@@ -76,6 +76,15 @@ def create_app() -> FastAPI:
     # column. create_all() never ALTERs existing tables, so we add the column
     # by hand if it's missing on a pre-existing dev DB.
     _ensure_columns(engine, "users", {"must_change_password": "BOOLEAN NOT NULL DEFAULT 0"})
+    # SCO-100: title_id FK + custom_title free-text override on User.
+    _ensure_columns(
+        engine,
+        "users",
+        {
+            "title_id": "INTEGER NULL REFERENCES titles(id)",
+            "custom_title": "VARCHAR(60) NULL",
+        },
+    )
 
     api_prefix = "/api/v1"
     app.include_router(health.router, prefix=api_prefix)
@@ -93,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_orgmeta.roles_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.departments_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.shifts_router, prefix=api_prefix)
+    app.include_router(admin_orgmeta.titles_router, prefix=api_prefix)
 
     upload_root = Path(settings.upload_dir)
     (upload_root / "avatars").mkdir(parents=True, exist_ok=True)

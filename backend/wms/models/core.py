@@ -67,6 +67,13 @@ class User(Base):
     shift_id: Mapped[int | None] = mapped_column(
         ForeignKey("shifts.id"), index=True, nullable=True
     )
+    # SCO-100: curated job title FK + free-text override. Mutually exclusive in
+    # practice (UI sends one or the other); render precedence is custom_title
+    # when present, else the joined Title.name.
+    title_id: Mapped[int | None] = mapped_column(
+        ForeignKey("titles.id"), index=True, nullable=True
+    )
+    custom_title: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
     site: Mapped[Site] = relationship(back_populates="users")
 

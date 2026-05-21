@@ -28,6 +28,7 @@ from wms.models import (
     Shift,
     Shipment,
     Site,
+    Title,
     User,
     UserProfileField,
 )
@@ -141,6 +142,19 @@ DEFAULT_GLOBAL_ROLES = [
     ("admin", 5),
 ]
 
+# SCO-100: Curated job titles. Distinct from Role (Title is purely descriptive,
+# Role drives permission_level). Seeded as globals (site_id=NULL) so every site
+# inherits; site-specific titles can be added via the admin UI.
+DEFAULT_GLOBAL_TITLES = [
+    "Supervisor",
+    "Plant Supervisor",
+    "Manager",
+    "Plant Manager",
+    "Lead",
+    "Picker",
+    "Forklift Operator",
+]
+
 
 def seed_users(db: Session) -> None:
     for site in db.query(Site).all():
@@ -204,6 +218,19 @@ def seed_departments(db: Session) -> None:
             )
             if existing is None:
                 db.add(Department(site_id=site.id, name=name))
+    db.commit()
+
+
+def seed_titles(db: Session) -> None:
+    """Seed default global job titles (SCO-100). Idempotent."""
+    for name in DEFAULT_GLOBAL_TITLES:
+        existing = (
+            db.query(Title)
+            .filter(Title.site_id.is_(None), Title.name == name)
+            .one_or_none()
+        )
+        if existing is None:
+            db.add(Title(name=name, site_id=None))
     db.commit()
 
 
@@ -431,6 +458,7 @@ def run() -> None:
     try:
         seed_sites(db)
         seed_roles(db)
+        seed_titles(db)
         seed_departments(db)
         seed_shifts(db)
         seed_users(db)

@@ -16,13 +16,28 @@ from datetime import time
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from wms.models import Department, Role, Shift, Site, User
+from wms.models import Department, Role, Shift, Site, Title, User
 
 MCS_SITE_ID = "MCS"
 
 
 class OrgMetaAuthorizationError(PermissionError):
-    """Raised when caller lacks permission to manage role/department/shift."""
+    """Raised when caller lacks permission to manage role/department/shift/title."""
+
+
+class OrgMetaInUseError(ValueError):
+    """Raised on hard-delete attempt when references still exist.
+
+    Carries `ref_count` so the API layer can surface it in the response payload
+    and the UI can render "In use by N users" without a separate count call.
+    """
+
+    def __init__(self, entity: str, ref_count: int):
+        self.entity = entity
+        self.ref_count = ref_count
+        super().__init__(
+            f"{entity} is in use by {ref_count} user(s); deactivate instead"
+        )
 
 
 def _require_admin(caller: User) -> None:
@@ -124,6 +139,21 @@ def deactivate_role(db: Session, caller: User, role: Role) -> Role:
     return role
 
 
+def role_ref_count(db: Session, role: Role) -> int:
+    """Count users currently referencing this role via the FK."""
+    return db.query(User).filter(User.role_id == role.id).count()
+
+
+def purge_role(db: Session, caller: User, role: Role) -> None:
+    """Hard-delete; refuses if any user still references the role (SCO-107)."""
+    _require_site_access(caller, role.site_id)
+    refs = role_ref_count(db, role)
+    if refs > 0:
+        raise OrgMetaInUseError("Role", refs)
+    db.delete(role)
+    db.commit()
+
+
 # ── Departments ───────────────────────────────────────────────────────────
 
 def list_departments(db: Session, caller: User, *, site_id: str | None = None) -> list[Department]:
@@ -170,6 +200,19 @@ def deactivate_department(db: Session, caller: User, dept: Department) -> Depart
     db.commit()
     db.refresh(dept)
     return dept
+
+
+def department_ref_count(db: Session, dept: Department) -> int:
+    return db.query(User).filter(User.department_id == dept.id).count()
+
+
+def purge_department(db: Session, caller: User, dept: Department) -> None:
+    _require_site_access(caller, dept.site_id)
+    refs = department_ref_count(db, dept)
+    if refs > 0:
+        raise OrgMetaInUseError("Department", refs)
+    db.delete(dept)
+    db.commit()
 
 
 # ── Shifts ────────────────────────────────────────────────────────────────
@@ -223,3 +266,90 @@ def deactivate_shift(db: Session, caller: User, shift: Shift) -> Shift:
     db.commit()
     db.refresh(shift)
     return shift
+
+
+def shift_ref_count(db: Session, shift: Shift) -> int:
+    return db.query(User).filter(User.shift_id == shift.id).count()
+
+
+def purge_shift(db: Session, caller: User, shift: Shift) -> None:
+    _require_site_access(caller, shift.site_id)
+    refs = shift_ref_count(db, shift)
+    if refs > 0:
+        raise OrgMetaInUseError("Shift", refs)
+    db.delete(shift)
+    db.commit()
+
+
+# ── Titles (SCO-100) ──────────────────────────────────────────────────────
+
+def list_titles(db: Session, caller: User, *, site_id: str | None = None,
+                include_globals: bool = True) -> list[Title]:
+    """Mirror of list_roles: globals + own-site, MCS sees all."""
+    _require_admin(caller)
+    q = db.query(Title)
+    if site_id is None:
+        if caller.site_id == MCS_SITE_ID and caller.permission_level >= 4:
+            pass
+        else:
+            scope = [caller.site_id]
+            if include_globals:
+                q = q.filter((Title.site_id.in_(scope)) | (Title.site_id.is_(None)))
+            else:
+                q = q.filter(Title.site_id.in_(scope))
+    else:
+        _require_site_access(caller, site_id)
+        q = q.filter(Title.site_id == site_id)
+    return q.order_by(Title.site_id.is_(None).desc(), Title.name).all()
+
+
+def create_title(db: Session, caller: User, *, name: str,
+                 site_id: str | None) -> Title:
+    _require_site_access(caller, site_id)
+    if site_id is not None:
+        _site_exists(db, site_id)
+    title = Title(name=name, site_id=site_id)
+    db.add(title)
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise ValueError(f"Title '{name}' already exists for this scope") from e
+    db.refresh(title)
+    return title
+
+
+def update_title(db: Session, caller: User, title: Title, payload: dict) -> Title:
+    _require_site_access(caller, title.site_id)
+    if "name" in payload and payload["name"]:
+        title.name = payload["name"]
+    if "is_active" in payload and payload["is_active"] is not None:
+        title.is_active = bool(payload["is_active"])
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise ValueError("Title name conflict in scope") from e
+    db.refresh(title)
+    return title
+
+
+def deactivate_title(db: Session, caller: User, title: Title) -> Title:
+    _require_site_access(caller, title.site_id)
+    title.is_active = False
+    db.commit()
+    db.refresh(title)
+    return title
+
+
+def title_ref_count(db: Session, title: Title) -> int:
+    return db.query(User).filter(User.title_id == title.id).count()
+
+
+def purge_title(db: Session, caller: User, title: Title) -> None:
+    _require_site_access(caller, title.site_id)
+    refs = title_ref_count(db, title)
+    if refs > 0:
+        raise OrgMetaInUseError("Title", refs)
+    db.delete(title)
+    db.commit()

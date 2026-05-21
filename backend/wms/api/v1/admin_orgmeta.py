@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.models import Department, Role, Shift, User
+from wms.models import Department, Role, Shift, Title, User
 from wms.services import orgmeta as svc
 
 
@@ -78,6 +78,25 @@ class ShiftOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# SCO-100: Titles.
+class TitleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    site_id: str | None = None  # null = global title
+
+
+class TitleUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    is_active: bool | None = None
+
+
+class TitleOut(BaseModel):
+    id: int
+    name: str
+    site_id: str | None
+    is_active: bool
+    model_config = {"from_attributes": True}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 def _load_role(db: Session, role_id: int) -> Role:
@@ -101,9 +120,23 @@ def _load_shift(db: Session, shift_id: int) -> Shift:
     return shift
 
 
+def _load_title(db: Session, title_id: int) -> Title:
+    title = db.query(Title).filter(Title.id == title_id).one_or_none()
+    if title is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Title not found")
+    return title
+
+
 def _gate(e: Exception) -> HTTPException:
     if isinstance(e, svc.OrgMetaAuthorizationError):
         return HTTPException(status.HTTP_403_FORBIDDEN, str(e))
+    # SCO-107: in-use hard-delete attempts surface as 409 with ref_count so
+    # the UI can render "In use by N users" without a separate count call.
+    if isinstance(e, svc.OrgMetaInUseError):
+        return HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"detail": str(e), "ref_count": e.ref_count, "entity": e.entity},
+        )
     return HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
 
@@ -164,6 +197,20 @@ def deactivate_role(
         raise _gate(e) from e
 
 
+@roles_router.delete("/{role_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+def purge_role(
+    role_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    """Hard-delete the role. 409 if any user still references it (SCO-107)."""
+    role = _load_role(db, role_id)
+    try:
+        svc.purge_role(db, caller, role)
+    except (svc.OrgMetaAuthorizationError, svc.OrgMetaInUseError) as e:
+        raise _gate(e) from e
+
+
 # ── /admin/departments ────────────────────────────────────────────────────
 
 departments_router = APIRouter(prefix="/admin/departments", tags=["admin-departments"])
@@ -218,6 +265,19 @@ def deactivate_department(
     try:
         return svc.deactivate_department(db, caller, dept)
     except svc.OrgMetaAuthorizationError as e:
+        raise _gate(e) from e
+
+
+@departments_router.delete("/{dept_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+def purge_department(
+    dept_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    dept = _load_dept(db, dept_id)
+    try:
+        svc.purge_department(db, caller, dept)
+    except (svc.OrgMetaAuthorizationError, svc.OrgMetaInUseError) as e:
         raise _gate(e) from e
 
 
@@ -281,4 +341,89 @@ def deactivate_shift(
     try:
         return svc.deactivate_shift(db, caller, shift)
     except svc.OrgMetaAuthorizationError as e:
+        raise _gate(e) from e
+
+
+@shifts_router.delete("/{shift_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+def purge_shift(
+    shift_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    shift = _load_shift(db, shift_id)
+    try:
+        svc.purge_shift(db, caller, shift)
+    except (svc.OrgMetaAuthorizationError, svc.OrgMetaInUseError) as e:
+        raise _gate(e) from e
+
+
+# ── /admin/titles (SCO-100) ───────────────────────────────────────────────
+
+titles_router = APIRouter(prefix="/admin/titles", tags=["admin-titles"])
+
+
+@titles_router.get("", response_model=list[TitleOut])
+def list_titles(
+    site_id: str | None = Query(default=None),
+    include_globals: bool = Query(default=True),
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    try:
+        return svc.list_titles(db, caller, site_id=site_id, include_globals=include_globals)
+    except svc.OrgMetaAuthorizationError as e:
+        raise _gate(e) from e
+
+
+@titles_router.post("", response_model=TitleOut, status_code=status.HTTP_201_CREATED)
+def create_title(
+    payload: TitleCreate,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    try:
+        return svc.create_title(db, caller, name=payload.name, site_id=payload.site_id)
+    except (svc.OrgMetaAuthorizationError, ValueError) as e:
+        raise _gate(e) from e
+
+
+@titles_router.put("/{title_id}", response_model=TitleOut)
+def update_title(
+    title_id: int,
+    payload: TitleUpdate,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    title = _load_title(db, title_id)
+    try:
+        return svc.update_title(db, caller, title, payload.model_dump(exclude_unset=True))
+    except (svc.OrgMetaAuthorizationError, ValueError) as e:
+        raise _gate(e) from e
+
+
+@titles_router.delete("/{title_id}", response_model=TitleOut)
+def deactivate_title(
+    title_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    """Soft-deactivate. Use /{title_id}/purge for hard-delete."""
+    title = _load_title(db, title_id)
+    try:
+        return svc.deactivate_title(db, caller, title)
+    except svc.OrgMetaAuthorizationError as e:
+        raise _gate(e) from e
+
+
+@titles_router.delete("/{title_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+def purge_title(
+    title_id: int,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+):
+    """Hard-delete. 409 if any user still references the title (SCO-100)."""
+    title = _load_title(db, title_id)
+    try:
+        svc.purge_title(db, caller, title)
+    except (svc.OrgMetaAuthorizationError, svc.OrgMetaInUseError) as e:
         raise _gate(e) from e

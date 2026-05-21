@@ -57,6 +57,31 @@ class Department(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class Title(Base):
+    """Curated job title (SCO-100).
+
+    Distinct from Role (which carries permission_level + drives RBAC). Title is
+    purely descriptive ("Plant Supervisor", "Forklift Operator") and feeds the
+    user-creation dropdown. site_id is NULLABLE: NULL = global / cross-site
+    title template; non-NULL = site-specific. User.title_id points here for the
+    curated path; User.custom_title holds the free-text override when the admin
+    selects "Custom..." instead.
+    """
+
+    __tablename__ = "titles"
+    __table_args__ = (
+        UniqueConstraint("site_id", "name", name="uq_titles_site_name"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    site_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sites.id"), index=True, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Shift(Base):
     __tablename__ = "shifts"
     __table_args__ = (
