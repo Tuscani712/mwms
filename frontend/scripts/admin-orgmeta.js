@@ -45,16 +45,16 @@
     return msg || 'Delete failed';
   }
 
-  /**
-   * Common confirm pattern. The typed-DELETE pattern used in users.html is
-   * heavyweight for here (admins are already on a curation page); a simple
-   * native confirm is enough for now. If we ever wire the styled modal from
-   * users.html into components.css, this is where to upgrade.
-   */
+  // SCO-112: typed-DELETE in-app modal. Native confirm()/prompt() are banned
+  // in this codebase — Chrome's "block additional dialogs" footgun silently
+  // breaks subsequent ops. See feedback_no_native_browser_popups.md.
   function confirmHardDelete(label) {
-    return confirm(
-      `Permanently delete "${label}"?\n\nThis cannot be undone.\nIf any user references it, the server will refuse.`
-    );
+    return confirmModal.typed({
+      title: `Permanently delete "${label}"?`,
+      body: 'This cannot be undone. If any user references it, the server will refuse.',
+      confirmWord: 'DELETE',
+      confirmLabel: 'Delete forever',
+    });
   }
 
   // ── ROLES ─────────────────────────────────────────────────────────────
@@ -115,7 +115,11 @@
     const disableBtn = e.target.closest('[data-act="role-disable"]');
     const purgeBtn = e.target.closest('[data-act="role-purge"]');
     if (disableBtn) {
-      if (!confirm('Disable this role?')) return;
+      if (!(await confirmModal.simple({
+        title: 'Disable this role?',
+        body: 'Existing users keep the role, but it disappears from the dropdown. Reactivate any time.',
+        confirmLabel: 'Disable',
+      }))) return;
       try {
         await WMS_API.orgmeta.deactivateRole(Number(disableBtn.dataset.id));
         toast('ok', 'Role disabled');
@@ -123,7 +127,7 @@
       } catch (err) { toast('err', err.message); }
     } else if (purgeBtn) {
       const name = purgeBtn.dataset.name;
-      if (!confirmHardDelete(name)) return;
+      if (!(await confirmHardDelete(name))) return;
       try {
         await WMS_API.orgmeta.purgeRole(Number(purgeBtn.dataset.id));
         toast('ok', `Role "${name}" deleted`);
@@ -191,7 +195,11 @@
     const disableBtn = e.target.closest('[data-act="title-disable"]');
     const purgeBtn = e.target.closest('[data-act="title-purge"]');
     if (disableBtn) {
-      if (!confirm('Disable this title?')) return;
+      if (!(await confirmModal.simple({
+        title: 'Disable this title?',
+        body: 'Existing users keep the title, but it disappears from the dropdown. Reactivate any time.',
+        confirmLabel: 'Disable',
+      }))) return;
       try {
         await WMS_API.orgmeta.deactivateTitle(Number(disableBtn.dataset.id));
         toast('ok', 'Title disabled');
@@ -199,7 +207,7 @@
       } catch (err) { toast('err', err.message); }
     } else if (purgeBtn) {
       const name = purgeBtn.dataset.name;
-      if (!confirmHardDelete(name)) return;
+      if (!(await confirmHardDelete(name))) return;
       try {
         await WMS_API.orgmeta.purgeTitle(Number(purgeBtn.dataset.id));
         toast('ok', `Title "${name}" deleted`);
@@ -250,14 +258,18 @@
     const disableBtn = e.target.closest('[data-act="dept-disable"]');
     const purgeBtn = e.target.closest('[data-act="dept-purge"]');
     if (disableBtn) {
-      if (!confirm('Disable this department?')) return;
+      if (!(await confirmModal.simple({
+        title: 'Disable this department?',
+        body: 'Existing users keep the department, but it disappears from the dropdown. Reactivate any time.',
+        confirmLabel: 'Disable',
+      }))) return;
       try {
         await WMS_API.orgmeta.deactivateDepartment(Number(disableBtn.dataset.id));
         renderDepts();
       } catch (err) { toast('err', err.message); }
     } else if (purgeBtn) {
       const name = purgeBtn.dataset.name;
-      if (!confirmHardDelete(name)) return;
+      if (!(await confirmHardDelete(name))) return;
       try {
         await WMS_API.orgmeta.purgeDepartment(Number(purgeBtn.dataset.id));
         toast('ok', `Department "${name}" deleted`);
@@ -318,14 +330,18 @@
     const disableBtn = e.target.closest('[data-act="shift-disable"]');
     const purgeBtn = e.target.closest('[data-act="shift-purge"]');
     if (disableBtn) {
-      if (!confirm('Disable this shift?')) return;
+      if (!(await confirmModal.simple({
+        title: 'Disable this shift?',
+        body: 'Existing users keep the shift, but it disappears from the dropdown. Reactivate any time.',
+        confirmLabel: 'Disable',
+      }))) return;
       try {
         await WMS_API.orgmeta.deactivateShift(Number(disableBtn.dataset.id));
         renderShifts();
       } catch (err) { toast('err', err.message); }
     } else if (purgeBtn) {
       const name = purgeBtn.dataset.name;
-      if (!confirmHardDelete(name)) return;
+      if (!(await confirmHardDelete(name))) return;
       try {
         await WMS_API.orgmeta.purgeShift(Number(purgeBtn.dataset.id));
         toast('ok', `Shift "${name}" deleted`);

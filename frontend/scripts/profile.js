@@ -192,13 +192,17 @@
   });
 
   // ── Logout (page-level button + topbar chip stays inert here) ────────
-  $('#logout-btn')?.addEventListener('click', () => {
-    if (confirm('Sign out and clock off?')) {
-      localStorage.removeItem('wms.token');
-      localStorage.removeItem('wms.user');
-      localStorage.removeItem('wms.activeSiteLabel');
-      window.location.href = 'login.html';
-    }
+  $('#logout-btn')?.addEventListener('click', async () => {
+    const ok = await confirmModal.simple({
+      title: 'Sign out and clock off?',
+      body: 'You will be returned to the login screen. Any unsaved work will be lost.',
+      confirmLabel: 'Sign out',
+    });
+    if (!ok) return;
+    localStorage.removeItem('wms.token');
+    localStorage.removeItem('wms.user');
+    localStorage.removeItem('wms.activeSiteLabel');
+    window.location.href = 'login.html';
   });
 
   // The shared shell.js wires the topbar chip to confirm + logout.

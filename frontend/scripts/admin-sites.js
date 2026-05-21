@@ -131,7 +131,12 @@
         await WMS_API.sitesAdmin.toggleOnline(id);
         toast('ok', `Toggled ${id}`);
       } else if (act === 'delete') {
-        if (!confirm(`Archive site "${id}"? This is only allowed if no users or departments still reference it.`)) return;
+        if (!(await confirmModal.simple({
+          title: `Archive site "${id}"?`,
+          body: 'Only allowed if no users or departments still reference this site. The server will refuse otherwise.',
+          confirmLabel: 'Archive',
+          danger: true,
+        }))) return;
         await WMS_API.sitesAdmin.remove(id);
         toast('ok', `Archived ${id}`);
       } else if (act === 'edit') {

@@ -420,7 +420,11 @@
         const user = await A.request(`/admin/users/${id}`);
         openModal(user);
       } else if (act === 'deactivate') {
-        if (!confirm('Deactivate this user? Their history is preserved.')) return;
+        if (!(await confirmModal.simple({
+          title: 'Deactivate this user?',
+          body: 'Their account becomes inactive but the user record and audit history are preserved. Reactivate any time.',
+          confirmLabel: 'Deactivate',
+        }))) return;
         await A.request(`/admin/users/${id}`, { method: 'DELETE' });
         toast('ok', 'User deactivated');
         loadList();
