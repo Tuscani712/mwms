@@ -10,6 +10,18 @@
     return;
   }
 
+  // ── Caller identity (for self-delete guard, SCO-88 follow-up) ───────
+  // shell.js caches the logged-in user under wms.user at login. We read
+  // it once here so we can disable the row checkbox + per-row Delete
+  // button for the caller's own row, preventing the foot-gun before it
+  // ever reaches the server (which still refuses, but the UI shouldn't
+  // even let the click happen — "save ourselves the IT tickets").
+  let callerId = null;
+  try {
+    const raw = localStorage.getItem('wms.user');
+    if (raw) callerId = JSON.parse(raw).id ?? null;
+  } catch (_) { /* ignore */ }
+
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
@@ -138,10 +150,21 @@
     items.forEach((u) => {
       const tr = document.createElement('tr');
       tr.dataset.inactive = (!u.is_active).toString();
+      const isSelf = callerId != null && u.id === callerId;
+      // Self-row: drop from selection if it somehow snuck in via a stale
+      // cookie, disable the row checkbox, and disable the per-row Delete.
+      // The server still refuses, but the click never reaches it.
+      if (isSelf) state.selected.delete(u.id);
       const checked = state.selected.has(u.id) ? 'checked' : '';
+      const cbAttrs = isSelf
+        ? 'disabled title="You cannot select your own account"'
+        : '';
+      const deleteBtn = isSelf
+        ? `<button class="btn btn--xs" disabled title="You cannot delete your own account" style="color: var(--ink-tertiary); border-color: var(--ink-tertiary); cursor: not-allowed; opacity: 0.55;">Delete</button>`
+        : `<button class="btn btn--xs" data-act="purge" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" style="color: var(--signal-crit); border-color: var(--signal-crit);">Delete</button>`;
       tr.innerHTML = `
-        <td><input type="checkbox" class="row-select" data-id="${u.id}" data-label="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" ${checked} /></td>
-        <td><strong>${escapeHtml(u.employee_code)}</strong></td>
+        <td><input type="checkbox" class="row-select" data-id="${u.id}" data-label="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" ${checked} ${cbAttrs} /></td>
+        <td><strong>${escapeHtml(u.employee_code)}</strong>${isSelf ? ' <span style="font-family:var(--font-mono);font-size:9px;color:var(--ink-tertiary);text-transform:uppercase;letter-spacing:var(--tracking-wide);">· you</span>' : ''}</td>
         <td>${escapeHtml(u.full_name)}<div style="color:var(--ink-tertiary);font-size:10px">${escapeHtml(u.email)}</div></td>
         <td>${tierPill(u.permission_level)}</td>
         <td>${escapeHtml(u.role)}</td>
@@ -152,9 +175,11 @@
         <td><div class="row-actions">
           <button class="btn btn--xs" data-act="edit" data-id="${u.id}">Edit</button>
           ${u.is_active
-            ? `<button class="btn btn--xs" data-act="deactivate" data-id="${u.id}">Deactivate</button>`
+            ? (isSelf
+                ? `<button class="btn btn--xs" disabled title="You cannot deactivate your own account" style="color: var(--ink-tertiary); border-color: var(--ink-tertiary); cursor: not-allowed; opacity: 0.55;">Deactivate</button>`
+                : `<button class="btn btn--xs" data-act="deactivate" data-id="${u.id}">Deactivate</button>`)
             : `<button class="btn btn--xs" data-act="reactivate" data-id="${u.id}">Reactivate</button>`}
-          <button class="btn btn--xs" data-act="purge" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" style="color: var(--signal-crit); border-color: var(--signal-crit);">Delete</button>
+          ${deleteBtn}
         </div></td>`;
       tbody.appendChild(tr);
     });
@@ -166,16 +191,22 @@
   // chip, and the toolbar visibility from the current selection set.
   function refreshSelectionUI() {
     const master = $('#select-all');
-    const onPage = state.pageRows.length;
-    const selectedOnPage = state.pageRows.filter((r) => state.selected.has(r.id)).length;
-    if (onPage === 0) {
+    // Exclude the caller's own row from "selectable" counts so master goes
+    // fully-checked when every *non-self* row is ticked.
+    const selectable = state.pageRows.filter((r) => callerId == null || r.id !== callerId);
+    const selectedOnPage = selectable.filter((r) => state.selected.has(r.id)).length;
+    if (selectable.length === 0) {
       master.checked = false; master.indeterminate = false;
-    } else if (selectedOnPage === 0) {
-      master.checked = false; master.indeterminate = false;
-    } else if (selectedOnPage === onPage) {
-      master.checked = true; master.indeterminate = false;
+      master.disabled = true;
     } else {
-      master.checked = false; master.indeterminate = true;
+      master.disabled = false;
+      if (selectedOnPage === 0) {
+        master.checked = false; master.indeterminate = false;
+      } else if (selectedOnPage === selectable.length) {
+        master.checked = true; master.indeterminate = false;
+      } else {
+        master.checked = false; master.indeterminate = true;
+      }
     }
     const n = state.selected.size;
     $('#bulk-count').textContent = n;
@@ -365,11 +396,18 @@
   $('#select-all').addEventListener('change', (e) => {
     const checked = e.target.checked;
     state.pageRows.forEach((r) => {
+      // Never include the caller in a "select all" sweep — backend would
+      // 207 with cannot_delete_self, but easier to never offer the option.
+      if (callerId != null && r.id === callerId) return;
       if (checked) state.selected.set(r.id, r.label);
       else state.selected.delete(r.id);
     });
     // Re-tick the visible row checkboxes; selection lives in state.selected.
-    $$('#users-tbody input.row-select').forEach((cb) => { cb.checked = checked; });
+    // The self-row's checkbox is rendered disabled, so .checked stays false.
+    $$('#users-tbody input.row-select').forEach((cb) => {
+      if (cb.disabled) return;
+      cb.checked = checked;
+    });
     refreshSelectionUI();
   });
 
