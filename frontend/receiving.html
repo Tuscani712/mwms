@@ -121,12 +121,11 @@
       </div>
 
       <div class="filter-bar">
-        <input class="input" data-bind="receiving-search" placeholder="Search by ASN, PO, supplier, lot…" disabled />
+        <input class="input" data-bind="receiving-search" placeholder="Search ASN / supplier / dock…" />
         <span class="filter-chip" data-active="true" data-filter="all">All</span>
-        <span class="filter-chip" data-filter="open">Open</span>
-        <span class="filter-chip" data-filter="offloading">Offloading</span>
-        <span class="filter-chip" data-filter="qc_hold">QC Hold</span>
-        <span class="filter-chip" data-filter="putaway">Putaway</span>
+        <span class="filter-chip" data-filter="scheduled">Scheduled</span>
+        <span class="filter-chip" data-filter="arrived">Arrived</span>
+        <span class="filter-chip" data-filter="receiving">Receiving</span>
       </div>
 
       <table class="data-table">
@@ -185,7 +184,10 @@
           </table>
           <div class="panel-foot">
             <span>Hold any failed item · auto-notify Lvl 2+</span>
-            <button class="btn btn--primary btn--sm btn-arrow" data-action="qc-complete" disabled><span>Complete QC</span></button>
+            <div style="display:flex;gap:var(--space-2);">
+              <button class="btn btn--ghost btn--sm" data-action="receipt-cancel" disabled style="border-color:var(--signal-crit);color:var(--signal-crit);"><span>Cancel receipt</span></button>
+              <button class="btn btn--primary btn--sm btn-arrow" data-action="qc-complete" disabled><span>Complete QC</span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -271,6 +273,7 @@
   <script src="scripts/shell.js"></script>
   <script src="scripts/api.js"></script>
   <script src="scripts/confirm-modal.js"></script>
+  <script src="scripts/toast.js"></script>
   <script src="scripts/creators.js"></script>
   <script src="scripts/receiving.js"></script>
     <script src="scripts/nav-init.js"></script>

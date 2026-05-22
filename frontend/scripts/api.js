@@ -79,6 +79,8 @@ window.WMS_API = (() => {
       inbound: () => request('/receiving/inbound'),
       checkIn: (asn_id, dock_door) =>
         request('/receiving/check-in', { method: 'POST', body: { asn_id, dock_door } }),
+      cancelCheckIn: (asn_id) =>
+        request(`/receiving/asns/${asn_id}/cancel-check-in`, { method: 'POST' }),
       createReceipt: (payload) =>
         request('/receiving/receipts', { method: 'POST', body: payload }),
       putaway: (asn_id) => request(`/receiving/putaway-suggestions/${asn_id}`),

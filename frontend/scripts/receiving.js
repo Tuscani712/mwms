@@ -29,6 +29,11 @@
   const statusEl = document.querySelector('[data-bind="receiving-data-status"]');
   const btnBeginReceipt = document.querySelector('[data-action="receipt-new"]');
   const btnCompleteQC = document.querySelector('[data-action="qc-complete"]');
+  const btnCancelReceipt = document.querySelector('[data-action="receipt-cancel"]');
+  const searchInput = document.querySelector('[data-bind="receiving-search"]');
+  const filterChips = Array.from(document.querySelectorAll('.filter-chip[data-filter]'));
+  const inboundSection = tbody?.closest('section');
+  const qcSection = document.querySelector('[data-bind="qc-rows"]')?.closest('section, .panel');
   const qcRowsEl = document.querySelector('[data-bind="qc-rows"]');
   const qcLineCountEl = document.querySelector('[data-bind="qc-line-count"]');
   const qcProgressTagEl = document.querySelector('[data-bind="qc-progress-tag"]');
@@ -47,7 +52,11 @@
     selectedAsnId: null,
     activeReceiptAsnId: null,
     putawayLoadId: 0,
+    statusFilter: 'all',
+    searchQuery: '',
   };
+
+  function toast() { return window.WMS?.toast || { ok: () => {}, err: () => {}, info: () => {} }; }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -111,11 +120,47 @@
 
   function updateActionState() {
     const selected = selectedAsn();
-    if (btnBeginReceipt) btnBeginReceipt.disabled = !selected;
-
     const active = activeReceiptAsn();
     const editable = active && active.status === 'receiving';
+
+    // Begin Receipt: enabled only when we have a selected ASN that's NOT
+    // already the active receipt. Tooltip explains the disabled reason so
+    // the user isn't left wondering why the button doesn't respond.
+    if (btnBeginReceipt) {
+      const alreadyReceiving = selected && selected.status === 'receiving' && selected.id === state.activeReceiptAsnId;
+      btnBeginReceipt.disabled = !selected || alreadyReceiving;
+      btnBeginReceipt.style.opacity = btnBeginReceipt.disabled ? '0.5' : '';
+      btnBeginReceipt.style.cursor = btnBeginReceipt.disabled ? 'not-allowed' : '';
+      if (!state.asns.length) {
+        btnBeginReceipt.title = 'No ASNs in the inbound queue — Create ASN first';
+      } else if (!selected) {
+        btnBeginReceipt.title = 'Select an ASN from the inbound queue below first';
+      } else if (alreadyReceiving) {
+        btnBeginReceipt.title = 'Already receiving this ASN — scroll down to complete';
+      } else {
+        btnBeginReceipt.title = '';
+      }
+    }
+
     if (btnCompleteQC) btnCompleteQC.disabled = !editable;
+    if (btnCancelReceipt) {
+      btnCancelReceipt.disabled = !editable;
+      btnCancelReceipt.style.opacity = btnCancelReceipt.disabled ? '0.5' : '';
+      btnCancelReceipt.style.cursor = btnCancelReceipt.disabled ? 'not-allowed' : '';
+    }
+  }
+
+  function filteredAsns() {
+    const q = state.searchQuery.trim().toLowerCase();
+    return state.asns.filter((asn) => {
+      if (state.statusFilter !== 'all' && asn.status !== state.statusFilter) return false;
+      if (!q) return true;
+      return (
+        asn.asn_code.toLowerCase().includes(q) ||
+        asn.supplier.toLowerCase().includes(q) ||
+        (asn.dock_door || '').toLowerCase().includes(q)
+      );
+    });
   }
 
   function renderInbound() {
@@ -124,7 +169,13 @@
       return;
     }
 
-    tbody.innerHTML = state.asns
+    const rows = filteredAsns();
+    if (!rows.length) {
+      tbody.innerHTML = emptyRow(`No ASNs match filter "${state.statusFilter}"${state.searchQuery ? ` + "${state.searchQuery}"` : ''}.`);
+      return;
+    }
+
+    tbody.innerHTML = rows
       .map((asn) => {
         const isSelected = asn.id === state.selectedAsnId;
         const lineCount = asn.lines.length;
@@ -318,17 +369,30 @@
   }
 
   async function beginReceipt() {
+    // Three guard-rail cases — surface a toast + scroll the user to the
+    // place on the page where they need to act, instead of a hidden modal.
+    if (!state.asns.length) {
+      toast().err('No ASNs in the inbound queue. Create one first via Create ASN.');
+      return;
+    }
     const asn = selectedAsn();
     if (!asn) {
-      await window.confirmModal?.alert({ title: 'No ASN selected', body: 'Select an ASN from the inbound queue first.' });
+      toast().err('Select an ASN from the inbound queue (below) before beginning receipt.');
+      inboundSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     if (asn.status === 'received') {
-      await window.confirmModal?.alert({ title: 'Receipt already complete', body: `${asn.asn_code} is already marked received.` });
+      toast().err(`${asn.asn_code} is already marked received.`);
+      return;
+    }
+    if (asn.status === 'receiving' && asn.id === state.activeReceiptAsnId) {
+      toast().info(`Already receiving ${asn.asn_code} — scroll down to complete.`);
+      qcSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
 
     let active = asn;
+    let didCheckIn = false;
     if (asn.status !== 'receiving') {
       const dock = await window.confirmModal?.form({
         title: 'Begin new receipt',
@@ -341,8 +405,9 @@
       if (!dock) return;
       try {
         active = await WMS_API.receiving.checkIn(asn.id, dock.dock_door.trim());
+        didCheckIn = true;
       } catch (err) {
-        await window.confirmModal?.alert({ title: 'Check-in failed', body: err.message || 'Unknown error' });
+        toast().err(`Check-in failed: ${err.message || 'Unknown error'}`);
         return;
       }
     }
@@ -351,6 +416,33 @@
     await refreshInbound(active.id);
     state.activeReceiptAsnId = active.id;
     syncPanels();
+
+    // Toast with Undo affordance — only when we actually performed a check-in
+    // (no point offering undo for an ASN that was already in 'receiving').
+    if (didCheckIn) {
+      toast().info(`Receipt started for ${active.asn_code} at dock ${active.dock_door}.`, {
+        actionLabel: 'Undo',
+        onAction: () => { void cancelReceipt({ silent: false }); },
+      });
+    }
+  }
+
+  async function cancelReceipt({ silent = false } = {}) {
+    const asn = activeReceiptAsn() || selectedAsn();
+    if (!asn || asn.status !== 'receiving') {
+      if (!silent) toast().err('No active receipt to cancel.');
+      return;
+    }
+    try {
+      await WMS_API.receiving.cancelCheckIn(asn.id);
+    } catch (err) {
+      toast().err(`Cancel failed: ${err.message || 'Unknown error'}`);
+      return;
+    }
+    state.activeReceiptAsnId = null;
+    await refreshInbound(asn.id);
+    syncPanels();
+    if (!silent) toast().ok(`Receipt cancelled — ${asn.asn_code} returned to scheduled.`);
   }
 
   async function completeReceipt() {
@@ -400,12 +492,9 @@
       });
       state.activeReceiptAsnId = null;
       await refreshInbound(state.selectedAsnId);
-      await window.confirmModal?.alert({
-        title: 'Receipt created',
-        body: `${asn.asn_code} received successfully. Created ${receipt.lot_ids.length} lot${receipt.lot_ids.length === 1 ? '' : 's'} with total variance ${receipt.total_variance}.`,
-      });
+      toast().ok(`${asn.asn_code} received · ${receipt.lot_ids.length} lot${receipt.lot_ids.length === 1 ? '' : 's'} created · variance ${receipt.total_variance}.`);
     } catch (err) {
-      await window.confirmModal?.alert({ title: 'Receipt failed', body: err.message || 'Unknown error' });
+      toast().err(`Receipt failed: ${err.message || 'Unknown error'}`);
     }
   }
 
@@ -427,6 +516,35 @@
   btnCompleteQC?.addEventListener('click', () => {
     void completeReceipt();
   });
+
+  btnCancelReceipt?.addEventListener('click', () => {
+    void cancelReceipt();
+  });
+
+  // Filter chips: client-side filter against the loaded inbound list.
+  // Backend filtering would require pagination semantics we don't have yet.
+  filterChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      filterChips.forEach((c) => c.removeAttribute('data-active'));
+      chip.setAttribute('data-active', 'true');
+      state.statusFilter = chip.dataset.filter || 'all';
+      renderInbound();
+    });
+  });
+
+  // Search input: free-text substring over asn_code / supplier / dock_door.
+  // Composes with the active status chip.
+  if (searchInput) {
+    let searchDebounce;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchDebounce);
+      const value = e.target.value;
+      searchDebounce = setTimeout(() => {
+        state.searchQuery = value;
+        renderInbound();
+      }, 120);
+    });
+  }
 
   if (!WMS_API.isAuthed()) {
     setStatus('Signed out · sign in to load data', false);
