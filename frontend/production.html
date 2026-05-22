@@ -24,16 +24,7 @@
         <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
         <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
       </a>
-      <nav class="topnav">
-        <a href="index.html" class="topnav-item">Dashboard</a>
-        <a href="inventory.html" class="topnav-item">Inventory</a>
-        <a href="receiving.html" class="topnav-item">Receiving</a>
-        <a href="shipping.html" class="topnav-item">Shipping</a>
-        <a href="production.html" class="topnav-item topnav-item--active">Production</a>
-        <a href="quality.html" class="topnav-item">Quality</a>
-        <a href="reports.html" class="topnav-item">Reports</a>
-        <a href="admin.html" class="topnav-item">Admin</a>
-      </nav>
+      <nav class="topnav" id="topnav-mount" aria-label="Primary"></nav>
       <div class="topbar-right">
         <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
         <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
@@ -195,5 +186,6 @@
   <script src="scripts/confirm-modal.js"></script>
   <script src="scripts/shell.js"></script>
   <script src="scripts/production.js"></script>
-</body>
+    <script src="scripts/nav-init.js"></script>
+  </body>
 </html>

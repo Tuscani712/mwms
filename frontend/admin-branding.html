@@ -235,15 +235,7 @@
         <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
         <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
       </a>
-      <nav class="topnav" aria-label="Primary">
-        <a href="index.html" class="topnav-item">Dashboard</a>
-        <a href="#" class="topnav-item">Receiving</a>
-        <a href="#" class="topnav-item">Shipping</a>
-        <a href="#" class="topnav-item">Production</a>
-        <a href="#" class="topnav-item">Quality</a>
-        <a href="#" class="topnav-item">Reports</a>
-        <a href="#" class="topnav-item topnav-item--active">Admin</a>
-      </nav>
+      <nav class="topnav" id="topnav-mount" aria-label="Primary"></nav>
       <div class="topbar-right">
         <button class="user-chip" id="user-chip" aria-label="Account" title="Click to sign out">
           <span class="user-avatar" data-bind="user-initial">M</span>
@@ -539,5 +531,6 @@
 
   <script src="scripts/confirm-modal.js"></script>
   <script src="scripts/shell.js"></script>
-</body>
+    <script src="scripts/nav-init.js"></script>
+  </body>
 </html>
