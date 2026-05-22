@@ -38,6 +38,7 @@ def _serialize_asn(db: Session, asn) -> ASNOut:
                 expected_qty=line.expected_qty,
                 received_qty=line.received_qty,
                 qc_status=line.qc_status,
+                requires_qc=sku_map[line.sku_id].requires_qc,
             )
             for line in asn.lines
         ],

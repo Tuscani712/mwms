@@ -1,5 +1,7 @@
 """Receiving flow tests."""
 
+from wms.models import SKU
+
 
 def test_inbound_list(client, auth_headers):
     r = client.get("/api/v1/receiving/inbound", headers=auth_headers)
@@ -8,6 +10,19 @@ def test_inbound_list(client, auth_headers):
     assert len(data) == 1
     assert data[0]["asn_code"] == "ASN-TEST-001"
     assert len(data[0]["lines"]) == 2
+
+
+def test_inbound_line_propagates_requires_qc(client, auth_headers, seeded_db):
+    # Flip one seeded SKU to requires_qc=True; the other stays False.
+    flr = seeded_db.query(SKU).filter(SKU.code == "FLR-001").one()
+    flr.requires_qc = True
+    seeded_db.commit()
+
+    data = client.get("/api/v1/receiving/inbound", headers=auth_headers).json()
+    lines = data[0]["lines"]
+    by_sku = {ln["sku_code"]: ln for ln in lines}
+    assert by_sku["FLR-001"]["requires_qc"] is True
+    assert by_sku["SGR-001"]["requires_qc"] is False
 
 
 def test_check_in_flow(client, auth_headers):

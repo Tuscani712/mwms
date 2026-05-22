@@ -12,6 +12,9 @@ class ASNLineOut(BaseModel):
     expected_qty: int
     received_qty: int
     qc_status: str
+    # SCO-138: propagate the SKU's QC requirement so the receipt editor can
+    # auto-pass lines whose SKU was created with "Does Not Require QC".
+    requires_qc: bool = False
 
     model_config = {"from_attributes": True}
 
