@@ -20,15 +20,28 @@
 | `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82); hard-delete + ref-count guards (SCO-106/107/108) |
 | `admin-sites.html` | ✅ | ✅ (lifecycle scaffold disabled) | Site CRUD live (SCO-84); rename-modal (SCO-110) |
 | `admin-branding.html` | ❌ | ⚠️ localStorage-only | No server persistence — folded into SCO-53 |
-| `receiving.html` | ✅ | ✅ | Wired |
+| `receiving.html` | ✅ | ✅ | Wired — full receipt workflow (row select → dock check-in → inline qty + QC editor → receipt submission → putaway suggestions). `ASNLineOut.requires_qc` propagation pending so non-QC SKUs auto-pass. |
 | `shipping.html` | ✅ | ✅ | Wired |
-| `inventory.html` | ✅ | ✅ | DONE (SCO-49) — lot search + KPIs + adjust; new `GET /inventory/skus` (SCO-51 dep) |
+| `inventory.html` | ✅ | ✅ | DONE (SCO-49 v2 2026-05-22) — lot search + KPIs + adjust + **SKU typeahead with sessionStorage cache** + ticker hydration + mocks fully stripped |
 | `quality.html` | ✅ MVP | ✅ MVP | **SCO-50 MVP shipped** — list/open/decide holds. Supplier perf + KPI aggregator deferred to v2. |
 | `production.html` | ✅ MVP | ✅ MVP | **SCO-51 MVP shipped** — recipes + work orders + preflight (FIFO) + start/complete (writes child Lot + LotGenealogy) + cancel. Version bump-on-edit + atomic locking + yield variance audit + BOM unit conversion deferred to v2. E2E smoke `tests/test_workflow_e2e.py` green. |
 | `reports.html` | ✅ MVP | ✅ MVP | **SCO-52 MVP shipped** — `/dashboard`, `/inventory-aging`, `/production`, `/shipping`. CSV streaming + outliers + full genealogy walk + cache layer deferred. |
 | `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings (still open) |
 
-**Recent additions (2026-05-22 — SCO-51/50/52 MVP pass):**
+**Recent additions (2026-05-22 — second pass: cleanup + lint + bug-class hardening):**
+- **SCO-49 v2** — Inventory page mock cleanup + SKU search + caching (commits `d504658`, `238c3a8`, `7cd66ca`):
+  - All mock data stripped (status ticker, KPI tiles, "Recent Lookups", safety-stock alerts, Cycle Counts panel, Floor Chat dock) — replaced with live `/inventory/kpis` + `/inventory/lots` + `/inventory/below-safety-stock` data with proper empty states
+  - `GET /inventory/skus` extended with `?q=<substring>` (case-insensitive, LIKE-injection-safe) + new `on_hand_qty` field (summed across non-QA-held lots via one GROUP BY join)
+  - `InventoryKPIs.sku_count` added
+  - SKU typeahead dropdown: top 12 matches ranked code-prefix > code-contains > description-contains; keyboard ↑/↓/↵/esc; selecting a row narrows the lot table to that SKU
+  - sessionStorage cache (`wms.inventory.skus.v1`, 5-min TTL); `creators.js` invalidates after `POST /skus`
+  - Dropdown geometry fix: anchored to input wrapper via `top: calc(100% + 8px)` so the focus ring no longer clips the first row; opaque `var(--elevated)` background so hint row doesn't bleed through
+- **SCO-135** — Nav refactor (commit `393aa70`): topnav hardcoded in 13 HTML files → single JS-mounted partial via `scripts/nav-init.js`. Active state derived from `location.pathname`. Adding a future page = one config-array line, not 13 edits.
+- **SCO-136** — Stylelint CI (commits `6ed697e`, `f963ca7`): `stylelint` + `stylelint-config-standard` + `postcss-html` + `stylelint-value-no-unknown-custom-properties`. Wired into `start.sh [l]` and `[t]`. Caught and fixed 6 undefined-custom-property bugs across `components.css`, `admin-sites.html`, `profile.html`, `users.html` that would have silently rendered wrong styles in production.
+- **SCO-137** — Favicon (commit `39d2534`): `frontend/favicon.svg` with the "W/" mark, linked from all 14 HTML pages. Stops the `/favicon.ico` 404 that every page was logging.
+- **Codex collab** (commit `74462cb`): full Receiving receipt workflow (row selection, dock check-in, inline qty + QC editor, receipt submission, putaway suggestions). `confirm-modal.js` `<select>` autofocus crash fixed.
+
+**Earlier additions (2026-05-22 — SCO-51/50/52 MVP pass):**
 - **SCO-126/127/128/129/130** — Production module end-to-end: models (`models/production.py`), service (`services/production.py`), router (`api/v1/production.py`), frontend (`production.html` + `scripts/production.js`), and a passing `tests/test_workflow_e2e.py` exercising Receive → Store → Produce → Ship.
 - **SCO-131/132** — Quality MVP: `services/quality.py` + `api/v1/quality.py` (list/open/decide), `quality.html` mocks stripped, `scripts/quality.js` wired.
 - **SCO-133/134** — Reports MVP: `services/metrics.py` + `api/v1/reports.py` (dashboard/aging/production/shipping), `reports.html` mocks stripped, `scripts/reports.js` wired, `dashboard.js` extended to consume `/reports/dashboard` for home KPI tiles.
@@ -55,9 +68,18 @@
 |---|---|---|
 | GET | `/api/v1/inventory/lots` | Paginated lot search |
 | GET | `/api/v1/inventory/sku/{sku_code}` | SKU aggregate detail |
-| GET | `/api/v1/inventory/kpis` | Site KPI tiles (5-min cache) |
+| GET | `/api/v1/inventory/skus[?q=&limit=]` | SKU list / typeahead with `on_hand_qty` per row (excludes QA-held lots) |
+| POST | `/api/v1/inventory/skus` | Create SKU (MVP: any authed user; v2: Lvl 3+) |
+| GET | `/api/v1/inventory/kpis` | Site KPI tiles incl. `sku_count` (5-min cache) |
 | POST | `/api/v1/inventory/adjust` | Lot qty adjustment (Lvl 3+) |
 | GET | `/api/v1/inventory/below-safety-stock` | SKUs under safety stock |
+
+### SKU typeahead + caching (frontend wiring)
+- `inventory.js` warms a sessionStorage cache (`wms.inventory.skus.v1`, 5-min TTL) on page load via `GET /inventory/skus` (no `q`).
+- Subsequent keystrokes filter the cached list in-memory — zero network per keystroke.
+- Ranking: code-prefix > code-contains > description-contains; top 12 results displayed.
+- Server-side `?q=` is wired as a fallback when sessionStorage is unavailable (incognito mode, quota exceeded) and is used directly by the production-module recipe picker.
+- `creators.js` invalidates the cache after `POST /inventory/skus` so newly created SKUs appear immediately.
 
 ### Filters on `/lots`
 `sku_code`, `lot_code`, `location_code`, `qa_hold` (bool), `expiring_within_days`, `aging_bucket` (one of `0-30/31-60/61-90/90+`), `q` (free text, case-insensitive), `limit`, `offset`.

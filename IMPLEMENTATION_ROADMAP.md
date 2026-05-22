@@ -6,7 +6,49 @@
 
 ---
 
-## Current Status (2026-05-21)
+## Current Status (2026-05-22)
+
+### ✅ Inventory page v2 + SKU search + sessionStorage cache (SCO-49 v2) — shipped 2026-05-22
+- **Mocks fully stripped** from `inventory.html`: status ticker, KPI tiles, "Recent Lookups" table, safety-stock alerts, Cycle Counts panel, Floor Chat dock. Replaced with `data-bind` hooks fed from `/inventory/kpis`, `/inventory/lots`, `/inventory/below-safety-stock`.
+- **Cycle Counts panel removed** (no backend, no roadmap entry) — deferred to PAGES_WORKFLOW §1 v2 alongside the procurement workflow.
+- **`GET /api/v1/inventory/skus?q=<substring>&limit=N`** — case-insensitive code+description match; user-supplied `%`/`_` escaped against LIKE-injection (regression-tested).
+- **`SKURow.on_hand_qty`** — summed across non-QA-held lots via a single GROUP BY join, so typeahead shows live stock without a second round-trip.
+- **`InventoryKPIs.sku_count`** added so the ticker and "across N SKUs" subtitle source from one query.
+- **Frontend typeahead**: top-12 suggestions ranked code-prefix > code-contains > description-contains; keyboard ↑/↓/↵/esc; selecting a row narrows the lot table.
+- **sessionStorage cache** (`wms.inventory.skus.v1`, 5-min TTL): client-side filter against cached list means zero network per keystroke. Backend `?q=` endpoint is the fallback when sessionStorage is unavailable (incognito mode). `creators.js` invalidates after `POST /skus` so new SKUs appear immediately.
+- **5 new tests** in `tests/test_inventory.py`: on-hand aggregation, QA-hold exclusion, q-match on code+description, LIKE-injection safety, limit clamp. 249 total backend tests pass.
+
+### ✅ Stylelint CI (SCO-136) — shipped 2026-05-22
+- `stylelint` 17 + `stylelint-config-standard` 40 + `postcss-html` + `stylelint-value-no-unknown-custom-properties` (csstools).
+- Catches the exact silent-rendering bug class that caused the inventory dropdown bleed-through (`var(--surface-elev)` evaluating to transparent because the token didn't exist).
+- Integration: `npm run lint:css`, `start.sh [l]` shortcut, `start.sh [t]` smoke includes a CSS lint pass.
+- **Found and fixed 6 undefined-custom-property references**: `--space-9` (`.select`), `--space-7` ×3 (admin-sites), `--bg-elevated` (profile), `--bg-deepest` (profile), `--accent-amber` (users), `--font-serif` (users). All would have silently rendered wrong styles in production with zero console warning.
+
+### ✅ Navbar refactor (SCO-135) — shipped 2026-05-22
+- 13 HTML files had hardcoded duplicate topnav blocks; adding the Inventory link required touching all 13.
+- Replaced with single `scripts/nav-init.js` that mounts items into `<nav id="topnav-mount">` from a config array. Active state derived from `location.pathname`. Admin tab stays active across all `admin-*` sub-pages + `users.html` via `activeFor` regex.
+- Future page additions = one config-array line.
+
+### ✅ Receiving full receipt workflow (Codex) — shipped 2026-05-22
+- Inbound row selection → dock-door check-in → inline qty + QC editor → receipt submission with optional variance notes → FIFO putaway suggestions.
+- `escapeHtml()` applied everywhere user-supplied strings hit innerHTML (XSS hardening).
+- Stale-fetch protection via monotonic `loadId` counter on putaway requests.
+- Pending follow-up: `ASNLineOut.requires_qc` propagation so SKUs created with "Does Not Require QC" auto-pass instead of asking the operator to decide.
+
+### ✅ Favicon (SCO-137) — shipped 2026-05-22
+- Every page was logging a `/favicon.ico` 404 because no `<link rel="icon">` was declared.
+- `frontend/favicon.svg` with the "W/" italic-serif brand mark linked from all 14 HTML pages.
+
+### ✅ Login boot guard + 401 session-expired banner (SCO-87) — shipped 2026-05-22
+- Visiting `/login.html` while authenticated redirects to `/index.html` (with `?force=1` escape hatch and regex-validated `?return=` open-redirect guard).
+- API 401 anywhere in the app dispatches a `wms:session-expired` event; `api.js` renders a non-blocking red banner with Sign-in + Dismiss buttons. Decouples producer (any API call) from consumer (the banner).
+
+### ✅ Production, Quality, Reports MVP (SCO-51/50/52) — shipped 2026-05-22
+See PAGES_WORKFLOW.md §1-4 for details. New endpoints: `/api/v1/production/*` (recipes + work orders + preflight + start/complete + cancel), `/api/v1/quality/holds*`, `/api/v1/reports/*` (dashboard/aging/production/shipping). E2E smoke at `tests/test_workflow_e2e.py` exercises Receive → Store → Produce → Ship.
+
+---
+
+## Earlier Status (2026-05-21)
 
 ### ✅ Frontend Scaffold (v0.2)
 - **13 pages live**: Dashboard, Login (multi-site picker), Receiving, Shipping, Production, Quality, **Inventory (wired SCO-49)**, Reports, Admin, Admin-Branding, **Admin-Orgmeta (SCO-77..82)**, Users (with hard-purge modal SCO-85), **Admin-Sites (SCO-84)**
