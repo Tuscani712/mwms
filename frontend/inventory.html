@@ -59,13 +59,17 @@
     }
     /* SKU suggestion dropdown (typeahead). top:100% anchors to the input's
        actual bottom edge; the +8px gap clears the 4px amber focus ring with
-       breathing room. z-index keeps it above the focus-ring's box-shadow. */
+       breathing room. Uses --elevated (the popover/modal token, #1A1A20,
+       fully opaque) so the hero-search hint text underneath doesn't bleed
+       through. The #0c0c10 fallback covers any theme where the token gets
+       redefined as translucent. */
     .sku-suggest {
       position: absolute;
       top: calc(100% + 8px);
       left: 0;
       right: 0;
-      background: var(--surface-elev);
+      background-color: #0c0c10;
+      background-color: var(--elevated, #0c0c10);
       border: 1px solid var(--rule-default);
       box-shadow: 0 12px 28px rgba(0,0,0,0.32);
       max-height: 320px;
