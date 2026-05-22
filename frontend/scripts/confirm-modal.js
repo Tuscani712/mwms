@@ -324,4 +324,10 @@
     alert: ({ title, body, confirmLabel, danger } = {}) =>
       open({ title, body, confirmLabel, danger, alertOnly: true }).then(() => undefined),
   };
+
+  // Eagerly inject cm-* styles at script load so consumers (e.g.
+  // multi-line-modal.js) can rely on the classes existing before any
+  // confirm-modal call happens. Was lazy-injected before; the lazy path
+  // still works for confirmModal.* itself.
+  inject();
 })();

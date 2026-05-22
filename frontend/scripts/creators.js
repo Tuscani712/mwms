@@ -67,41 +67,35 @@
     if (!skus.length) {
       return alertMsg('No SKUs', 'Create at least one SKU on the Inventory page before opening an ASN.');
     }
-    // Step 1 — header.
-    const header = await confirmModal.form({
-      title: 'Create ASN — step 1 of 2',
-      body: 'Advance Shipping Notice header. Pick a unique code + supplier.',
-      fields: [
+    if (!window.WMS?.multiLineModal) {
+      return alertMsg('Modal unavailable', 'multi-line-modal.js failed to load.');
+    }
+    const skuOptions = skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` }));
+    const result = await window.WMS.multiLineModal({
+      title: 'Create ASN',
+      body: 'One supplier truck may carry multiple SKUs. Add a line per SKU on this shipment.',
+      headerFields: [
         { name: 'asn_code', label: 'ASN code', required: true, placeholder: 'ASN-2026-0001' },
         { name: 'supplier', label: 'Supplier', required: true, placeholder: 'Northwind Beef Co.' },
       ],
-      confirmLabel: 'Next: line item',
-    });
-    if (!header) return;
-    // Step 2 — single line (MVP). Multi-line ASN is a follow-up.
-    const line = await confirmModal.form({
-      title: 'Create ASN — step 2 of 2',
-      body: 'Add an inbound line item. Additional lines via repeat-create or future multi-row editor.',
-      fields: [
-        { name: 'sku_id', label: 'SKU', type: 'select',
-          options: skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` })),
-          required: true,
-        },
-        { name: 'expected_qty', label: 'Expected qty', type: 'number', value: '1', required: true },
+      lineFields: [
+        { name: 'sku_id', type: 'select', options: skuOptions, required: true },
+        { name: 'expected_qty', type: 'number', value: '1', required: true, placeholder: 'Qty' },
       ],
+      addLineLabel: 'Add SKU line',
       confirmLabel: 'Create ASN',
     });
-    if (!line) return;
+    if (!result) return;
     try {
       await WMS_API.request('/receiving/asns', {
         method: 'POST',
         body: {
-          asn_code: header.asn_code.trim(),
-          supplier: header.supplier.trim(),
-          lines: [{
-            sku_id: Number(line.sku_id),
-            expected_qty: Number(line.expected_qty),
-          }],
+          asn_code: result.header.asn_code.trim(),
+          supplier: result.header.supplier.trim(),
+          lines: result.lines.map((ln) => ({
+            sku_id: Number(ln.sku_id),
+            expected_qty: Number(ln.expected_qty),
+          })),
         },
       });
       window.location.reload();
@@ -115,10 +109,14 @@
     if (!skus.length) {
       return alertMsg('No SKUs', 'Create at least one SKU on the Inventory page before opening an order.');
     }
-    const header = await confirmModal.form({
-      title: 'Create order — step 1 of 2',
-      body: 'Sales order header. Code must be unique.',
-      fields: [
+    if (!window.WMS?.multiLineModal) {
+      return alertMsg('Modal unavailable', 'multi-line-modal.js failed to load.');
+    }
+    const skuOptions = skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` }));
+    const result = await window.WMS.multiLineModal({
+      title: 'Create order',
+      body: 'Sales order header + line items. One order can ship multiple SKUs.',
+      headerFields: [
         { name: 'order_code', label: 'Order code', required: true, placeholder: 'SO-2026-0001' },
         { name: 'customer', label: 'Customer', required: true, placeholder: 'Heartland Grocers' },
         { name: 'priority', label: 'Priority', type: 'select',
@@ -130,38 +128,26 @@
           value: 'normal',
         },
       ],
-      confirmLabel: 'Next: line item',
-    });
-    if (!header) return;
-    const line = await confirmModal.form({
-      title: 'Create order — step 2 of 2',
-      body: 'Add an order line. Additional lines via repeat-create or future multi-row editor.',
-      fields: [
-        { name: 'sku_id', label: 'SKU', type: 'select',
-          options: skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` })),
-          required: true,
-        },
-        { name: 'qty_ordered', label: 'Qty ordered', type: 'number', value: '1', required: true },
-        { name: 'fefo_required', label: 'FEFO required', type: 'select',
-          options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
-          value: 'false',
-        },
+      lineFields: [
+        { name: 'sku_id', type: 'select', options: skuOptions, required: true },
+        { name: 'qty_ordered', type: 'number', value: '1', required: true, placeholder: 'Qty' },
       ],
+      addLineLabel: 'Add SKU line',
       confirmLabel: 'Create order',
     });
-    if (!line) return;
+    if (!result) return;
     try {
       await WMS_API.request('/shipping/orders', {
         method: 'POST',
         body: {
-          order_code: header.order_code.trim(),
-          customer: header.customer.trim(),
-          priority: header.priority || 'normal',
-          lines: [{
-            sku_id: Number(line.sku_id),
-            qty_ordered: Number(line.qty_ordered),
-            fefo_required: line.fefo_required === 'true',
-          }],
+          order_code: result.header.order_code.trim(),
+          customer: result.header.customer.trim(),
+          priority: result.header.priority || 'normal',
+          lines: result.lines.map((ln) => ({
+            sku_id: Number(ln.sku_id),
+            qty_ordered: Number(ln.qty_ordered),
+            fefo_required: false,
+          })),
         },
       });
       window.location.reload();
