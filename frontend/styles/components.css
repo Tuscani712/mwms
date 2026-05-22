@@ -326,7 +326,7 @@
    illegible" issue on the users page filters. */
 .select {
   width: 100%;
-  padding: var(--space-3) var(--space-9) var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
   background-color: var(--inset);
   background-image:
     linear-gradient(45deg, transparent 50%, var(--ink-secondary) 50%),
