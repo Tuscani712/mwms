@@ -33,7 +33,35 @@
 - Inbound row selection → dock-door check-in → inline qty + QC editor → receipt submission with optional variance notes → FIFO putaway suggestions.
 - `escapeHtml()` applied everywhere user-supplied strings hit innerHTML (XSS hardening).
 - Stale-fetch protection via monotonic `loadId` counter on putaway requests.
-- Pending follow-up: `ASNLineOut.requires_qc` propagation so SKUs created with "Does Not Require QC" auto-pass instead of asking the operator to decide.
+
+### ✅ Receiving QC propagation + DB-id leak fix (SCO-138) — shipped 2026-05-22
+- `ASNLineOut.requires_qc` propagated end-to-end so SKUs created with "Does Not Require QC" auto-pass on the receipt editor instead of asking the operator to decide.
+- Receipt editor branches the QC Decision cell: dropdown for `requires_qc=true`, green "AUTO-PASS · no QC required" badge for `requires_qc=false`.
+- Removed `Line ${line.id}` debug column — replaced with a `REQUIRES QC` / `—` badge.
+- HTML headers renamed `Condition / QC` → `QC Decision / QC Required` to match column intent.
+- One new test in `tests/test_receiving.py` verifies the propagation.
+
+### ✅ Receiving cancel/undo + shared toast utility (SCO-139 Phase 1) — shipped 2026-05-22
+- **Backend**: `POST /api/v1/receiving/asns/{id}/cancel-check-in` reverts a receipt-in-progress from `receiving` back to `scheduled`, clears dock + arrival. 409-refuses once any Receipt has been committed (admin reversal needed).
+- **Shared toast utility** (`scripts/toast.js`): top-right, 10s, stacks, `WMS.toast.{ok,err,info,dismissAll}`. Action-button form for Undo affordances. Migrated `admin-sites.js` to it.
+- **Receiving UX overhaul**:
+  - Empty-queue / nothing-selected / already-receiving guard rails surface as toasts with smooth-scroll to the right section (replaces the hidden-modal-alert pattern).
+  - Undo toast with action button after check-in.
+  - Persistent "Cancel receipt" red ghost button on the QC panel.
+  - Filter chips wired (labels corrected to Scheduled / Arrived / Receiving + All) and search input enabled (120ms debounce, substring on asn_code / supplier / dock_door).
+  - Disabled-button visual hardening (opacity + cursor + tooltip).
+  - `completeReceipt()` success + failure paths migrated from modal-alert to toast.
+- Three new tests for the cancel endpoint (happy path / wrong-status 400 / receipt-exists 409).
+- Phase 2 queued: `receipt_drafts` table + per-operator accountability + auto-save (operator A starts a receipt, B takes over, audit log preserves both contributions).
+- Phase 3 queued: Admin → Receiving → Stuck ASNs tool (Lvl 3+ admin can release ASNs stuck in `receiving` > 24h).
+
+### ✅ Multi-line ASN + Order creation modal (SCO-140) — shipped 2026-05-22
+- New `scripts/multi-line-modal.js` exposing `WMS.multiLineModal({headerFields, lineFields, minLines, maxLines, addLineLabel, confirmLabel})` → Promise.
+- One supplier truck → one ASN → multiple SKU lines. Inline × remove per row (disabled when only `minLines` remains), "+ Add SKU line" up to 20.
+- Both `createASN` and `createOrder` in `creators.js` rewritten to use it.
+- Visual consistency via reuse of `.cm-*` classes from `confirm-modal.js`. `confirm-modal.js` now eagerly injects styles at script load instead of lazily, so consumers can rely on the classes existing before any `confirmModal.*` call.
+- Loaded on inventory.html, receiving.html, shipping.html.
+- Dropped per-line `fefo_required` toggle from the order modal for MVP (defaults to false server-side; will revisit when FEFO is operationally needed).
 
 ### ✅ Favicon (SCO-137) — shipped 2026-05-22
 - Every page was logging a `/favicon.ico` 404 because no `<link rel="icon">` was declared.

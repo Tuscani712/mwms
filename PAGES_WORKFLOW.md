@@ -20,7 +20,7 @@
 | `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82); hard-delete + ref-count guards (SCO-106/107/108) |
 | `admin-sites.html` | ✅ | ✅ (lifecycle scaffold disabled) | Site CRUD live (SCO-84); rename-modal (SCO-110) |
 | `admin-branding.html` | ❌ | ⚠️ localStorage-only | No server persistence — folded into SCO-53 |
-| `receiving.html` | ✅ | ✅ | Wired — full receipt workflow (row select → dock check-in → inline qty + QC editor → receipt submission → putaway suggestions). `ASNLineOut.requires_qc` propagation pending so non-QC SKUs auto-pass. |
+| `receiving.html` | ✅ | ✅ | Wired — full receipt workflow + **cancel/undo** (SCO-139 Phase 1) + **multi-line ASN modal** (SCO-140) + **non-QC SKU auto-pass** (SCO-138). Phase 2 (receipt_drafts + per-operator accountability) and Phase 3 (Stuck ASNs admin tool) queued. |
 | `shipping.html` | ✅ | ✅ | Wired |
 | `inventory.html` | ✅ | ✅ | DONE (SCO-49 v2 2026-05-22) — lot search + KPIs + adjust + **SKU typeahead with sessionStorage cache** + ticker hydration + mocks fully stripped |
 | `quality.html` | ✅ MVP | ✅ MVP | **SCO-50 MVP shipped** — list/open/decide holds. Supplier perf + KPI aggregator deferred to v2. |
@@ -28,7 +28,16 @@
 | `reports.html` | ✅ MVP | ✅ MVP | **SCO-52 MVP shipped** — `/dashboard`, `/inventory-aging`, `/production`, `/shipping`. CSV streaming + outliers + full genealogy walk + cache layer deferred. |
 | `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings (still open) |
 
-**Recent additions (2026-05-22 — second pass: cleanup + lint + bug-class hardening):**
+**Recent additions (2026-05-22 — third pass: Receiving UX + multi-line creation):**
+- **SCO-138** — `ASNLineOut.requires_qc` propagated end-to-end (commits `fdeb6cb`, `3f9d27d`). Receipt editor now auto-passes lines whose SKU has `requires_qc=false` instead of asking the operator to decide. Removed the `Line ${line.id}` debug column; replaced with a `REQUIRES QC` / `—` badge. HTML headers renamed `Condition / QC` → `QC Decision / QC Required`.
+- **SCO-139 Phase 1** — Cancel/undo receipt + shared toast + UX overhaul (commits `c72267b`, `10554a0`, `480fda3`):
+  - `POST /api/v1/receiving/asns/{id}/cancel-check-in` reverts a receipt-in-progress back to `scheduled`. 409 once a receipt is committed.
+  - `scripts/toast.js` — shared `WMS.toast.{ok,err,info,dismissAll}`. Top-right, 10s, stacks, action-button support for Undo affordances. Migrated `admin-sites.js` to it.
+  - Receiving UX: empty-queue / nothing-selected / already-receiving guard rails surface as toasts with smooth-scroll to the right section. Undo toast after check-in. Persistent "Cancel receipt" button on QC panel. Filter chips wired (Scheduled / Arrived / Receiving + All); search input enabled with 120ms debounce. Disabled-button visual fix (opacity + cursor + tooltip).
+  - Phase 2 (`receipt_drafts` table + per-operator accountability + auto-save) and Phase 3 (Stuck ASNs admin tool) queued for separate sessions.
+- **SCO-140** — Multi-line ASN + Order creation modal (commit `b20c735`). New `scripts/multi-line-modal.js` exposes `WMS.multiLineModal({headerFields, lineFields, ...})`. Inline × remove per row, "+ Add SKU line" up to 20 lines. Both `createASN` and `createOrder` in `creators.js` rewritten. Reuses `.cm-*` classes from confirm-modal.js for visual consistency; `confirm-modal.js` now eagerly injects styles at script load so consumers can rely on them.
+
+**Earlier additions (2026-05-22 — second pass: cleanup + lint + bug-class hardening):**
 - **SCO-49 v2** — Inventory page mock cleanup + SKU search + caching (commits `d504658`, `238c3a8`, `7cd66ca`):
   - All mock data stripped (status ticker, KPI tiles, "Recent Lookups", safety-stock alerts, Cycle Counts panel, Floor Chat dock) — replaced with live `/inventory/kpis` + `/inventory/lots` + `/inventory/below-safety-stock` data with proper empty states
   - `GET /inventory/skus` extended with `?q=<substring>` (case-insensitive, LIKE-injection-safe) + new `on_hand_qty` field (summed across non-QA-held lots via one GROUP BY join)
