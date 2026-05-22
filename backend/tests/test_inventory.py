@@ -299,3 +299,51 @@ def test_below_safety_stock_excludes_qa_hold(client, auth_headers, seeded_db):
     seeded_db.commit()
     rows = client.get("/api/v1/inventory/below-safety-stock", headers=auth_headers).json()
     assert len(rows) == 1
+
+
+# ── /skus search + on_hand aggregation ──────────────────────────────────────
+
+
+def test_skus_returns_on_hand_qty_summed_across_lots(client, auth_headers, seeded_db):
+    # Seeded fixture: FLR-001 with one lot qty=100 (no QA hold).
+    rows = client.get("/api/v1/inventory/skus", headers=auth_headers).json()
+    flr = next(s for s in rows if s["code"] == "FLR-001")
+    assert flr["on_hand_qty"] == 100
+    # SGR-001 has no lots in the seeded fixture.
+    sgr = next(s for s in rows if s["code"] == "SGR-001")
+    assert sgr["on_hand_qty"] == 0
+
+
+def test_skus_on_hand_excludes_qa_hold_lots(client, auth_headers, seeded_db):
+    lot = seeded_db.query(Lot).first()
+    lot.qa_hold = True
+    seeded_db.commit()
+    rows = client.get("/api/v1/inventory/skus", headers=auth_headers).json()
+    flr = next(s for s in rows if s["code"] == "FLR-001")
+    assert flr["on_hand_qty"] == 0
+
+
+def test_skus_q_matches_code_or_description(client, auth_headers):
+    # Match by code substring (case-insensitive).
+    rows = client.get("/api/v1/inventory/skus?q=flr", headers=auth_headers).json()
+    assert [s["code"] for s in rows] == ["FLR-001"]
+    # Match by description substring.
+    rows = client.get("/api/v1/inventory/skus?q=Sugar", headers=auth_headers).json()
+    assert [s["code"] for s in rows] == ["SGR-001"]
+    # No match → empty list, not 404.
+    rows = client.get("/api/v1/inventory/skus?q=zzzz", headers=auth_headers).json()
+    assert rows == []
+
+
+def test_skus_q_is_like_injection_safe(client, auth_headers):
+    # Wildcards in user input must be treated literally, not as SQL LIKE wildcards.
+    r = client.get("/api/v1/inventory/skus?q=%25", headers=auth_headers)
+    assert r.status_code == 200
+    # The literal "%" should match nothing — no SKU codes contain it.
+    assert r.json() == []
+
+
+def test_skus_limit_clamps_to_max(client, auth_headers):
+    # limit > 1000 must be rejected (422 from query validator).
+    r = client.get("/api/v1/inventory/skus?limit=5000", headers=auth_headers)
+    assert r.status_code == 422

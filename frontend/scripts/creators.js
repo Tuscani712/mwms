@@ -54,6 +54,8 @@
           safety_stock: Number(result.safety_stock) || 0,
         },
       });
+      // Bust the inventory page's SKU typeahead cache so the new row appears immediately.
+      window.WMS_SKU_CACHE?.invalidate();
       window.location.reload();
     } catch (e) {
       alertMsg('Create failed', e.message || 'Unknown error');

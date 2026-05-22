@@ -5,10 +5,11 @@ SCO-49 · See PAGES_WORKFLOW.md §1.
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.models import SKU, User
+from wms.models import SKU, Lot, User
 from wms.schemas.inventory import (
     AdjustOut,
     AdjustRequest,
@@ -24,25 +25,66 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 _ADJUST_MIN_LEVEL = 3
 
 
-# SCO-51: SKU picker for the production module (recipe + WO modals need to
-# enumerate SKUs in the caller's site). Lightweight projection — full SKU
-# detail still goes through /inventory/sku/{code}.
+# SCO-49 / SCO-51: SKU picker / typeahead for production + inventory pages.
+# Lightweight projection — full SKU detail still goes through
+# /inventory/sku/{code}. `on_hand_qty` is summed across non-QA-held lots so
+# search suggestions can show live stock without a second round-trip.
 class SKURow(BaseModel):
     id: int
     code: str
     description: str
     uom: str
     requires_qc: bool
+    on_hand_qty: int = 0
 
     model_config = {"from_attributes": True}
 
 
 @router.get("/skus", response_model=list[SKURow])
 def list_skus(
-    db: Session = Depends(get_session), user: User = Depends(get_current_user)
+    q: str | None = Query(
+        default=None,
+        max_length=120,
+        description="Substring match against SKU code OR description (case-insensitive)",
+    ),
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ) -> list[SKURow]:
-    rows = db.query(SKU).filter(SKU.site_id == user.site_id).order_by(SKU.code).all()
-    return [SKURow.model_validate(r) for r in rows]
+    on_hand = func.coalesce(
+        func.sum(case((Lot.qa_hold.is_(False), Lot.quantity), else_=0)),
+        0,
+    ).label("on_hand")
+
+    query = (
+        db.query(SKU, on_hand)
+        .outerjoin(Lot, Lot.sku_id == SKU.id)
+        .filter(SKU.site_id == user.site_id)
+        .group_by(SKU.id)
+    )
+    if q:
+        # Escape LIKE wildcards in user input so '%' / '_' don't widen the match.
+        safe = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        needle = f"%{safe}%"
+        query = query.filter(
+            or_(
+                SKU.code.ilike(needle, escape="\\"),
+                SKU.description.ilike(needle, escape="\\"),
+            )
+        )
+
+    rows = query.order_by(SKU.code).limit(limit).all()
+    return [
+        SKURow(
+            id=sku.id,
+            code=sku.code,
+            description=sku.description,
+            uom=sku.uom,
+            requires_qc=sku.requires_qc,
+            on_hand_qty=int(on_hand_qty or 0),
+        )
+        for sku, on_hand_qty in rows
+    ]
 
 
 class SKUCreate(BaseModel):

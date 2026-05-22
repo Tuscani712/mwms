@@ -273,6 +273,10 @@ def _compute_kpis(db: Session, site_id: str) -> InventoryKPIs:
     # SKUs under safety stock = those whose available < safety_stock
     safety_breach = len(below_safety_stock(db, site_id))
 
+    sku_count = (
+        db.query(func.count(SKU.id)).filter(SKU.site_id == site_id).scalar() or 0
+    )
+
     return InventoryKPIs(
         total_on_hand=int(total_on_hand),
         available=int(available),
@@ -280,6 +284,7 @@ def _compute_kpis(db: Session, site_id: str) -> InventoryKPIs:
         qa_hold_lots=int(qa_hold_lots),
         slow_movers=0,  # populated by reports module (SCO-52) — zero, not 500
         skus_below_safety=safety_breach,
+        sku_count=int(sku_count),
         cached_at=datetime.now(UTC),
     )
 

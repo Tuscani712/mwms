@@ -93,6 +93,15 @@ window.WMS_API = (() => {
         const tail = qs.toString();
         return request(`/inventory/lots${tail ? `?${tail}` : ''}`);
       },
+      skus: (params = {}) => {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+          if (v === undefined || v === null || v === '') return;
+          qs.append(k, String(v));
+        });
+        const tail = qs.toString();
+        return request(`/inventory/skus${tail ? `?${tail}` : ''}`);
+      },
       sku: (sku_code) => request(`/inventory/sku/${encodeURIComponent(sku_code)}`),
       kpis: (refresh = false) =>
         request(`/inventory/kpis${refresh ? '?refresh=true' : ''}`),

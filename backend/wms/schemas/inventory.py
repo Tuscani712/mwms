@@ -51,6 +51,7 @@ class InventoryKPIs(BaseModel):
     qa_hold_lots: int
     slow_movers: int  # SKUs with zero outbound movement (placeholder until reports module)
     skus_below_safety: int
+    sku_count: int
     cached_at: datetime
 
 
