@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.models import SKU, User
+from wms.models import ASN, SKU, ASNLine, User
 from wms.schemas.receiving import (
+    ASNCreate,
     ASNLineOut,
     ASNOut,
     CheckInRequest,
@@ -95,3 +96,42 @@ def putaway(
     user: User = Depends(get_current_user),
 ) -> list[PutawaySuggestion]:
     return svc.putaway_suggestions(db, user.site_id, asn_id)
+
+
+@router.post("/asns", response_model=ASNOut, status_code=status.HTTP_201_CREATED)
+def create_asn(
+    payload: ASNCreate,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> ASNOut:
+    """Create an inbound ASN with line items. Each line SKU must belong to
+    the caller's site; ASN code must be unique."""
+    if db.query(ASN).filter(ASN.asn_code == payload.asn_code).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"ASN {payload.asn_code} already exists")
+
+    sku_ids = [ln.sku_id for ln in payload.lines]
+    skus = {
+        s.id: s
+        for s in db.query(SKU).filter(SKU.id.in_(sku_ids), SKU.site_id == user.site_id).all()
+    }
+    missing = [sid for sid in sku_ids if sid not in skus]
+    if missing:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"SKU(s) {missing} not found in site {user.site_id}",
+        )
+
+    asn = ASN(
+        site_id=user.site_id,
+        asn_code=payload.asn_code,
+        supplier=payload.supplier,
+        eta=payload.eta,
+        status="scheduled",
+    )
+    db.add(asn)
+    db.flush()
+    for ln in payload.lines:
+        db.add(ASNLine(asn_id=asn.id, sku_id=ln.sku_id, expected_qty=ln.expected_qty))
+    db.commit()
+    db.refresh(asn)
+    return _serialize_asn(db, asn)

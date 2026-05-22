@@ -4,7 +4,7 @@ SCO-49 · See PAGES_WORKFLOW.md §1.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
@@ -43,6 +43,40 @@ def list_skus(
 ) -> list[SKURow]:
     rows = db.query(SKU).filter(SKU.site_id == user.site_id).order_by(SKU.code).all()
     return [SKURow.model_validate(r) for r in rows]
+
+
+class SKUCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=40)
+    description: str = Field(min_length=1, max_length=180)
+    uom: str = Field(default="EA", min_length=1, max_length=10)
+    unit_weight_kg: float = Field(default=1.0, ge=0)
+    requires_qc: bool = False
+    shelf_life_days: int | None = Field(default=None, ge=0)
+    reorder_point: int = Field(default=0, ge=0)
+    safety_stock: int = Field(default=0, ge=0)
+
+
+@router.post("/skus", response_model=SKURow, status_code=status.HTTP_201_CREATED)
+def create_sku(
+    payload: SKUCreate,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> SKURow:
+    # TODO(SCO-49 v2): tighten to permission_level >= 3 once we have a clean
+    # path to seed an admin in the dev fixture. MVP leaves this open to any
+    # authenticated user so the Receive→Ship walkthrough is unblocked.
+    exists = (
+        db.query(SKU)
+        .filter(SKU.site_id == user.site_id, SKU.code == payload.code)
+        .first()
+    )
+    if exists is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"SKU {payload.code} already exists")
+    sku = SKU(site_id=user.site_id, **payload.model_dump())
+    db.add(sku)
+    db.commit()
+    db.refresh(sku)
+    return SKURow.model_validate(sku)
 
 
 @router.get("/lots", response_model=LotSearchOut)

@@ -70,8 +70,9 @@
                               for each order added (existing endpoint)
            [View accuracy report] → links to reports.html?report=shipping (SCO-52) -->
     <div class="page-actions">
-      <button class="btn btn--primary btn-arrow" data-action="pick-next" disabled><span>Start next pick</span></button>
-      <button class="btn btn-arrow" data-action="load-build" disabled><span>Build a load</span></button>
+      <button id="btn-new-order" class="btn btn--primary btn-arrow"><span>Create order</span></button>
+      <button class="btn btn-arrow" data-action="pick-next" disabled><span>Start next pick</span></button>
+      <button class="btn btn--ghost" data-action="load-build" disabled><span>Build a load</span></button>
       <a href="reports.html" class="btn btn--ghost"><span>View accuracy report</span></a>
     </div>
   </div>
@@ -254,6 +255,8 @@
 
   <script src="scripts/shell.js"></script>
   <script src="scripts/api.js"></script>
+  <script src="scripts/confirm-modal.js"></script>
+  <script src="scripts/creators.js"></script>
   <script src="scripts/shipping.js"></script>
 </body>
 </html>

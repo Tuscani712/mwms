@@ -65,3 +65,15 @@ class PutawaySuggestion(BaseModel):
     overflow_location: str | None
     overflow_capacity_left: int
     rationale: str
+
+
+class ASNLineIn(BaseModel):
+    sku_id: int
+    expected_qty: int = Field(ge=1)
+
+
+class ASNCreate(BaseModel):
+    asn_code: str = Field(min_length=1, max_length=40)
+    supplier: str = Field(min_length=1, max_length=120)
+    eta: datetime | None = None
+    lines: list[ASNLineIn] = Field(min_length=1)

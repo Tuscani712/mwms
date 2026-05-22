@@ -90,3 +90,17 @@ class PackingSlip(BaseModel):
     customer: str
     shipped_at: datetime
     lines: list[PackingSlipLine]
+
+
+class OrderLineIn(BaseModel):
+    sku_id: int
+    qty_ordered: int = Field(ge=1)
+    fefo_required: bool = False
+
+
+class OrderCreate(BaseModel):
+    order_code: str = Field(min_length=1, max_length=40)
+    customer: str = Field(min_length=1, max_length=120)
+    priority: str = Field(default="normal", pattern="^(low|normal|high)$")
+    ship_by: date | None = None
+    lines: list[OrderLineIn] = Field(min_length=1)

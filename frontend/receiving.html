@@ -70,8 +70,9 @@
            [Scan ASN]         → camera/barcode scanner overlay; resolves ASN code → loads detail panel
            [View shift report]→ links to reports.html?report=receiving (SCO-52) -->
     <div class="page-actions">
-      <button class="btn btn--primary btn-arrow" data-action="receipt-new" disabled><span>Begin new receipt</span></button>
-      <button class="btn btn-arrow" data-action="asn-scan" disabled><span>Scan ASN</span></button>
+      <button id="btn-new-asn" class="btn btn--primary btn-arrow"><span>Create ASN</span></button>
+      <button class="btn btn-arrow" data-action="receipt-new" disabled><span>Begin new receipt</span></button>
+      <button class="btn btn--ghost" data-action="asn-scan" disabled><span>Scan ASN</span></button>
       <a href="reports.html" class="btn btn--ghost"><span>View shift report</span></a>
     </div>
   </div>
@@ -276,6 +277,8 @@
 
   <script src="scripts/shell.js"></script>
   <script src="scripts/api.js"></script>
+  <script src="scripts/confirm-modal.js"></script>
+  <script src="scripts/creators.js"></script>
   <script src="scripts/receiving.js"></script>
 </body>
 </html>

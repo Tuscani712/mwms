@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.models import SKU, Lot, Order, User
+from wms.models import SKU, Lot, Order, OrderLine, User
 from wms.schemas.shipping import (
     ConsolidationPlan,
+    OrderCreate,
     OrderLineOut,
     OrderOut,
     PackingSlip,
@@ -114,3 +115,48 @@ def packing_slip(
     user: User = Depends(get_current_user),
 ) -> PackingSlip:
     return svc.packing_slip(db, user.site_id, order_id)
+
+
+@router.post("/orders", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
+def create_order(
+    payload: OrderCreate,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> OrderOut:
+    """Create a sales order with line items in the caller's site."""
+    if db.query(Order).filter(Order.order_code == payload.order_code).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Order {payload.order_code} already exists")
+    sku_ids = [ln.sku_id for ln in payload.lines]
+    skus = {
+        s.id: s
+        for s in db.query(SKU).filter(SKU.id.in_(sku_ids), SKU.site_id == user.site_id).all()
+    }
+    missing = [sid for sid in sku_ids if sid not in skus]
+    if missing:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"SKU(s) {missing} not found in site {user.site_id}",
+        )
+
+    order = Order(
+        site_id=user.site_id,
+        order_code=payload.order_code,
+        customer=payload.customer,
+        priority=payload.priority,
+        ship_by=payload.ship_by,
+        status="open",
+    )
+    db.add(order)
+    db.flush()
+    for ln in payload.lines:
+        db.add(
+            OrderLine(
+                order_id=order.id,
+                sku_id=ln.sku_id,
+                qty_ordered=ln.qty_ordered,
+                fefo_required=ln.fefo_required,
+            )
+        )
+    db.commit()
+    db.refresh(order)
+    return _serialize_order(db, order)
