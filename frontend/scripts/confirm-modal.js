@@ -301,7 +301,7 @@
         if (form) {
           const first = fieldsWrap.querySelector('.cm-field-input');
           (first || confirmBtn).focus();
-          if (first && first.value) first.select();
+          if (first && first.value && typeof first.select === 'function') first.select();
         } else if (typed && confirmWord) {
           typedInput.focus();
         } else {
