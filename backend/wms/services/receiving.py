@@ -30,6 +30,38 @@ def check_in_asn(db: Session, site_id: str, asn_id: int, dock_door: str) -> ASN:
     return asn
 
 
+def cancel_check_in(db: Session, site_id: str, asn_id: int) -> ASN:
+    """Revert an in-progress check-in. Refuses once any receipt has been committed.
+
+    Phase 1 of the Receiving accountability work (SCO-139): nothing in the
+    DB encodes per-line draft state yet, so cancel is allowed as long as no
+    Receipt rows exist for this ASN. Phase 2 will also need to clear the
+    receipt_drafts rows here.
+    """
+    asn = db.query(ASN).filter(ASN.id == asn_id, ASN.site_id == site_id).one()
+    # Receipt check first: the "you already finalized" message is more actionable
+    # than "wrong status" — an ASN with a receipt is always in 'received' status,
+    # so checking status first would mask the real reason.
+    has_receipt = (
+        db.query(Receipt.id).filter(Receipt.asn_id == asn.id).first() is not None
+    )
+    if has_receipt:
+        # 409 in the router — conflict, not a validation error.
+        raise PermissionError(
+            "Receipt already submitted for this ASN — adjustments require admin reversal"
+        )
+    if asn.status != "receiving":
+        raise ValueError(
+            f"ASN cannot be cancelled from status '{asn.status}' — only 'receiving' is reversible"
+        )
+    asn.status = "scheduled"
+    asn.dock_door = None
+    asn.arrived_at = None
+    db.commit()
+    db.refresh(asn)
+    return asn
+
+
 def create_receipt(
     db: Session, site_id: str, user_id: int | None, payload: ReceiptCreate
 ) -> Receipt:

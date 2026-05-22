@@ -66,6 +66,27 @@ def check_in(
     return _serialize_asn(db, asn)
 
 
+@router.post("/asns/{asn_id}/cancel-check-in", response_model=ASNOut)
+def cancel_check_in(
+    asn_id: int,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> ASNOut:
+    """Undo a check-in — reverts ASN to 'scheduled', clears dock + arrival.
+
+    Only valid while the ASN is in 'receiving' status AND no Receipt has been
+    committed for it. Once a receipt is in the books the data must persist
+    for audit, and any correction needs an admin-level reversal flow (TODO).
+    """
+    try:
+        asn = svc.cancel_check_in(db, user.site_id, asn_id)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    return _serialize_asn(db, asn)
+
+
 @router.post("/receipts", response_model=ReceiptOut)
 def create_receipt(
     payload: ReceiptCreate,

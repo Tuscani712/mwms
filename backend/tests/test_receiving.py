@@ -72,3 +72,67 @@ def test_putaway_suggestions(client, auth_headers):
     for s in suggestions:
         assert s["primary_location"] is not None
         assert s["overflow_location"] is not None
+
+
+# ── Cancel check-in (SCO-139 Phase 1) ───────────────────────────────────────
+
+
+def test_cancel_check_in_reverts_receiving_to_scheduled(client, auth_headers):
+    inbound = client.get("/api/v1/receiving/inbound", headers=auth_headers).json()
+    asn = inbound[0]
+    # Check in first.
+    r = client.post(
+        "/api/v1/receiving/check-in",
+        json={"asn_id": asn["id"], "dock_door": "D1"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "receiving"
+    # Cancel.
+    r = client.post(
+        f"/api/v1/receiving/asns/{asn['id']}/cancel-check-in", headers=auth_headers
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "scheduled"
+    assert body["dock_door"] is None
+    assert body["arrived_at"] is None
+
+
+def test_cancel_check_in_rejects_when_not_receiving(client, auth_headers):
+    inbound = client.get("/api/v1/receiving/inbound", headers=auth_headers).json()
+    asn_id = inbound[0]["id"]
+    # ASN is 'scheduled' — never checked in. Cancel should refuse.
+    r = client.post(
+        f"/api/v1/receiving/asns/{asn_id}/cancel-check-in", headers=auth_headers
+    )
+    assert r.status_code == 400
+
+
+def test_cancel_check_in_refuses_after_receipt_committed(client, auth_headers):
+    inbound = client.get("/api/v1/receiving/inbound", headers=auth_headers).json()
+    asn = inbound[0]
+    # Check in.
+    client.post(
+        "/api/v1/receiving/check-in",
+        json={"asn_id": asn["id"], "dock_door": "D1"},
+        headers=auth_headers,
+    )
+    # Commit a receipt.
+    client.post(
+        "/api/v1/receiving/receipts",
+        json={
+            "asn_id": asn["id"],
+            "lines": [
+                {"asn_line_id": asn["lines"][0]["id"], "qty_received": 200, "qc_passed": True},
+                {"asn_line_id": asn["lines"][1]["id"], "qty_received": 150, "qc_passed": True},
+            ],
+        },
+        headers=auth_headers,
+    )
+    # Now try to cancel — should 409 because receipt exists.
+    r = client.post(
+        f"/api/v1/receiving/asns/{asn['id']}/cancel-check-in", headers=auth_headers
+    )
+    assert r.status_code == 409
+    assert "admin reversal" in r.json()["detail"]
