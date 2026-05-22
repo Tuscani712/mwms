@@ -16,21 +16,17 @@
   const metaEl = $('#sites-meta');
   const gateEl = $('#gate-banner');
   const addSection = $('#add-section');
-  const toastEl = $('#toast');
 
   // Track whether the caller is on the master site. Used to gate UI controls.
   // Server enforces independently; this is for UX clarity, not security.
   let callerCanWrite = false;
   let masterSiteId = null;
 
+  // Migrated to shared WMS.toast (scripts/toast.js). The old #toast div in the
+  // HTML is now unused and will be cleaned up in a follow-up.
   function toast(kind, msg) {
-    toastEl.textContent = msg;
-    const ok = kind !== 'err';
-    toastEl.style.borderColor = ok ? 'var(--signal-ok)' : 'var(--signal-crit)';
-    toastEl.style.color = ok ? 'var(--signal-ok)' : 'var(--signal-crit)';
-    toastEl.style.background = ok ? 'rgba(74,222,128,0.08)' : 'rgba(239,68,68,0.08)';
-    toastEl.style.display = 'block';
-    setTimeout(() => { toastEl.style.display = 'none'; }, 2800);
+    if (kind === 'err') return window.WMS?.toast?.err(msg);
+    return window.WMS?.toast?.ok(msg);
   }
 
   function escapeHtml(s) {
