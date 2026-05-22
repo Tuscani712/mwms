@@ -23,6 +23,12 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-5);
+    }
+    /* Positioning anchor for the suggestion dropdown — keeps the absolute
+       positioning attached to the input itself rather than the whole hero
+       block, so the dropdown sits cleanly below the focus ring at any
+       viewport / font size. */
+    .hero-search-field {
       position: relative;
     }
     .hero-search-input {
@@ -51,18 +57,20 @@
       text-transform: uppercase;
       color: var(--ink-tertiary);
     }
-    /* SKU suggestion dropdown (typeahead) */
+    /* SKU suggestion dropdown (typeahead). top:100% anchors to the input's
+       actual bottom edge; the +8px gap clears the 4px amber focus ring with
+       breathing room. z-index keeps it above the focus-ring's box-shadow. */
     .sku-suggest {
       position: absolute;
-      top: calc(var(--space-5) + 2.4em + var(--space-12));
-      left: var(--space-6);
-      right: var(--space-6);
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
       background: var(--surface-elev);
       border: 1px solid var(--rule-default);
       box-shadow: 0 12px 28px rgba(0,0,0,0.32);
       max-height: 320px;
       overflow-y: auto;
-      z-index: 40;
+      z-index: 60;
       display: none;
     }
     .sku-suggest[data-open="true"] { display: block; }
@@ -147,21 +155,23 @@
          - /inventory/lots?q=… for the results table below
        Selecting a suggestion narrows the lot table to that SKU. -->
   <div class="hero-search">
-    <input
-      id="inventory-search"
-      class="hero-search-input"
-      type="text"
-      placeholder="SKU code, description, lot, location…"
-      autocomplete="off"
-      autofocus
-    />
+    <div class="hero-search-field">
+      <input
+        id="inventory-search"
+        class="hero-search-input"
+        type="text"
+        placeholder="SKU code, description, lot, location…"
+        autocomplete="off"
+        autofocus
+      />
+      <div id="sku-suggest" class="sku-suggest" role="listbox"></div>
+    </div>
     <div class="hero-search-hint">
       <span>↑ ↓ navigate</span>
       <span>↵ open</span>
       <span>esc clear</span>
       <span style="margin-left: auto; color: var(--amber);"><strong data-bind="ticker-sku-count">—</strong> SKUs indexed</span>
     </div>
-    <div id="sku-suggest" class="sku-suggest" role="listbox"></div>
   </div>
 
   <main class="page">
