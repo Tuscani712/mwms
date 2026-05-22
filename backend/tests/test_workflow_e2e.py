@@ -18,7 +18,7 @@ Asserts:
  * Shipment final qty matches ordered qty.
 """
 
-from wms.models import Lot, LotGenealogy, Order, OrderLine, SKU, Shipment
+from wms.models import SKU, Lot, LotGenealogy, Order, OrderLine, Shipment
 
 
 def _add_product_sku_and_order(db_session):
@@ -90,12 +90,12 @@ def test_full_workflow_receive_store_produce_ship(client, auth_headers, seeded_d
 
     # Sanity: lots persisted with expected qty.
     flr_lots_qty = sum(
-        l.quantity for l in db.query(Lot).filter_by(site_id="WHS-001").all()
-        if l.sku_id != product_sku_id and db.get(SKU, l.sku_id).code == "FLR-001"
+        lot.quantity for lot in db.query(Lot).filter_by(site_id="WHS-001").all()
+        if lot.sku_id != product_sku_id and db.get(SKU, lot.sku_id).code == "FLR-001"
     )
     sgr_lots_qty = sum(
-        l.quantity for l in db.query(Lot).filter_by(site_id="WHS-001").all()
-        if l.sku_id != product_sku_id and db.get(SKU, l.sku_id).code == "SGR-001"
+        lot.quantity for lot in db.query(Lot).filter_by(site_id="WHS-001").all()
+        if lot.sku_id != product_sku_id and db.get(SKU, lot.sku_id).code == "SGR-001"
     )
     # Seeded fixture pre-creates L-FLR-001 with qty=100. The receipt adds 200
     # FLR + 150 SGR. So FLR total = 300, SGR total = 150.
@@ -176,12 +176,12 @@ def test_full_workflow_receive_store_produce_ship(client, auth_headers, seeded_d
     # Ingredient lots decremented. FLR: had 300 → consumed 20 → 280.
     # SGR: had 150 → consumed 10 → 140.
     flr_after = sum(
-        l.quantity for l in db.query(Lot).all()
-        if l.sku_id != product_sku_id and db.get(SKU, l.sku_id).code == "FLR-001"
+        lot.quantity for lot in db.query(Lot).all()
+        if lot.sku_id != product_sku_id and db.get(SKU, lot.sku_id).code == "FLR-001"
     )
     sgr_after = sum(
-        l.quantity for l in db.query(Lot).all()
-        if l.sku_id != product_sku_id and db.get(SKU, l.sku_id).code == "SGR-001"
+        lot.quantity for lot in db.query(Lot).all()
+        if lot.sku_id != product_sku_id and db.get(SKU, lot.sku_id).code == "SGR-001"
     )
     assert flr_after == 280
     assert sgr_after == 140
@@ -220,5 +220,5 @@ def test_full_workflow_receive_store_produce_ship(client, auth_headers, seeded_d
         f"/api/v1/shipping/packing-slip/{prod_order['id']}", headers=auth_headers
     ).json()
     assert slip["order_code"] == "SO-PROD-001"
-    total_shipped = sum(l["qty"] for l in slip["lines"])
+    total_shipped = sum(line["qty"] for line in slip["lines"])
     assert total_shipped == 10

@@ -19,7 +19,7 @@ def test_full_workflow_via_create_endpoints(client, auth_headers, seeded_db):
     db = seeded_db
 
     # ── Pre-clean: nuke the seeded ASN + Order so we drive everything via POST.
-    from wms.models import ASN, ASNLine, Order, OrderLine, SKU
+    from wms.models import ASN, SKU, ASNLine, Order, OrderLine
     db.query(ASNLine).delete()
     db.query(ASN).delete()
     db.query(OrderLine).delete()
