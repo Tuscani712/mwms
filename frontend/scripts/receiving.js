@@ -191,8 +191,23 @@
     qcRowsEl.innerHTML = asn.lines
       .map((line) => {
         const expectedQty = Number(line.expected_qty || 0);
+        // SCO-138: lines whose SKU was created with requires_qc=false
+        // auto-pass — no decision to make. completeReceipt() reads
+        // data-qc-auto="pass" off the row in that case.
+        const requiresQc = line.requires_qc === true;
+        const qcCell = requiresQc
+          ? `<select class="input receipt-qc-select" style="min-width:160px;">
+               <option value="pass">Accepted</option>
+               <option value="hold">Hold for QA</option>
+             </select>`
+          : `<span class="tag" style="background:rgba(70,200,120,0.10);color:var(--signal-ok);border-color:var(--signal-ok);">
+               AUTO-PASS · no QC required
+             </span>`;
+        const qcRequirementCell = requiresQc
+          ? `<span class="tag" style="background:rgba(255,107,26,0.10);color:var(--amber);border-color:var(--amber);">REQUIRES QC</span>`
+          : `<span class="mono" style="color:var(--ink-tertiary)">—</span>`;
         return `
-          <tr data-asn-line-id="${line.id}">
+          <tr data-asn-line-id="${line.id}" data-qc-auto="${requiresQc ? 'manual' : 'pass'}">
             <td class="col-status"><span class="dot dot--ok"></span></td>
             <td class="mono">${escapeHtml(line.sku_code)}</td>
             <td>${escapeHtml(line.sku_description)}</td>
@@ -209,13 +224,8 @@
                 />
               </label>
             </td>
-            <td>
-              <select class="input receipt-qc-select" style="min-width:160px;">
-                <option value="pass">Accepted</option>
-                <option value="hold">Hold for QA</option>
-              </select>
-            </td>
-            <td><span class="mono" style="color:var(--ink-tertiary)">Line ${line.id}</span></td>
+            <td>${qcCell}</td>
+            <td>${qcRequirementCell}</td>
           </tr>
         `;
       })
