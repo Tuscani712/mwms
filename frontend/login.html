@@ -505,7 +505,41 @@
     .site-toast[data-show="true"] {
       transform: translateX(-50%) translateY(0);
     }
+    /* SCO-87 PART A: hide page chrome until auth-check resolves so a
+       logged-in user never sees the login form flash before redirect. */
+    html.auth-checking body { visibility: hidden; }
   </style>
+
+  <!-- SCO-87 PART A: load api.js in <head> so the boot guard below can
+       use WMS_API before the body renders. The duplicate <script> tag
+       lower in the body was removed. -->
+  <script src="scripts/api.js"></script>
+  <script>
+    (function authBootGuard() {
+      // Allow a hard "force login" escape hatch: login.html?force=1 clears
+      // the session and shows the form (used by the global expired-session
+      // banner from PART B, and by future explicit-logout buttons).
+      var qs = new URLSearchParams(window.location.search);
+      if (qs.get('force') === '1') {
+        try { WMS_API.clear(); } catch (_) {}
+        return;
+      }
+      if (!WMS_API.getToken()) return;  // no session → render login form normally
+      document.documentElement.classList.add('auth-checking');
+      WMS_API.me().then(function () {
+        // Valid session → bounce to the requested page or the dashboard.
+        // Only accept a same-origin relative return path (open-redirect guard).
+        var returnTo = qs.get('return');
+        var safe = returnTo && /^[A-Za-z0-9_\-./?=&]+$/.test(returnTo) && !returnTo.startsWith('//') && !/^https?:/i.test(returnTo);
+        window.location.replace(safe ? returnTo : 'index.html');
+      }).catch(function () {
+        // 401 already called WMS_API.clear() inside request(); any other
+        // error (network/CORS) we treat as "not signed in" and just show
+        // the form so the user can retry.
+        document.documentElement.classList.remove('auth-checking');
+      });
+    })();
+  </script>
 </head>
 <body>
 
@@ -935,9 +969,9 @@
     setInterval(pingAndUpdateActive, 5000);
   </script>
 
-  <script src="scripts/api.js"></script>
   <script>
     // ── Live login wired to /api/v1/auth/login ─────────────────────────
+    // (api.js now loaded in <head> by the SCO-87 boot guard.)
     const loginForm = document.getElementById('login-form');
     const submitBtn = loginForm.querySelector('button[type="submit"] span');
     const originalBtnText = submitBtn ? submitBtn.textContent : 'Sign in & clock on';

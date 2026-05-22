@@ -8,30 +8,39 @@
 
 ---
 
-## Status snapshot (2026-05-20)
+## Status snapshot (2026-05-22)
 
 | Page | Backend | Frontend | Notes |
 |---|---|---|---|
-| `login.html` | ✅ | ✅ | Wired with multi-site picker + MFA challenge support |
-| `index.html` (dashboard) | ⚠️ partial | ⚠️ partial | KPI tiles currently mock; no `/reports/dashboard` endpoint yet — SCO-52 |
+| `login.html` | ✅ | ✅ | Wired with multi-site picker + MFA challenge support + **SCO-87 boot guard + 401 banner** |
+| `index.html` (dashboard) | ✅ MVP | ✅ MVP | KPI tiles wired to `/reports/dashboard` (SCO-52 MVP). Outliers / on-time % still TODO. |
 | `profile.html` | ✅ | ✅ | Full identity + password + MFA + avatar upload |
-| `users.html` | ✅ | ✅ | Admin user CRUD + hierarchy + **hard-purge w/ typed-DELETE modal (SCO-85)** |
-| `admin.html` | ✅ | ✅ | 4-tile hub (Users / Org Metadata / Sites / Branding) — dead nav + mock data purged (SCO-116); activity panels render empty-state until `/admin/approvals` + `/admin/audit` land |
-| `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82) |
-| `admin-sites.html` | ✅ | ✅ (lifecycle scaffold disabled) | Site CRUD live (SCO-84). Full lifecycle UI scaffolded **visible-but-disabled** (SCO-118): filter chips, lifecycle + enrollment pills, extended add form (type/address/auth/expiry/subscriptions/model), enrollment-key one-shot block, per-card Decommission/Archive/Rotate/Revoke/Detail actions, lifecycle history drawer. Backend wire-up deferred until test VMs land. |
-| `admin-branding.html` | ❌ | ⚠️ localStorage-only | Logo + page-icon/favicon (SCO-109). No server persistence — folded into SCO-53. All native popups replaced with `confirmModal.alert` (SCO-117). |
+| `users.html` | ✅ | ✅ | Admin user CRUD + hierarchy + hard-purge w/ typed-DELETE modal (SCO-85) |
+| `admin.html` | ✅ | ✅ | 4-tile hub (Users / Org Metadata / Sites / Branding) |
+| `admin-orgmeta.html` | ✅ | ✅ | Roles + Departments + Shifts CRUD (SCO-77..82); hard-delete + ref-count guards (SCO-106/107/108) |
+| `admin-sites.html` | ✅ | ✅ (lifecycle scaffold disabled) | Site CRUD live (SCO-84); rename-modal (SCO-110) |
+| `admin-branding.html` | ❌ | ⚠️ localStorage-only | No server persistence — folded into SCO-53 |
 | `receiving.html` | ✅ | ✅ | Wired |
 | `shipping.html` | ✅ | ✅ | Wired |
-| `inventory.html` | ✅ | ✅ | **DONE (SCO-49)** — lot search + KPIs + adjust |
-| `quality.html` | ❌ | ❌ | **SCO-50** (scaffold HTML exists, not wired) |
-| `production.html` | ❌ | ❌ | **SCO-51** (scaffold HTML exists, not wired) |
-| `reports.html` | ❌ | ❌ | **SCO-52** (scaffold HTML exists; also rewires dashboard KPIs) |
-| `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings |
+| `inventory.html` | ✅ | ✅ | DONE (SCO-49) — lot search + KPIs + adjust; new `GET /inventory/skus` (SCO-51 dep) |
+| `quality.html` | ✅ MVP | ✅ MVP | **SCO-50 MVP shipped** — list/open/decide holds. Supplier perf + KPI aggregator deferred to v2. |
+| `production.html` | ✅ MVP | ✅ MVP | **SCO-51 MVP shipped** — recipes + work orders + preflight (FIFO) + start/complete (writes child Lot + LotGenealogy) + cancel. Version bump-on-edit + atomic locking + yield variance audit + BOM unit conversion deferred to v2. E2E smoke `tests/test_workflow_e2e.py` green. |
+| `reports.html` | ✅ MVP | ✅ MVP | **SCO-52 MVP shipped** — `/dashboard`, `/inventory-aging`, `/production`, `/shipping`. CSV streaming + outliers + full genealogy walk + cache layer deferred. |
+| `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings (still open) |
 
-**Recent additions (post-2026-05-15):**
-- **SCO-84** — Sites admin CRUD: `POST/PUT/DELETE/GET/{id}/toggle-online`. Master-site protections, audit events, in-process toggle cooldown. Commit `88d2ec8`.
-- **SCO-85** — User hard-purge: `POST /admin/users/{id}/purge`. Lvl 5 only, typed-DELETE confirmation modal (no `confirm()`), audit FK nullification. Commit `f08233a`.
-- **SCO-86** — `start.sh` launcher hardened: race-free restart, `wait_for_port_free/open` helpers, `[t]` smoke test with full auth + CRUD round-trips (13/13 green). Folded into commits 88d2ec8 + f08233a.
+**Recent additions (2026-05-22 — SCO-51/50/52 MVP pass):**
+- **SCO-126/127/128/129/130** — Production module end-to-end: models (`models/production.py`), service (`services/production.py`), router (`api/v1/production.py`), frontend (`production.html` + `scripts/production.js`), and a passing `tests/test_workflow_e2e.py` exercising Receive → Store → Produce → Ship.
+- **SCO-131/132** — Quality MVP: `services/quality.py` + `api/v1/quality.py` (list/open/decide), `quality.html` mocks stripped, `scripts/quality.js` wired.
+- **SCO-133/134** — Reports MVP: `services/metrics.py` + `api/v1/reports.py` (dashboard/aging/production/shipping), `reports.html` mocks stripped, `scripts/reports.js` wired, `dashboard.js` extended to consume `/reports/dashboard` for home KPI tiles.
+- **Enabler:** `GET /api/v1/inventory/skus` (lightweight SKU picker for production modals).
+- **Enabler:** `confirm-modal.js` form mode extended with `type: 'select' + options` for SKU/recipe pickers.
+- **SCO-87** — Login boot guard + session-expired banner (2026-05-22 earlier).
+- **SCO-106/107/108/110** — Hard-delete for roles/depts/shifts (verified + closed).
+
+**Earlier (2026-05-20):**
+- **SCO-84** — Sites admin CRUD. Commit `88d2ec8`.
+- **SCO-85** — User hard-purge. Commit `f08233a`.
+- **SCO-86** — `start.sh` launcher hardened.
 
 ---
 

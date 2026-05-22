@@ -23,6 +23,7 @@ from wms.models.ops import (
     Shipment,
 )
 from wms.models.orgmeta import Department, Role, Shift, Title
+from wms.models.production import Recipe, RecipeLine, WorkOrder, WorkOrderReservation
 
 __all__ = [
     "ASN",
@@ -41,6 +42,8 @@ __all__ = [
     "QCHold",
     "Receipt",
     "ReceiptLine",
+    "Recipe",
+    "RecipeLine",
     "Role",
     "SKU",
     "Shift",
@@ -50,4 +53,6 @@ __all__ = [
     "User",
     "UserMFA",
     "UserProfileField",
+    "WorkOrder",
+    "WorkOrderReservation",
 ]

@@ -109,14 +109,46 @@
   tick();
   setInterval(tick, 1000);
 
+  // ── KPI tiles (SCO-52) ────────────────────────────────────────────
+  //    /reports/dashboard returns site-scoped counts. We map them onto
+  //    the existing data-bind="kpi-*" slots. Falls silently to the dash
+  //    placeholders if unauthed or the endpoint errors.
+  if (window.WMS_API && WMS_API.isAuthed()) {
+    WMS_API.request('/reports/dashboard').then((d) => {
+      if (!d) return;
+      const set = (name, val, meta) => {
+        document.querySelectorAll(`[data-bind="${name}"]`).forEach((el) => {
+          const unit = el.querySelector('.kpi-unit');
+          if (unit) {
+            el.innerHTML = `${val}${unit.outerHTML}`;
+          } else {
+            el.textContent = val;
+          }
+        });
+        if (meta !== undefined) {
+          document.querySelectorAll(`[data-bind="${name}-meta"]`).forEach((el) => { el.textContent = meta; });
+        }
+      };
+      set('kpi-units-received', d.receipts_today, `${d.inbound_asns} ASNs inbound`);
+      set('kpi-orders-shipped', d.shipments_today, `${d.open_orders} open orders`);
+      // Production yield placeholder until /reports/production drives a real %.
+      set('kpi-production-yield', d.open_work_orders, `${d.open_work_orders} active WOs`);
+      set('kpi-qa-holds', d.qa_held_lots, `${d.total_lots} total lots`);
+    }).catch(() => { /* leave placeholders */ });
+  }
+
   // ── KPI REFRESH INDICATOR
   //    Disabled until /dashboard/kpis is wired — showing a ticking "X s ago"
   //    counter while no fetch is happening would be a lying UI.
   //    When the fetch lands, reset `lastRefreshAt = Date.now()` on each
   //    successful response and re-enable the tick below.
+  //    SCO-87: when re-enabled with a real fetch, gate on the global
+  //    expired-session flag set by api.js so 401s don't keep firing:
+  //      if (window.__wmsSessionExpired) return;
   // const kpiRefreshEl = document.getElementById('kpi-refresh');
   // let lastRefreshAt = null;
   // setInterval(() => {
+  //   if (window.__wmsSessionExpired) return;
   //   if (!kpiRefreshEl || lastRefreshAt === null) return;
   //   const s = Math.floor((Date.now() - lastRefreshAt) / 1000);
   //   kpiRefreshEl.textContent = s < 60 ? `${s}s ago` : `${Math.floor(s/60)}m ${s%60}s ago`;

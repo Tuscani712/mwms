@@ -41,16 +41,11 @@
   </header>
 
   <div class="status-ticker">
-    <div class="status-ticker-inner">
-      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">WHS-001 · DAL</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">LINE 01 ▸ <strong>RUNNING</strong> · WO-9910</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">LINE 02 ▸ <strong>RUNNING</strong> · WO-9911</span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item">LINE 03 ▸ <strong>CHANGEOVER</strong></span>
-      <span class="ticker-sep"></span>
-      <span class="ticker-item"><span class="dot dot--warn"></span> YIELD ALERT · BR-1140 · +1.4%</span>
+    <div class="status-ticker-inner" data-bind="production-ticker">
+      <span class="ticker-item"><span class="dot dot--ok"></span> Site · <strong data-bind="site-name">—</strong></span>
+      <!-- production.js fills live work-order summaries here from
+           GET /api/v1/production/work-orders. Mock LINE 01/02/03 lines
+           removed (SCO-51 MVP). -->
     </div>
   </div>
 
@@ -65,35 +60,39 @@
       Manage work orders, recipes, ingredient consumption, yield tracking, and lot genealogy.
     </p>
     <div class="page-actions">
-      <a href="#" class="btn btn--primary btn-arrow"><span>Start work order</span></a>
-      <a href="#" class="btn btn-arrow"><span>Open recipe library</span></a>
-      <a href="#" class="btn btn--ghost"><span>Genealogy lookup</span></a>
+      <button id="btn-new-wo" class="btn btn--primary btn-arrow"><span>Create work order</span></button>
+      <button id="btn-new-recipe" class="btn btn-arrow"><span>Create recipe</span></button>
+      <!-- TODO(backend): /reports/genealogy/{lot_code} not yet wired — button
+           hidden until SCO-52 lands. -->
     </div>
   </div>
 
   <main class="page">
 
     <section>
+      <!-- KPI tiles. Real numbers will come from GET /api/v1/reports/production
+           once SCO-52 (Reports module) lands. MVP shows live counts derived
+           client-side from the WO list. -->
       <div class="kpi-row">
         <article class="kpi" style="--kpi-accent: var(--amber);">
-          <div class="kpi-label"><span class="dot dot--amber"></span> Units Produced</div>
-          <div class="kpi-value">28,440<span class="kpi-unit">UNITS</span></div>
-          <div class="kpi-meta">3 lines · 2 active WOs</div>
-        </article>
-        <article class="kpi" style="--kpi-accent: var(--signal-warn);">
-          <div class="kpi-label"><span class="dot dot--warn"></span> Yield · BR-1140</div>
-          <div class="kpi-value">94.8<span class="kpi-unit">%</span></div>
-          <div class="kpi-meta">▼ 0.6 pts · +1.4% variance</div>
+          <div class="kpi-label"><span class="dot dot--amber"></span> Recipes</div>
+          <div class="kpi-value" data-bind="kpi-recipes">—</div>
+          <div class="kpi-meta" data-bind="kpi-recipes-sub">no recipes yet</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-ok);">
-          <div class="kpi-label"><span class="dot dot--ok"></span> Yield · BR-1142</div>
-          <div class="kpi-value">96.4<span class="kpi-unit">%</span></div>
-          <div class="kpi-meta">Within 1% tolerance</div>
+          <div class="kpi-label"><span class="dot dot--ok"></span> Work orders</div>
+          <div class="kpi-value" data-bind="kpi-wos">—</div>
+          <div class="kpi-meta" data-bind="kpi-wos-sub">no work orders yet</div>
+        </article>
+        <article class="kpi" style="--kpi-accent: var(--signal-warn);">
+          <div class="kpi-label"><span class="dot dot--warn"></span> Running</div>
+          <div class="kpi-value" data-bind="kpi-running">—</div>
+          <div class="kpi-meta">in progress</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--ember);">
-          <div class="kpi-label"><span class="dot dot--info"></span> Ingredient Overrides</div>
-          <div class="kpi-value">4<span class="kpi-unit">USES</span></div>
-          <div class="kpi-meta">2 shortage · 2 substitution</div>
+          <div class="kpi-label"><span class="dot dot--info"></span> Completed (today)</div>
+          <div class="kpi-value" data-bind="kpi-completed">—</div>
+          <div class="kpi-meta">last 24h</div>
         </article>
       </div>
     </section>
@@ -108,12 +107,12 @@
       </div>
 
       <div class="filter-bar">
-        <input class="input" placeholder="Search WO #, recipe, line…" />
-        <span class="filter-chip" data-active="true">All</span>
-        <span class="filter-chip">Scheduled</span>
-        <span class="filter-chip">Running</span>
-        <span class="filter-chip">Completed</span>
-        <span class="filter-chip">Variance</span>
+        <input class="input" id="wo-search" placeholder="Search WO #, recipe…" />
+        <span class="filter-chip" data-active="true" data-filter="all">All</span>
+        <span class="filter-chip" data-filter="draft">Draft</span>
+        <span class="filter-chip" data-filter="reserved">Reserved</span>
+        <span class="filter-chip" data-filter="running">Running</span>
+        <span class="filter-chip" data-filter="completed">Completed</span>
       </div>
 
       <table class="data-table">
@@ -122,173 +121,61 @@
             <th class="col-status"></th>
             <th>WO #</th>
             <th>Recipe</th>
-            <th>Line</th>
             <th class="num">Target</th>
-            <th class="num">Actual</th>
-            <th>Yield</th>
             <th>Status</th>
+            <th>Started</th>
             <th class="col-action"></th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td>
-              <div class="row-title">WO-9910</div>
-              <div class="row-sub">Started 06:00 · Shift A</div>
-            </td>
-            <td class="mono">BR-1142</td>
-            <td class="mono">LINE-01</td>
-            <td class="num">12,000 lbs</td>
-            <td class="num">11,568 lbs</td>
-            <td><span class="tag tag--ok">96.4%</span></td>
-            <td><span class="tag tag--ok">Running · 96%</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--warn"></span></td>
-            <td>
-              <div class="row-title">WO-9911</div>
-              <div class="row-sub">Started 13:00 · Shift B</div>
-            </td>
-            <td class="mono">BR-1140</td>
-            <td class="mono">LINE-02</td>
-            <td class="num">8,500 lbs</td>
-            <td class="num">8,058 lbs</td>
-            <td><span class="tag tag--warn">94.8% · +1.4% var</span></td>
-            <td><span class="tag tag--amber">Running · 73%</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--info"></span></td>
-            <td>
-              <div class="row-title">WO-9912</div>
-              <div class="row-sub">Scheduled 15:30</div>
-            </td>
-            <td class="mono">BR-1138</td>
-            <td class="mono">LINE-03</td>
-            <td class="num">6,200 lbs</td>
-            <td class="num">—</td>
-            <td>—</td>
-            <td><span class="tag tag--info">Changeover · 22m left</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Prep</span></a></td>
+        <tbody data-bind="wo-tbody">
+          <tr data-empty>
+            <td colspan="7" class="empty-state">No work orders yet — create one to begin.</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- Recipe / BOM detail -->
-    <section class="page-row page-row--main-aside">
-
-      <div>
-        <div class="section-head">
-          <div class="section-head-left">
-            <span class="section-eyebrow">WO-9911 · Recipe BR-1140</span>
-            <h2 class="section-title">Bill of <em>materials</em></h2>
-          </div>
-          <span class="section-meta">Pre-flight reserve · ingredient genealogy attached</span>
+    <!-- Recipe library -->
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Recipe library</span>
+          <h2 class="section-title">Recipes / <em>BOMs</em></h2>
         </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">Ingredients · 4 lines</span>
-            <span class="tag tag--warn">1 shortage override</span>
-          </div>
-          <table class="data-table" style="border: none;">
-            <thead>
-              <tr>
-                <th>Ingredient</th>
-                <th>Source Lot</th>
-                <th class="num">Required</th>
-                <th class="num">Consumed</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div class="row-title">Beef · 80/20</div>
-                  <div class="row-sub mono">SKU-19044</div>
-                </td>
-                <td class="mono">LOT-44820-A · 44820-B</td>
-                <td class="num">1,870 lbs</td>
-                <td class="num">1,870 lbs</td>
-                <td><span class="tag tag--ok">Consumed</span></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="row-title">Beef trim · 50/50</div>
-                  <div class="row-sub mono">SKU-19046</div>
-                </td>
-                <td class="mono">LOT-44822-A</td>
-                <td class="num">340 lbs</td>
-                <td class="num">340 lbs</td>
-                <td><span class="tag tag--ok">Consumed</span></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="row-title">Salt blend</div>
-                  <div class="row-sub mono">SKU-31044</div>
-                </td>
-                <td class="mono">LOT-31044-J</td>
-                <td class="num">42 lbs</td>
-                <td class="num">42 lbs</td>
-                <td><span class="tag tag--ok">Consumed</span></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="row-title">Smoke seasoning</div>
-                  <div class="row-sub mono">SKU-31062</div>
-                </td>
-                <td class="mono">LOT-31062-K · alt LOT-31062-L</td>
-                <td class="num">18 lbs</td>
-                <td class="num">14 lbs (alt: 4)</td>
-                <td><span class="tag tag--warn">Override · shortage</span></td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="panel-foot">
-            <span>Yield variance &gt; 1% triggers investigation alert</span>
-            <a href="#" class="btn btn--primary btn--sm btn-arrow"><span>Log batch complete</span></a>
-          </div>
-        </div>
+        <span class="section-meta">version snapshot taken when a WO is created</span>
       </div>
 
-      <aside>
-        <div class="section-head">
-          <div class="section-head-left">
-            <span class="section-eyebrow">Genealogy</span>
-            <h2 class="section-title">Lot <em>genealogy</em></h2>
-          </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Recipe</th>
+            <th>Product SKU</th>
+            <th class="num">Ingredients</th>
+            <th class="num">Version</th>
+            <th>Created</th>
+            <th class="col-action"></th>
+          </tr>
+        </thead>
+        <tbody data-bind="recipe-tbody">
+          <tr data-empty>
+            <td colspan="6" class="empty-state">No recipes yet — create one to define a BOM.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Recipe / WO detail aside. Hidden until a row is opened. -->
+    <section id="detail-section" hidden>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow" data-bind="detail-eyebrow">—</span>
+          <h2 class="section-title" data-bind="detail-title">Detail</h2>
         </div>
-
-        <div class="panel">
-          <div class="panel-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
-
-            <div>
-              <div class="kpi-label">Output lot</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-base); font-weight: 500; margin-top: var(--space-2); color: var(--amber);">LOT-9911-P-2026</div>
-            </div>
-
-            <hr class="rule">
-
-            <div>
-              <div class="kpi-label">Inputs (4)</div>
-              <ul style="list-style: none; display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); color: var(--ink-secondary);">
-                <li>← LOT-44820-A</li>
-                <li>← LOT-44820-B</li>
-                <li>← LOT-44822-A</li>
-                <li>← LOT-31044-J</li>
-                <li>← LOT-31062-K + L (alt)</li>
-              </ul>
-            </div>
-
-            <hr class="rule">
-
-            <a href="#" class="btn btn--ghost btn-arrow"><span>View full graph</span></a>
-          </div>
-        </div>
-      </aside>
+        <button class="btn btn--sm" id="detail-close">Close</button>
+      </div>
+      <div class="panel">
+        <div class="panel-body" data-bind="detail-body" style="font-family: var(--font-mono); font-size: var(--text-xs); white-space: pre-wrap;"></div>
+      </div>
     </section>
 
   </main>
@@ -300,23 +187,12 @@
     </div>
   </footer>
 
-  <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
-    <div class="chat-dock-head" id="chat-toggle">
-      <span class="chat-dock-title"><span class="dot dot--ok"></span> Floor Chat · Shift B</span>
-      <span class="chat-caret" style="font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
-    </div>
-    <div class="chat-dock-body">
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">Production</span><span>13:42 · Lead</span></div>
-        <div class="chat-msg-body">WO-9911 yield variance flagged — pulling sample for inspection.</div>
-      </div>
-    </div>
-    <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm">Send</button>
-    </form>
-  </aside>
+  <!-- Floor chat dock removed from MVP; will be reintroduced when
+       the cross-page chat backend lands. -->
 
+  <script src="scripts/api.js"></script>
+  <script src="scripts/confirm-modal.js"></script>
   <script src="scripts/shell.js"></script>
+  <script src="scripts/production.js"></script>
 </body>
 </html>

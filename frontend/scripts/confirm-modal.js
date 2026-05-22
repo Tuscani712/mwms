@@ -221,14 +221,20 @@
     fields.forEach((f, idx) => {
       const fieldId = `cm-field-${idx}`;
       const row = document.createElement('div');
-      row.innerHTML = `
-        <label class="cm-field-label" for="${fieldId}">${escapeHtml(f.label || f.name)}${f.required ? '<span class="cm-required">*</span>' : ''}</label>
-        <input class="cm-field-input" id="${fieldId}" name="${escapeHtml(f.name)}"
+      const labelHtml = `<label class="cm-field-label" for="${fieldId}">${escapeHtml(f.label || f.name)}${f.required ? '<span class="cm-required">*</span>' : ''}</label>`;
+      if (f.type === 'select' && Array.isArray(f.options)) {
+        // SCO-51: select support for picking SKUs / recipes in the form modal.
+        const opts = f.options.map((o) =>
+          `<option value="${escapeHtml(o.value)}"${String(o.value) === String(f.value ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`,
+        ).join('');
+        row.innerHTML = `${labelHtml}<select class="cm-field-input" id="${fieldId}" name="${escapeHtml(f.name)}">${opts}</select>`;
+      } else {
+        row.innerHTML = `${labelHtml}<input class="cm-field-input" id="${fieldId}" name="${escapeHtml(f.name)}"
                type="${escapeHtml(f.type || 'text')}"
                value="${escapeHtml(f.value ?? '')}"
                placeholder="${escapeHtml(f.placeholder || '')}"
-               autocomplete="off" />
-      `;
+               autocomplete="off" />`;
+      }
       wrap.appendChild(row);
     });
   }

@@ -83,25 +83,28 @@
         <span class="section-meta">14d normal · 15-21 Lvl 3 · 22-30 Lvl 4 · 31+ persistent</span>
       </div>
 
+      <!-- Aging buckets are derived client-side from /quality/holds for MVP.
+           Full server-side aggregation (KPI endpoint /quality/kpis) deferred
+           to Quality v2 — see PAGES_WORKFLOW.md §2 candidate settings. -->
       <div class="kpi-row">
         <article class="kpi" style="--kpi-accent: var(--signal-ok);">
           <div class="kpi-label"><span class="dot dot--ok"></span> 0 — 14 Days</div>
-          <div class="kpi-value">8<span class="kpi-unit">LOTS</span></div>
+          <div class="kpi-value" data-bind="age-0-14">—</div>
           <div class="kpi-meta">Normal hold · no escalation</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-warn);">
           <div class="kpi-label"><span class="dot dot--warn"></span> 15 — 21 Days</div>
-          <div class="kpi-value">3<span class="kpi-unit">LOTS</span></div>
+          <div class="kpi-value" data-bind="age-15-21">—</div>
           <div class="kpi-meta">Lvl 3 alert · decision needed</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-crit);">
           <div class="kpi-label"><span class="dot dot--crit"></span> 22 — 30 Days</div>
-          <div class="kpi-value">2<span class="kpi-unit">LOTS</span></div>
+          <div class="kpi-value" data-bind="age-22-30">—</div>
           <div class="kpi-meta">Lvl 4 alert · executive review</div>
         </article>
         <article class="kpi" style="--kpi-accent: var(--signal-crit);">
           <div class="kpi-label"><span class="dot dot--crit"></span> 31+ Days</div>
-          <div class="kpi-value">1<span class="kpi-unit">LOT</span></div>
+          <div class="kpi-value" data-bind="age-31">—</div>
           <div class="kpi-meta">Persistent alert · pending decision</div>
         </article>
       </div>
@@ -118,11 +121,10 @@
       </div>
 
       <div class="filter-bar">
-        <input class="input" placeholder="Search lot, SKU, supplier, reason…" />
-        <span class="filter-chip" data-active="true">All</span>
-        <span class="filter-chip">Awaiting Inspect</span>
-        <span class="filter-chip">Awaiting Decision</span>
-        <span class="filter-chip">Lvl 3+ Escalation</span>
+        <input class="input" id="hold-search" placeholder="Search lot, SKU, reason…" />
+        <span class="filter-chip" data-active="true" data-filter="open">Open</span>
+        <span class="filter-chip" data-filter="resolved">Resolved</span>
+        <span class="filter-chip" data-filter="all">All</span>
       </div>
 
       <table class="data-table">
@@ -132,153 +134,22 @@
             <th>Lot</th>
             <th>SKU</th>
             <th>Hold Reason</th>
-            <th class="num">Qty</th>
+            <th>Severity</th>
             <th class="num">Held For</th>
-            <th>Tier</th>
+            <th>Status</th>
             <th class="col-action"></th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td class="col-status"><span class="dot dot--crit"></span></td>
-            <td>
-              <div class="row-title">LOT-44820-A</div>
-              <div class="row-sub">Northwind Beef</div>
-            </td>
-            <td class="mono">SKU-19044</td>
-            <td>
-              <div>Cosmetic damage on outer pkg</div>
-              <div class="row-sub">Inspector · D. Lopez</div>
-            </td>
-            <td class="num">240 units</td>
-            <td class="num">17 days</td>
-            <td><span class="tag tag--warn">Lvl 3 ALERT</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Decide</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--crit"></span></td>
-            <td>
-              <div class="row-title">LOT-44515-B</div>
-              <div class="row-sub">PrairieBag Ingredients</div>
-            </td>
-            <td class="mono">SKU-31044</td>
-            <td>
-              <div>Spec mismatch · pending re-test</div>
-              <div class="row-sub">Inspector · J. Patel</div>
-            </td>
-            <td class="num">86 bags</td>
-            <td class="num">32 days</td>
-            <td><span class="tag tag--crit">31+ PERSISTENT</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Decide</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--warn"></span></td>
-            <td>
-              <div class="row-title">LOT-44612-A</div>
-              <div class="row-sub">SunValley Produce</div>
-            </td>
-            <td class="mono">SKU-22018</td>
-            <td>
-              <div>Temp excursion at receipt</div>
-              <div class="row-sub">Inspector · D. Lopez</div>
-            </td>
-            <td class="num">410 cases</td>
-            <td class="num">24 days</td>
-            <td><span class="tag tag--crit">Lvl 4 ALERT</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Decide</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--warn"></span></td>
-            <td>
-              <div class="row-title">LOT-44712-C</div>
-              <div class="row-sub">Northwind Beef</div>
-            </td>
-            <td class="mono">SKU-19045</td>
-            <td>
-              <div>Awaiting lab result</div>
-              <div class="row-sub">Inspector · J. Patel</div>
-            </td>
-            <td class="num">120 units</td>
-            <td class="num">9 days</td>
-            <td><span class="tag tag--ok">Normal</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Inspect</span></a></td>
+          <tr data-empty>
+            <td colspan="8" class="empty-state">No holds match the current filter.</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- DECISION PANEL + SUPPLIER PERFORMANCE -->
-    <section class="page-row page-row--main-aside">
-
-      <div>
-        <div class="section-head">
-          <div class="section-head-left">
-            <span class="section-eyebrow">Lot Decision · LOT-44820-A</span>
-            <h2 class="section-title">Hold <em>decision</em></h2>
-          </div>
-          <span class="section-meta">Requires Lvl 3+ · reason mandatory</span>
-        </div>
-
-        <div class="panel">
-          <div class="panel-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5);">
-
-            <div>
-              <div class="kpi-label">Hold Summary</div>
-              <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: var(--tracking-wide);">
-                <dt style="color: var(--ink-tertiary);">Lot</dt>     <dd style="color: var(--ink-primary);">LOT-44820-A</dd>
-                <dt style="color: var(--ink-tertiary);">SKU</dt>     <dd style="color: var(--ink-primary);">SKU-19044 · Beef 80/20</dd>
-                <dt style="color: var(--ink-tertiary);">Supplier</dt><dd style="color: var(--ink-primary);">Northwind Beef Co.</dd>
-                <dt style="color: var(--ink-tertiary);">Qty</dt>     <dd style="color: var(--ink-primary);">240 units</dd>
-                <dt style="color: var(--ink-tertiary);">Value</dt>   <dd style="color: var(--ink-primary);">$1,440.00</dd>
-                <dt style="color: var(--ink-tertiary);">Held</dt>    <dd style="color: var(--ink-primary);">17 days</dd>
-                <dt style="color: var(--ink-tertiary);">Reason</dt>  <dd style="color: var(--ink-primary);">Cosmetic damage</dd>
-              </dl>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-              <a href="#" class="btn btn--primary btn-arrow" style="justify-content: space-between;"><span>Release (with note)</span></a>
-              <a href="#" class="btn btn-arrow" style="justify-content: space-between;"><span>Move to rework</span></a>
-              <a href="#" class="btn btn-arrow" style="border-color: var(--signal-crit); color: var(--signal-crit); justify-content: space-between;"><span>Destroy · approval required</span></a>
-              <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); padding-top: var(--space-2); border-top: 1px solid var(--rule-faint);">
-                ▴ Destroy ≥ $500 cost requires Lvl 4 approval
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <aside>
-        <div class="section-head">
-          <div class="section-head-left">
-            <span class="section-eyebrow">Supplier Performance</span>
-            <h2 class="section-title">Supplier <em>defect rate</em></h2>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
-
-            <div>
-              <div class="kpi-label">Northwind Beef · 30d</div>
-              <div class="callout-value" style="margin-top: var(--space-2);">0.42<span class="kpi-unit">% DEFECT</span></div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--signal-warn); margin-top: var(--space-2);">▲ +0.12 pts vs prior 30d</div>
-            </div>
-
-            <hr class="rule">
-
-            <div>
-              <div class="kpi-label">Cost of holds (30d)</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-xl); color: var(--ink-primary); margin-top: var(--space-2);">$8,420</div>
-              <div style="font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide); color: var(--ink-tertiary); margin-top: 2px;">Including LOT-44820-A</div>
-            </div>
-
-            <hr class="rule">
-
-            <a href="#" class="btn btn--ghost btn-arrow"><span>View supplier scorecard</span></a>
-          </div>
-        </div>
-      </aside>
-    </section>
+    <!-- Supplier performance + cost-of-holds panels removed for MVP.
+         /quality/suppliers/performance endpoint not yet implemented — see
+         PAGES_WORKFLOW.md §2. Will be reintroduced when SCO-50 v2 lands. -->
 
   </main>
 
@@ -289,23 +160,11 @@
     </div>
   </footer>
 
-  <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
-    <div class="chat-dock-head" id="chat-toggle">
-      <span class="chat-dock-title"><span class="dot dot--ok"></span> Floor Chat · Shift B</span>
-      <span class="chat-caret" style="font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
-    </div>
-    <div class="chat-dock-body">
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">System</span><span>14:38 · Auto</span></div>
-        <div class="chat-msg-body">LOT-44820-A · 17 days held · Lvl 3 alert auto-fired.</div>
-      </div>
-    </div>
-    <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm">Send</button>
-    </form>
-  </aside>
+  <!-- Floor chat dock removed for MVP. -->
 
+  <script src="scripts/api.js"></script>
+  <script src="scripts/confirm-modal.js"></script>
   <script src="scripts/shell.js"></script>
+  <script src="scripts/quality.js"></script>
 </body>
 </html>

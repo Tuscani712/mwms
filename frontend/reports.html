@@ -63,143 +63,112 @@
       KPIs refresh every 5 minutes. Daily reports auto-generate at 03:00. Manual triggers available on demand.
     </p>
     <div class="page-actions">
-      <a href="#" class="btn btn--primary btn-arrow"><span>Generate genealogy</span></a>
-      <a href="#" class="btn btn-arrow"><span>Export shift report</span></a>
-      <a href="#" class="btn btn--ghost"><span>Build custom report</span></a>
+      <button id="btn-refresh" class="btn btn--primary btn-arrow"><span>Refresh</span></button>
+      <!-- Genealogy generation / CSV export / custom report builder are
+           PAGES_WORKFLOW §4 follow-ups (deferred from MVP). -->
     </div>
   </div>
 
   <main class="page">
 
-    <!-- QUICK REPORTS -->
+    <!-- MVP scope: four live tiles backed by /api/v1/reports/*. The richer
+         report library (genealogy walks, supplier scorecards, outliers,
+         CSV exports, recent-runs ledger) lives in PAGES_WORKFLOW.md §4 and
+         is deferred from this MVP pass. -->
+
     <section>
       <div class="section-head">
         <div class="section-head-left">
-          <span class="section-eyebrow">Quick Reports</span>
-          <h2 class="section-title">Quick <em>reports</em></h2>
+          <span class="section-eyebrow">Dashboard</span>
+          <h2 class="section-title">Site <em>snapshot</em></h2>
         </div>
-        <span class="section-meta">Auto-daily 03:00 · or run on-demand</span>
+        <span class="section-meta">GET /api/v1/reports/dashboard</span>
       </div>
-
-      <div class="actions-grid">
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.GENEALOGY</span>
-          <span class="action-tile-title">Lot<br>genealogy</span>
-          <span class="action-tile-desc">End-to-end traceability for any lot. Auto-daily + on-demand for recall/variance.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.SHIP.ACCURACY</span>
-          <span class="action-tile-title">Shipping<br>accuracy</span>
-          <span class="action-tile-desc">Pick accuracy, on-time %, FEFO compliance — by shift, day, or week.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.SUPPLIER</span>
-          <span class="action-tile-title">Supplier<br>scorecard</span>
-          <span class="action-tile-desc">Defect rate, on-time delivery, trending, cost of holds per supplier.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.INVENTORY.AGING</span>
-          <span class="action-tile-title">Inventory<br>aging</span>
-          <span class="action-tile-desc">Items past N-days threshold. Slow-mover candidates for clearance review.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.QA.HOLDS</span>
-          <span class="action-tile-title">QA hold<br>aging</span>
-          <span class="action-tile-desc">Held lots by tier (14d, 21d, 30d+). Cost impact + escalation status.</span>
-        </a>
-
-        <a href="#" class="action-tile">
-          <span class="action-tile-code">RPT.OUTLIERS</span>
-          <span class="action-tile-title">Outlier<br>detection</span>
-          <span class="action-tile-desc">Per-user and team baselines. Flags &gt;20% deviation (configurable).</span>
-        </a>
-
+      <div class="kpi-row">
+        <article class="kpi" style="--kpi-accent: var(--amber);">
+          <div class="kpi-label">Open orders</div>
+          <div class="kpi-value" data-bind="kpi-open-orders">—</div>
+        </article>
+        <article class="kpi" style="--kpi-accent: var(--signal-ok);">
+          <div class="kpi-label">Open work orders</div>
+          <div class="kpi-value" data-bind="kpi-open-wos">—</div>
+        </article>
+        <article class="kpi" style="--kpi-accent: var(--signal-warn);">
+          <div class="kpi-label">Receipts today</div>
+          <div class="kpi-value" data-bind="kpi-receipts-today">—</div>
+        </article>
+        <article class="kpi" style="--kpi-accent: var(--ember);">
+          <div class="kpi-label">QA-held lots</div>
+          <div class="kpi-value" data-bind="kpi-qa-held">—</div>
+        </article>
       </div>
     </section>
 
-    <!-- RECENT REPORT RUNS -->
     <section>
       <div class="section-head">
         <div class="section-head-left">
-          <span class="section-eyebrow">Recent Runs</span>
-          <h2 class="section-title">Recent <em>runs</em></h2>
+          <span class="section-eyebrow">Inventory aging</span>
+          <h2 class="section-title">Lot <em>aging</em></h2>
         </div>
-        <span class="section-meta">Auto + manual · last 7 days</span>
+        <span class="section-meta">GET /api/v1/reports/inventory-aging</span>
       </div>
-
       <table class="data-table">
         <thead>
           <tr>
-            <th class="col-status"></th>
-            <th>Report</th>
-            <th>Scope</th>
-            <th>Run By</th>
-            <th class="num">Started</th>
-            <th class="num">Size</th>
-            <th>Status</th>
-            <th class="col-action"></th>
+            <th>Bucket</th>
+            <th class="num">Lot count</th>
+            <th class="num">Total qty</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td>
-              <div class="row-title">Lot genealogy</div>
-              <div class="row-sub">RPT.GENEALOGY</div>
-            </td>
-            <td>LOT-44820-A · downstream</td>
-            <td>M. Tuscani</td>
-            <td class="num">14:21</td>
-            <td class="num">2.4 MB</td>
-            <td><span class="tag tag--ok">Ready</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td>
-              <div class="row-title">Daily genealogy roll-up</div>
-              <div class="row-sub">RPT.GENEALOGY · auto</div>
-            </td>
-            <td>All lots · 2026-05-15</td>
-            <td>System · 03:00</td>
-            <td class="num">03:00</td>
-            <td class="num">28.4 MB</td>
-            <td><span class="tag tag--ok">Ready</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--amber"></span></td>
-            <td>
-              <div class="row-title">Supplier scorecard</div>
-              <div class="row-sub">RPT.SUPPLIER</div>
-            </td>
-            <td>Northwind Beef · 30d</td>
-            <td>S. Mendez</td>
-            <td class="num">11:42</td>
-            <td class="num">186 KB</td>
-            <td><span class="tag tag--amber">Generating</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Wait</span></a></td>
-          </tr>
-          <tr>
-            <td class="col-status"><span class="dot dot--ok"></span></td>
-            <td>
-              <div class="row-title">Outlier detection</div>
-              <div class="row-sub">RPT.OUTLIERS</div>
-            </td>
-            <td>Shift A · all metrics</td>
-            <td>System · auto</td>
-            <td class="num">06:00</td>
-            <td class="num">412 KB</td>
-            <td><span class="tag tag--ok">Ready · 3 outliers</span></td>
-            <td class="col-action"><a href="#" class="btn btn--sm btn-arrow"><span>Open</span></a></td>
-          </tr>
+        <tbody data-bind="aging-tbody">
+          <tr data-empty><td colspan="3" class="empty-state">No data — refresh to load.</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Production yield</span>
+          <h2 class="section-title">Yield by <em>recipe</em></h2>
+        </div>
+        <span class="section-meta">GET /api/v1/reports/production</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Recipe</th>
+            <th>Product SKU</th>
+            <th class="num">WOs completed</th>
+            <th class="num">Target total</th>
+            <th>Last completed</th>
+          </tr>
+        </thead>
+        <tbody data-bind="prod-tbody">
+          <tr data-empty><td colspan="5" class="empty-state">No completed work orders yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Shipping</span>
+          <h2 class="section-title">Shipping <em>summary</em></h2>
+        </div>
+        <span class="section-meta">GET /api/v1/reports/shipping</span>
+      </div>
+      <div class="kpi-row">
+        <article class="kpi" style="--kpi-accent: var(--signal-ok);">
+          <div class="kpi-label">Total shipments</div>
+          <div class="kpi-value" data-bind="kpi-shipments">—</div>
+        </article>
+        <article class="kpi" style="--kpi-accent: var(--amber);">
+          <div class="kpi-label">Open orders</div>
+          <div class="kpi-value" data-bind="kpi-ship-open">—</div>
+        </article>
+        <!-- TODO: on-time % once Order.promised_at exists. -->
+      </div>
     </section>
 
   </main>
@@ -211,23 +180,10 @@
     </div>
   </footer>
 
-  <aside class="chat-dock chat-dock--collapsed" id="chat-dock">
-    <div class="chat-dock-head" id="chat-toggle">
-      <span class="chat-dock-title"><span class="dot dot--ok"></span> Floor Chat · Shift B</span>
-      <span class="chat-caret" style="font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-tertiary);">▴</span>
-    </div>
-    <div class="chat-dock-body">
-      <div class="chat-msg">
-        <div class="chat-msg-meta"><span class="chat-msg-author">System</span><span>03:00 · Auto</span></div>
-        <div class="chat-msg-body">Daily lot genealogy roll-up ready · 28.4 MB · 4,820 lots indexed.</div>
-      </div>
-    </div>
-    <form class="chat-dock-input" onsubmit="event.preventDefault();">
-      <input class="input input--mono" placeholder="// type a message…" />
-      <button class="btn btn--primary btn--sm">Send</button>
-    </form>
-  </aside>
+  <!-- Floor chat dock removed for MVP. -->
 
+  <script src="scripts/api.js"></script>
   <script src="scripts/shell.js"></script>
+  <script src="scripts/reports.js"></script>
 </body>
 </html>

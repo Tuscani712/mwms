@@ -4,10 +4,11 @@ SCO-49 · See PAGES_WORKFLOW.md §1.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.models import User
+from wms.models import SKU, User
 from wms.schemas.inventory import (
     AdjustOut,
     AdjustRequest,
@@ -21,6 +22,27 @@ from wms.services import inventory as svc
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 _ADJUST_MIN_LEVEL = 3
+
+
+# SCO-51: SKU picker for the production module (recipe + WO modals need to
+# enumerate SKUs in the caller's site). Lightweight projection — full SKU
+# detail still goes through /inventory/sku/{code}.
+class SKURow(BaseModel):
+    id: int
+    code: str
+    description: str
+    uom: str
+    requires_qc: bool
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/skus", response_model=list[SKURow])
+def list_skus(
+    db: Session = Depends(get_session), user: User = Depends(get_current_user)
+) -> list[SKURow]:
+    rows = db.query(SKU).filter(SKU.site_id == user.site_id).order_by(SKU.code).all()
+    return [SKURow.model_validate(r) for r in rows]
 
 
 @router.get("/lots", response_model=LotSearchOut)

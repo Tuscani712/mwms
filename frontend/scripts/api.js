@@ -40,6 +40,16 @@ window.WMS_API = (() => {
     const res = await fetch(`${BASE}${path}`, opts);
     if (res.status === 401) {
       clear();
+      // SCO-87 PART B: centralized 401 surface. Fire a single global
+      // "session-expired" event so the banner renders once even if many
+      // in-flight requests race to a 401 during the same lapse. Skip on
+      // login.html — bad-credential 401s there are handled inline by the
+      // form's submit handler.
+      const onLogin = /(^|\/)login\.html(\?|#|$)/.test(window.location.pathname + window.location.search);
+      if (!onLogin && !window.__wmsSessionExpired) {
+        window.__wmsSessionExpired = true;
+        try { window.dispatchEvent(new CustomEvent('wms:session-expired')); } catch (_) {}
+      }
       // Soft-fail: callers may handle this and fall back to mock display
       throw new Error('Unauthorized');
     }
@@ -180,4 +190,58 @@ window.WMS_API = (() => {
         request(`/sites/${encodeURIComponent(site_id)}/toggle-online`, { method: 'POST' }),
     },
   };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCO-87 PART B — Global "Session expired" banner
+   Listens for the wms:session-expired event fired by api.js on the first 401
+   per session-lapse window. Renders a fixed top banner with Sign-in + Dismiss.
+   ─────────────────────────────────────────────────────────────────────────── */
+(function installSessionExpiredBanner() {
+  'use strict';
+  if (window.__wmsExpiredHandlerInstalled) return;
+  window.__wmsExpiredHandlerInstalled = true;
+
+  function buildBanner() {
+    if (document.getElementById('wms-session-expired-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'wms-session-expired-banner';
+    banner.setAttribute('role', 'alert');
+    banner.style.cssText =
+      'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+      'padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:16px;' +
+      'background:#7f1d1d;color:#fff;font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);' +
+      'font-size:13px;letter-spacing:0.04em;box-shadow:0 2px 8px rgba(0,0,0,0.35);';
+
+    var msg = document.createElement('span');
+    msg.textContent = '● Session expired — please sign in again.';
+
+    var signIn = document.createElement('button');
+    signIn.type = 'button';
+    signIn.textContent = 'Sign in';
+    signIn.style.cssText =
+      'background:#fff;color:#7f1d1d;border:0;padding:6px 14px;font-weight:600;cursor:pointer;border-radius:3px;';
+    signIn.addEventListener('click', function () {
+      var here = window.location.pathname + window.location.search;
+      window.location.href = 'login.html?return=' + encodeURIComponent(here);
+    });
+
+    var dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.textContent = 'Dismiss';
+    dismiss.setAttribute('aria-label', 'Dismiss session-expired banner');
+    dismiss.style.cssText =
+      'background:transparent;color:#fecaca;border:1px solid #fecaca;padding:6px 10px;cursor:pointer;border-radius:3px;';
+    dismiss.addEventListener('click', function () { banner.remove(); });
+
+    banner.appendChild(msg);
+    banner.appendChild(signIn);
+    banner.appendChild(dismiss);
+    (document.body || document.documentElement).appendChild(banner);
+  }
+
+  window.addEventListener('wms:session-expired', function () {
+    if (document.body) buildBanner();
+    else document.addEventListener('DOMContentLoaded', buildBanner, { once: true });
+  });
 })();

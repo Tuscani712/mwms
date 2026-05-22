@@ -19,8 +19,11 @@ from wms.api.v1 import (
     inventory,
     mfa,
     policy,
+    production,
     profile,
+    quality,
     receiving,
+    reports,
     shipping,
     sites,
 )
@@ -93,6 +96,9 @@ def create_app() -> FastAPI:
     app.include_router(receiving.router, prefix=api_prefix)
     app.include_router(shipping.router, prefix=api_prefix)
     app.include_router(inventory.router, prefix=api_prefix)
+    app.include_router(production.router, prefix=api_prefix)
+    app.include_router(quality.router, prefix=api_prefix)
+    app.include_router(reports.router, prefix=api_prefix)
     app.include_router(profile.router, prefix=api_prefix)
     app.include_router(profile.admin_router, prefix=api_prefix)
     app.include_router(policy.router, prefix=api_prefix)
