@@ -474,6 +474,27 @@ except Exception: pass" 2>/dev/null)
     info "Skipping auth checks (curl not installed)"
   fi
 
+  # CSS lint pass — catches undefined CSS custom properties before they ship.
+  # Silent-render failures (like the inventory dropdown bleed-through bug) come
+  # from typos in var(--name) that browsers don't warn about, so we lint them.
+  if command -v npx >/dev/null 2>&1 && [[ -f "$ROOT/package.json" ]] && [[ -d "$ROOT/node_modules/stylelint" ]]; then
+    local css_out css_code
+    css_out=$(cd "$ROOT" && npm run --silent lint:css 2>&1)
+    css_code=$?
+    if (( css_code == 0 )); then
+      printf "  %s ✓ CSS lint%s          %sstylelint clean%s\n" "$C_GRN" "$C_RST" "$C_DIM" "$C_RST"
+      pass=$(( pass + 1 ))
+    else
+      local err_count
+      err_count=$(printf '%s' "$css_out" | grep -cE '✖' || true)
+      printf "  %s ✗ CSS lint%s          %s%d stylelint error(s) — run: npm run lint:css%s\n" \
+        "$C_RED" "$C_RST" "$C_DIM" "$err_count" "$C_RST"
+      fails=$(( fails + 1 ))
+    fi
+  else
+    info "Skipping CSS lint (run: npm install)"
+  fi
+
   echo
   if (( fails == 0 )); then
     ok "Smoke test: $pass/$((pass+fails)) checks passed"
@@ -507,8 +528,8 @@ menu_loop() {
   while true; do
     echo
     echo "  ${C_BLD}[s]${C_RST} Status     ${C_BLD}[b]${C_RST} Tail backend log   ${C_BLD}[f]${C_RST} Tail frontend log"
-    echo "  ${C_BLD}[r]${C_RST} Restart    ${C_BLD}[t]${C_RST} Smoke test         ${C_BLD}[o]${C_RST} Open login URL"
-    echo "  ${C_BLD}[q]${C_RST} Quit"
+    echo "  ${C_BLD}[r]${C_RST} Restart    ${C_BLD}[t]${C_RST} Smoke test         ${C_BLD}[l]${C_RST} CSS lint"
+    echo "  ${C_BLD}[o]${C_RST} Open login URL    ${C_BLD}[q]${C_RST} Quit"
     printf "%swms>%s " "$C_BLU" "$C_RST"
     # Ctrl+D (EOF) → fall through to exit; EXIT trap stops both services.
     local cmd; read -r cmd || { echo; exit 0; }
@@ -517,6 +538,13 @@ menu_loop() {
       b|B) [[ -f "$BACKEND_LOG" ]] && tail -n 25 "$BACKEND_LOG" || warn "No backend log yet" ;;
       f|F) [[ -f "$FRONTEND_LOG" ]] && tail -n 25 "$FRONTEND_LOG" || warn "No frontend log yet" ;;
       t|T|test|smoke) smoke_test ;;
+      l|L|lint)
+        if [[ ! -d "$ROOT/node_modules/stylelint" ]]; then
+          warn "stylelint not installed — run: npm install"
+        else
+          (cd "$ROOT" && npm run lint:css)
+        fi
+        ;;
       r|R|restart)
         if [[ -f "$RESTART_LOCK" ]]; then
           warn "Restart already in progress — ignoring."

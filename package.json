@@ -1,0 +1,18 @@
+{
+  "name": "wms_software",
+  "version": "1.0.0",
+  "description": "WMS — warehouse management software (FastAPI + static frontend).",
+  "private": true,
+  "scripts": {
+    "lint:css": "stylelint \"frontend/styles/*.css\" \"frontend/*.html\"",
+    "lint:css:fix": "stylelint \"frontend/styles/*.css\" \"frontend/*.html\" --fix"
+  },
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "devDependencies": {
+    "postcss-html": "^1.8.1",
+    "stylelint": "^17.12.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-value-no-unknown-custom-properties": "^6.1.1"
+  }
+}
