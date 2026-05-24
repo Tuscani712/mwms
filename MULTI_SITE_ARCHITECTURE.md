@@ -285,6 +285,200 @@ Switching site causes **all 5 values to repoint** to the new site's endpoints �
 
 ---
 
+## COMMERCIAL LIFECYCLE — NEGOTIATION → DEPLOYMENT → DECOMMISSION
+
+> **Status**: Proposal · 2026-05-21 · Awaiting Meatbag review.
+> **Why this section exists**: prior sections describe how the *technical* federation works once a client is running. This section describes how a client *becomes* a running client, how we control them commercially, and how they exit. It introduces a second control plane (the **Vendor Control Plane**) that has been implicit until now.
+
+### Two Control Planes (Critical Distinction)
+
+We have been talking about "the master server" as if it were one thing. It is two:
+
+| Plane | Owner | Lives Where | Trust Boundary | Job |
+|---|---|---|---|---|
+| **Vendor Control Plane (VCP)** | **Us** (the vendor) | Our cloud | Cross-tenant; sees every client | License issuance + validation, signed installer/update distribution, feature flagging, fleet telemetry rollup, billing hooks, support remote-access broker |
+| **Master Control Site (MCS)** | **Client** | Client infra (cloud or on-prem) | Single tenant; sees only their own sites | Site directory, user federation, cross-site KPI rollup, recall coordination, backup orchestration, license cache (verified against VCP) |
+
+**Rule**: VCP can talk to many MCSes. An MCS talks to exactly one VCP (ours). Sites talk only to their MCS (never directly to VCP). This three-tier shape is what lets us shut off a non-paying client without touching their site operations directly, and what lets a client keep running for the grace period if our VCP is unreachable.
+
+### The Full Lifecycle (Negotiation → Decom)
+
+```
+┌─ Phase 0: PRE-SALES ────────────────────────────────────────────────┐
+│  Lead → Discovery call → Demo → NDA (if needed) → Site survey       │
+│  Outputs: Needs Assessment doc, draft sizing, proposed plan + addons│
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 1: COMMERCIAL ───────────────────────────────────────────────┐
+│  Quote → MSA + DPA + SLA sign → PO/Invoice → Payment cleared        │
+│  Outputs: Signed contracts, client_id minted in VCP, billing seat   │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 2: LICENSE ISSUANCE ─────────────────────────────────────────┐
+│  VCP mints signed License Token (JWT-style) bound to client_id     │
+│  Token carries: plan, addons[], max_sites, max_users, expiry,      │
+│                 entitled_features[], support_tier, signature       │
+│  Token + installer download link delivered via client portal       │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 3: PRE-DEPLOYMENT ───────────────────────────────────────────┐
+│  Tech check: Ubuntu version, RAM/CPU/disk, network egress to VCP,  │
+│              DNS records, TLS cert (or LetsEncrypt automation),    │
+│              backup target chosen, time sync OK                    │
+│  Master data prep: items, customers, suppliers, recipes, lots      │
+│  User roster: extracted from client HR or built fresh              │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 4: MCS DEPLOYMENT ───────────────────────────────────────────┐
+│  Install MCS with: WMS_VCP_URL + License Token + admin bootstrap   │
+│  MCS calls VCP → validates license → caches signed entitlements    │
+│  First admin account created at MCS via setup wizard               │
+│  ↓                                                                  │
+│  SMALL-CLIENT FORK: if license allows single-server mode, MCS      │
+│  also runs as the only site (master+site=same host, same DB).      │
+│  Larger clients proceed to Phase 5.                                 │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 5: SITE ENROLLMENT (per additional site) ────────────────────┐
+│  At MCS: admin creates site record → MCS mints Enrollment Key      │
+│  (already scaffolded in SCO-118 UI — pending backend wire-up)      │
+│  Key delivered to site installer → site boots → MCS verifies →     │
+│  site marked "Enrolled" → site fetches initial config from MCS     │
+│  License max_sites enforced by MCS at enrollment time              │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 6: GO-LIVE ──────────────────────────────────────────────────┐
+│  Cutover plan: dry-run / parallel-run / hard-cut                   │
+│  Hypercare window (typically 14d): elevated support tier, daily    │
+│  check-ins, monitored telemetry                                    │
+│  Sign-off → site moves to "Production" lifecycle state             │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 7: OPERATE ──────────────────────────────────────────────────┐
+│  License heartbeat: MCS → VCP daily (carries fleet health digest)  │
+│  Update channel: VCP publishes signed release manifests; MCS       │
+│    schedules per-site rollouts per client policy (canary/staged)   │
+│  Backup orchestration: MCS coordinates site-local + offsite copies │
+│  Telemetry: opt-in errors + perf summaries flow MCS→VCP            │
+│  Renewals + addon upgrades: VCP re-mints license → MCS picks up    │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+┌─ Phase 8: DECOMMISSION / OFFBOARDING ───────────────────────────────┐
+│  Client-initiated OR vendor-initiated (non-payment, breach)        │
+│  Data export bundle (CSV + signed audit archive) delivered         │
+│  License revoked at VCP → MCS enters wind-down (read-only N days)  │
+│  Sites archived → keys destroyed → MCS uninstall + data retention  │
+│    per DPA (typically 30/90 days then cryptographic erase)          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### License Authority — Design Sketch
+
+The VCP includes a **License Authority Service** with this contract:
+
+**License Token (issued at sale, refreshed on renewal/upgrade):**
+```jsonc
+{
+  "iss": "vcp.wms.example.com",
+  "sub": "client_<uuid>",
+  "iat": 1747860000,
+  "exp": 1779396000,           // 1-year term (typical)
+  "grace_seconds": 1209600,    // 14d offline grace after exp / unreachable VCP
+  "plan": "scale",              // starter | growth | scale | enterprise
+  "addons": ["recipes", "cold_chain", "recall_coordinator", "sso"],
+  "limits": {
+    "max_sites": 5,
+    "max_users_per_site": 50,
+    "max_active_lots": 100000,
+    "max_storage_gb": 500
+  },
+  "features": ["multi_site", "federated_users", "mcs_backup_offsite"],
+  "support_tier": "gold",
+  "telemetry_required": true,   // gold/enterprise can negotiate this off
+  "signature": "ed25519:..."
+}
+```
+
+**Validation flow:**
+1. MCS boot → reads token from `/etc/wms/license.token` → verifies signature against VCP public key (shipped with installer).
+2. MCS calls `POST vcp/v1/license/heartbeat` daily with `{client_id, token_hash, fleet_digest}`.
+3. VCP responds with `{status: valid|grace|revoked, refresh_token?, feature_flags?}`.
+4. On `revoked` → MCS enters read-only mode after a configurable warning window (default 72h, gives client time to call billing).
+5. On unreachable VCP → MCS keeps operating until `grace_seconds` elapses, then degrades.
+
+**Why ed25519 signed tokens + heartbeat (not just an API call):**
+- Survives short VCP outages — clients don't go down when our cloud blips.
+- Token can't be forged without our private key, so tampering with `/etc/wms/license.token` is detectable.
+- Heartbeat shape lets us push *changes* (new addon, raised limit) without re-issuing a token.
+- Fleet digest in the heartbeat gives us inventory of running versions for support / CVE response.
+
+### Software Distribution + Updates
+
+VCP also acts as the **release authority**:
+
+| Artifact | Signed By | Distributed To | Consumed When |
+|---|---|---|---|
+| Installer (Ubuntu .deb / Docker image) | VCP release key | Client portal download | Phase 4 deploy |
+| Release manifest (per channel: stable, edge) | VCP release key | MCS subscribes to channel | MCS polls every 6h |
+| Site binary bundle | VCP release key | MCS pulls + caches, fans out to sites | Per site policy |
+| CVE / hotfix bundle | VCP release key | MCS auto-applies on `critical` flag | Immediate |
+
+**Per-site rollout policy** (configured at MCS, enforced by MCS):
+- `auto`: install on next maintenance window
+- `staged`: canary one site for 24h, then fleet
+- `manual`: admin clicks "Deploy" per site
+- `pinned`: this site holds at version X (compliance freeze / GxP qualification)
+
+**Rollback**: MCS keeps last 2 binaries per site; rollback is a single command against a site.
+
+### Backup Strategy (clarifying your "master controls backups")
+
+Three-tier:
+1. **Site-local snapshot** (every N hours, configurable): site's own disk. Fast restore from same host.
+2. **MCS-aggregated**: sites push encrypted backup manifests + chunks to MCS. Survives site host loss.
+3. **Vendor-offsite** (optional, license-gated): MCS pushes to vendor-managed bucket (or client's own S3). Survives MCS host loss.
+
+**Restore drill**: monthly automated test that pulls a backup chunk and verifies hash. Reported up to VCP fleet view.
+
+**Retention**: per-tier configurable, defaults 7d / 30d / 365d.
+
+### Gaps in Your Sketch (Things to Add Before Phase 1)
+
+Walking your bullet points and naming what's implied but not stated:
+
+1. **Pre-sales / discovery deliverables** — what document captures "needs assessment"? Proposing a templated *Site Sizing & Plan Selection* form so we don't sell a 5-site enterprise license to a single-warehouse shop. Lives in client portal.
+2. **Plan + addon SKU catalog** — there must be a canonical list of plans (starter/growth/scale/enterprise?) and addons (cold-chain, recipes/BOM, recall coordinator, SSO, federated users, vendor-offsite-backup). Without this, license tokens can't have stable `plan`/`addons` enums. **Proposing a `PLANS_AND_ADDONS.md` doc** as the source of truth.
+3. **Contracts artifacts** — MSA, DPA (data processing), SLA, security questionnaire response. These influence the license token (`support_tier`, `telemetry_required`, retention windows).
+4. **Client portal** — for license download, installer download, support tickets, billing. Not in scope today but referenced in the lifecycle so we don't forget it.
+5. **License Authority architecture** — covered above. Was missing from your sketch entirely; you said "potentially a separate master server" — *yes, separate, and not optional in my view*.
+6. **Signed installer + release channels** — your sketch said "master controls per-site software revision" but didn't say where the binaries come from or who signs them. Without VCP signing, a compromised network can ship a backdoored update to a client.
+7. **Telemetry consent + scope** — what we collect, what we don't, opt-out rules per plan. Required for SOC2 + EU clients.
+8. **Support remote access** — when a client opens a P1, how do we get in? Proposing a VCP-brokered, time-bound, client-approved reverse-tunnel session (audit-logged at both ends).
+9. **Renewal + upgrade flow** — what happens 30/14/7d before expiry? In-product banner driven by token `exp`, email from VCP, billing trigger.
+10. **Decom + offboarding** — your sketch ended at deployment. Equally important: data export bundle format, license revocation behavior (immediate vs wind-down), data retention per DPA, cryptographic erase certificate delivered to client.
+11. **Hardware sizing tiers** — installer needs a "this host is too small for your plan" check. VCP heartbeat could surface "running on undersized infra" warnings to fleet view.
+12. **Time sync / TLS / DNS prereqs** — explicit prerequisites checklist the installer runs before going live. Reduces "it doesn't work and we don't know why" support tickets.
+13. **Disaster recovery for MCS itself** — if the client's MCS host dies, what's the playbook? Restore from MCS-tier backup, re-validate license, sites reconnect. Needs a documented runbook before first enterprise sale.
+14. **Multi-region / standby MCS** — already in Open Questions §2. Worth keeping; matters for enterprise SLAs.
+15. **Compliance posture** — for food/cold-chain, FSMA 204 traceability is the big one. The architecture should keep this in scope so we don't paint ourselves out of it.
+16. **Internal CRM/operations layer** — *we* need a place to see "Client Acme · Plan: scale · 4 sites · last heartbeat: 2h ago · license expires in 45d · payment current". That's a vendor-side admin UI on top of VCP. Probably the smallest version of this is the same admin scaffolding we already built, repointed at the VCP DB.
+
+### Recommended Next Architectural Tasks (proposal — not creating yet)
+
+In rough priority:
+
+1. **VCP scope doc** — separate `VENDOR_CONTROL_PLANE.md` describing the License Authority, release authority, telemetry collector, and support broker. Today's `MULTI_SITE_ARCHITECTURE.md` covers client-side only.
+2. **Plans & Addons catalog** — `PLANS_AND_ADDONS.md` canonical SKU list.
+3. **License token schema + sample verifier** — code + doc, so backend devs can test against fixture tokens before VCP exists.
+4. **Installer prereq checklist + script** — `scripts/preflight.sh` that the installer runs first.
+5. **DPA / data retention policy doc** — `DATA_PROCESSING.md` so the client portal can link to it.
+6. **Client portal MVP spec** — separate frontend, separate auth (vendor identity, not client identity).
+7. **MCS-tier backup orchestrator spec** — drops into the existing MCS scope; pairs with backup destinations in the license.
+
+Items 1–3 unblock everything else; the rest can stage in.
+
+---
+
 ## RELATED DOCS
 
 - `WMS_plan.txt` — Core feature spec (single-site behavior)
@@ -292,11 +486,14 @@ Switching site causes **all 5 values to repoint** to the new site's endpoints �
 - `PERMISSION_SYSTEM.md` — Per-site permission evaluation
 - `FRONTEND_DESIGN_SCHEMA.md` — UI patterns (site selector on login)
 - `frontend/login.html` — Reference implementation of site picker UI
+- *(proposed)* `VENDOR_CONTROL_PLANE.md` — VCP scope, License Authority, release signing, telemetry contract
+- *(proposed)* `PLANS_AND_ADDONS.md` — canonical plan + addon SKU catalog
+- *(proposed)* `DATA_PROCESSING.md` — DPA, retention, cryptographic erase policy
 
 ---
 
-**Version**: 1.1
-**Status**: Architecture approved · frontend dummy-form scaffolding shipped (SCO-118, 2026-05-21) · awaiting test VMs for backend wire-up
+**Version**: 1.2
+**Status**: Architecture approved · frontend dummy-form scaffolding shipped (SCO-118, 2026-05-21) · Commercial Lifecycle + VCP proposal added 2026-05-21 (awaiting review) · awaiting test VMs for backend wire-up
 
 ---
 

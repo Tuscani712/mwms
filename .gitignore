@@ -52,6 +52,7 @@ frontend/assets/clients/
 *.sqlite
 *.sqlite3
 *.db
+data/
 data/local/
 backend/data/
 backend/wms.db*
