@@ -1,0 +1,48 @@
+Nisaba — Proprietary License
+============================
+
+Copyright (c) 2026 Nisaba. All rights reserved.
+
+This software, including its source code, object code, documentation, design
+files, configuration, schemas, test suites, and any accompanying materials
+(collectively, the "Software"), is the confidential and proprietary work of
+Nisaba and is protected by United States and international copyright,
+trade-secret, and related laws.
+
+No license, express or implied, is granted to any person or entity to use,
+copy, modify, merge, publish, distribute, sublicense, sell, host, or create
+derivative works of the Software, in whole or in part, except pursuant to a
+separate written agreement executed by an authorized representative of
+Nisaba.
+
+Access to the Software's source code does not constitute permission to use
+or reproduce it. Receipt of a copy of the Software, whether through
+authorized or unauthorized channels, does not transfer any rights other than
+those granted in writing by Nisaba.
+
+Trade-Secret Notice
+-------------------
+The Software embodies trade secrets and confidential business information of
+Nisaba. Any disclosure, use, or reproduction of any portion of the Software
+outside the scope of an executed written agreement with Nisaba is strictly
+prohibited and may result in civil and criminal liability.
+
+Third-Party Components
+----------------------
+The Software incorporates open-source components distributed under their own
+licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, HPND,
+Unlicense, CC0-1.0, PSF-2.0). The full inventory and applicable terms are
+documented in LICENSING.md. The terms of those licenses apply to the
+respective components only and do not grant any rights to the Software as a
+whole.
+
+Disclaimer
+----------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+Contact
+-------
+For licensing inquiries, contact: legal@nisaba.example  (replace before
+first external distribution).
