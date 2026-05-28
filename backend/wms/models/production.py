@@ -18,7 +18,7 @@ MVP scope notes (each TODO is intentionally left here for future iteration):
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from wms.db.base import Base
@@ -61,7 +61,8 @@ class WorkOrder(Base):
     # Snapshot of the recipe version at WO creation. When versioning lands,
     # this field is what protects a running WO from a mid-flight recipe edit.
     recipe_version_snapshot: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    target_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    # SCO-143: target/actual yields in base UoM, decimal-capable.
+    target_qty: Mapped[float] = mapped_column(Float, nullable=False)
     # State machine: draft → reserved → running → completed.
     # `cancel` is the only exit from reserved/running short of completed.
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True, nullable=False)
@@ -78,4 +79,5 @@ class WorkOrderReservation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     work_order_id: Mapped[int] = mapped_column(ForeignKey("work_orders.id"), index=True, nullable=False)
     lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"), index=True, nullable=False)
-    qty_reserved: Mapped[int] = mapped_column(Integer, nullable=False)
+    # SCO-143: reservation qty in base UoM, decimal-capable (e.g., 1.5 lb).
+    qty_reserved: Mapped[float] = mapped_column(Float, nullable=False)

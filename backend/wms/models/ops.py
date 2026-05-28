@@ -38,8 +38,12 @@ class ASNLine(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     asn_id: Mapped[int] = mapped_column(ForeignKey("asns.id"), nullable=False)
     sku_id: Mapped[int] = mapped_column(ForeignKey("skus.id"), nullable=False)
-    expected_qty: Mapped[int] = mapped_column(default=0)
-    received_qty: Mapped[int] = mapped_column(default=0)
+    # SCO-143: expected/received quantities are in the SKU's PURCHASE UoM
+    # (the truck-driver-facing unit — bags, packs, cases). Service-side
+    # multiplies by sku.base_per_purchase_unit to derive Lot.quantity in
+    # base UoM at receipt time.
+    expected_qty: Mapped[float] = mapped_column(Float, default=0.0)
+    received_qty: Mapped[float] = mapped_column(Float, default=0.0)
     qc_status: Mapped[str] = mapped_column(String(20), default="pending")
 
     asn: Mapped[ASN] = relationship(back_populates="lines")
@@ -63,8 +67,10 @@ class ReceiptLine(Base):
     receipt_id: Mapped[int] = mapped_column(ForeignKey("receipts.id"), nullable=False)
     asn_line_id: Mapped[int] = mapped_column(ForeignKey("asn_lines.id"), nullable=False)
     lot_id: Mapped[int | None] = mapped_column(ForeignKey("lots.id"), nullable=True)
-    qty_received: Mapped[int] = mapped_column(default=0)
-    qty_variance: Mapped[int] = mapped_column(default=0)
+    # SCO-143: qty_received is in PURCHASE UoM (mirrors ASNLine.expected_qty).
+    # Lot.quantity is the base-unit derivative computed in the service.
+    qty_received: Mapped[float] = mapped_column(Float, default=0.0)
+    qty_variance: Mapped[float] = mapped_column(Float, default=0.0)
     qc_passed: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -94,8 +100,9 @@ class OrderLine(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
     sku_id: Mapped[int] = mapped_column(ForeignKey("skus.id"), nullable=False)
-    qty_ordered: Mapped[int] = mapped_column(default=0)
-    qty_picked: Mapped[int] = mapped_column(default=0)
+    # SCO-143: order/pick quantities in base UoM, decimal-capable.
+    qty_ordered: Mapped[float] = mapped_column(Float, default=0.0)
+    qty_picked: Mapped[float] = mapped_column(Float, default=0.0)
     fefo_required: Mapped[bool] = mapped_column(Boolean, default=False)
 
     order: Mapped[Order] = relationship(back_populates="lines")
@@ -108,7 +115,8 @@ class Pick(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), nullable=False)
     order_line_id: Mapped[int] = mapped_column(ForeignKey("order_lines.id"), nullable=False)
     lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"), nullable=False)
-    qty_picked: Mapped[int] = mapped_column(default=0)
+    # SCO-143: qty in base UoM.
+    qty_picked: Mapped[float] = mapped_column(Float, default=0.0)
     picker_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     picked_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     strategy: Mapped[str] = mapped_column(String(10), default="FIFO")

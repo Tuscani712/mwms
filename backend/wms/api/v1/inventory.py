@@ -35,7 +35,10 @@ class SKURow(BaseModel):
     description: str
     uom: str
     requires_qc: bool
-    on_hand_qty: int = 0
+    on_hand_qty: float = 0.0  # SCO-143: decimal-capable base UoM
+    # SCO-143: expose conversion context for the ASN modal preview.
+    purchase_uom: str = ""
+    base_per_purchase_unit: float = 1.0
 
     model_config = {"from_attributes": True}
 
@@ -81,7 +84,9 @@ def list_skus(
             description=sku.description,
             uom=sku.uom,
             requires_qc=sku.requires_qc,
-            on_hand_qty=int(on_hand_qty or 0),
+            on_hand_qty=float(on_hand_qty or 0),
+            purchase_uom=sku.purchase_uom or "",
+            base_per_purchase_unit=sku.base_per_purchase_unit or 1.0,
         )
         for sku, on_hand_qty in rows
     ]
@@ -90,12 +95,18 @@ def list_skus(
 class SKUCreate(BaseModel):
     code: str = Field(min_length=1, max_length=40)
     description: str = Field(min_length=1, max_length=180)
+    # SCO-143: base UoM = smallest discrete consumption unit (LB, EA, OZ).
     uom: str = Field(default="EA", min_length=1, max_length=10)
+    # SCO-143: optional packaging unit (BAG, PACK, CASE). Blank = "same as
+    # base UoM", in which case base_per_purchase_unit must be 1.0.
+    purchase_uom: str = Field(default="", max_length=10)
+    base_per_purchase_unit: float = Field(default=1.0, gt=0)
     unit_weight_kg: float = Field(default=1.0, ge=0)
     requires_qc: bool = False
     shelf_life_days: int | None = Field(default=None, ge=0)
-    reorder_point: int = Field(default=0, ge=0)
-    safety_stock: int = Field(default=0, ge=0)
+    # SCO-143: thresholds in base UoM, decimal.
+    reorder_point: float = Field(default=0.0, ge=0)
+    safety_stock: float = Field(default=0.0, ge=0)
 
 
 @router.post("/skus", response_model=SKURow, status_code=status.HTTP_201_CREATED)

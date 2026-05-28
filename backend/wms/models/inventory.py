@@ -19,12 +19,21 @@ class SKU(Base):
     site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True, nullable=False)
     code: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(180), nullable=False)
+    # SCO-143: `uom` is the BASE unit — smallest discrete consumable unit
+    # (e.g., LB for garlic, EA for buns). Recipes + inventory + reservations
+    # all denominate in this unit. `purchase_uom` is what the SKU is bought
+    # in (BAG, PACK, CASE); blank/equal-to-uom means "purchased as base."
+    # `base_per_purchase_unit` is the conversion factor — e.g., a 50 lb bag
+    # of garlic has base=LB, purchase=BAG, base_per_purchase=50.0.
     uom: Mapped[str] = mapped_column(String(10), default="EA")
+    purchase_uom: Mapped[str] = mapped_column(String(10), default="")
+    base_per_purchase_unit: Mapped[float] = mapped_column(Float, default=1.0)
     unit_weight_kg: Mapped[float] = mapped_column(Float, default=1.0)
     requires_qc: Mapped[bool] = mapped_column(Boolean, default=False)
     shelf_life_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    reorder_point: Mapped[int] = mapped_column(default=0)
-    safety_stock: Mapped[int] = mapped_column(default=0)
+    # SCO-143: reorder/safety thresholds are in base UoM, so decimal.
+    reorder_point: Mapped[float] = mapped_column(Float, default=0.0)
+    safety_stock: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
@@ -48,7 +57,12 @@ class Lot(Base):
     lot_code: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
     sku_id: Mapped[int] = mapped_column(ForeignKey("skus.id"), nullable=False)
     location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
-    quantity: Mapped[int] = mapped_column(default=0)
+    # SCO-143: quantity is always in the SKU's base UoM (e.g., LB, EA).
+    # Float instead of Int so partial consumption (1 lb out of a 50-lb bag,
+    # 0.25 cup of yeast) is representable. Stored as REAL in SQLite, DOUBLE
+    # in Postgres. Migration to Numeric(12, 3) on Postgres cutover noted in
+    # the commit message — _ensure_columns only handles ADD, not ALTER.
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
     qa_hold: Mapped[bool] = mapped_column(Boolean, default=False)
     received_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -61,5 +75,6 @@ class LotGenealogy(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     parent_lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"), nullable=False)
     child_lot_id: Mapped[int] = mapped_column(ForeignKey("lots.id"), nullable=False)
-    quantity_consumed: Mapped[int] = mapped_column(default=0)
+    # SCO-143: decimal-capable so genealogy walks reconstruct exact qtys.
+    quantity_consumed: Mapped[float] = mapped_column(Float, default=0.0)
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

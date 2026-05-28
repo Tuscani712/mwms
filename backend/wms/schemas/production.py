@@ -48,14 +48,15 @@ class RecipeOut(BaseModel):
 
 class WorkOrderCreate(BaseModel):
     recipe_id: int
-    target_qty: int = Field(gt=0)
+    # SCO-143: target yield in base UoM, decimal.
+    target_qty: float = Field(gt=0)
 
 
 class ReservationOut(BaseModel):
     id: int
     lot_id: int
     lot_code: str | None = None
-    qty_reserved: int
+    qty_reserved: float  # SCO-143
 
     model_config = {"from_attributes": True}
 
@@ -72,7 +73,7 @@ class WorkOrderOut(BaseModel):
     id: int
     recipe_id: int
     recipe_version_snapshot: int
-    target_qty: int
+    target_qty: float  # SCO-143
     status: str
     site_id: str
     started_at: datetime | None
@@ -92,7 +93,8 @@ class PreflightResult(BaseModel):
 
 
 class WorkOrderCompleteRequest(BaseModel):
-    actual_qty: int = Field(ge=0)
+    # SCO-143: actual yield in base UoM, decimal.
+    actual_qty: float = Field(ge=0)
     output_lot_code: str | None = None
 
 

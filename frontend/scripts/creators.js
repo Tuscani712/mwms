@@ -20,6 +20,15 @@
     return confirmModal.alert({ title, body });
   }
 
+  // SCO-143: SKU creation now captures the THREE-tier UoM model:
+  //   - "Unit of measure" is the BASE / consumption unit (LB, EA, OZ).
+  //   - "Purchase UoM" is what the SKU comes in from the supplier (BAG,
+  //     PACK, CASE). Leave blank for SKUs purchased at base unit.
+  //   - "Base per purchase unit" is the conversion factor (e.g., 50 lb per
+  //     bag, 8 each per pack).
+  // The receipt service applies the conversion at lot creation so the
+  // operator types what the truck driver brings ("10 bags") and inventory
+  // stocks the canonical equivalent ("500 LB").
   async function createSKU() {
     const result = await confirmModal.form({
       title: 'Add SKU',
@@ -27,15 +36,17 @@
       fields: [
         { name: 'code', label: 'SKU code', required: true, placeholder: 'PROD-001' },
         { name: 'description', label: 'Description', required: true, placeholder: 'Finished product' },
-        { name: 'uom', label: 'Unit of measure', value: 'EA' },
-        { name: 'unit_weight_kg', label: 'Unit weight (kg)', type: 'number', value: '1.0' },
+        { name: 'uom', label: 'Base unit (recipes + inventory)', value: 'EA', placeholder: 'LB / EA / OZ' },
+        { name: 'purchase_uom', label: 'Purchase unit (optional)', value: '', placeholder: 'BAG / PACK / CASE — blank if purchased at base unit' },
+        { name: 'base_per_purchase_unit', label: 'Base units per purchase unit', type: 'number', value: '1.0', placeholder: 'e.g. 50.0 lb per bag, 8 each per pack' },
+        { name: 'unit_weight_kg', label: 'Unit weight (kg, per base unit)', type: 'number', value: '1.0' },
         { name: 'requires_qc', label: 'Requires QC at receipt', type: 'select',
           options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
           value: 'false',
         },
         { name: 'shelf_life_days', label: 'Shelf life (days, optional)', type: 'number', value: '' },
-        { name: 'reorder_point', label: 'Reorder point', type: 'number', value: '0' },
-        { name: 'safety_stock', label: 'Safety stock', type: 'number', value: '0' },
+        { name: 'reorder_point', label: 'Reorder point (in base UoM)', type: 'number', value: '0' },
+        { name: 'safety_stock', label: 'Safety stock (in base UoM)', type: 'number', value: '0' },
       ],
       confirmLabel: 'Create SKU',
     });
@@ -46,7 +57,9 @@
         body: {
           code: result.code.trim(),
           description: result.description.trim(),
-          uom: result.uom || 'EA',
+          uom: (result.uom || 'EA').toUpperCase(),
+          purchase_uom: (result.purchase_uom || '').trim().toUpperCase(),
+          base_per_purchase_unit: Number(result.base_per_purchase_unit) || 1.0,
           unit_weight_kg: Number(result.unit_weight_kg) || 1.0,
           requires_qc: result.requires_qc === 'true',
           shelf_life_days: result.shelf_life_days ? Number(result.shelf_life_days) : null,
@@ -70,17 +83,29 @@
     if (!window.WMS?.multiLineModal) {
       return alertMsg('Modal unavailable', 'multi-line-modal.js failed to load.');
     }
-    const skuOptions = skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` }));
+    // SCO-143: surface purchase UoM next to the SKU code so the operator
+    // sees they're entering "bag count" vs "each count" before typing the
+    // qty. SKUs without a packaging unit show their base UoM.
+    const skuOptions = skus.map((s) => {
+      const unitLabel = (s.purchase_uom && s.purchase_uom.trim())
+        ? `${s.purchase_uom} of ${s.base_per_purchase_unit} ${s.uom}`
+        : s.uom;
+      return { value: String(s.id), label: `${s.code} · ${s.description} · qty in ${unitLabel}` };
+    });
     const result = await window.WMS.multiLineModal({
       title: 'Create ASN',
-      body: 'One supplier truck may carry multiple SKUs. Add a line per SKU on this shipment.',
+      body: (
+        'One supplier truck may carry multiple SKUs. Add a line per SKU on this shipment. ' +
+        'Qty is in the SKU\'s PURCHASE unit (e.g., bags, packs, cases) — the system converts ' +
+        'to stock units at receipt time based on the SKU\'s base_per_purchase_unit.'
+      ),
       headerFields: [
         { name: 'asn_code', label: 'ASN code', required: true, placeholder: 'ASN-2026-0001' },
         { name: 'supplier', label: 'Supplier', required: true, placeholder: 'Northwind Beef Co.' },
       ],
       lineFields: [
         { name: 'sku_id', type: 'select', options: skuOptions, required: true },
-        { name: 'expected_qty', type: 'number', value: '1', required: true, placeholder: 'Qty' },
+        { name: 'expected_qty', type: 'number', value: '1', required: true, placeholder: 'Qty (purchase units)' },
       ],
       addLineLabel: 'Add SKU line',
       confirmLabel: 'Create ASN',

@@ -81,6 +81,25 @@ def create_app() -> FastAPI:
     _ensure_columns(engine, "users", {"must_change_password": "BOOLEAN NOT NULL DEFAULT 0"})
     # SCO-142: human-readable name on Recipe (distinct from product SKU).
     _ensure_columns(engine, "recipes", {"name": "VARCHAR(80) NOT NULL DEFAULT ''"})
+    # SCO-143: purchase-unit-of-measure on SKU. Lets ASNs record qty in
+    # the truck-driver-facing unit (BAG/PACK/CASE) while lots store the
+    # base unit (LB/EA) for recipes/inventory. Conversion factor lives
+    # in base_per_purchase_unit. Existing rows default to "" + 1.0 which
+    # means "purchased as base unit" (no conversion).
+    _ensure_columns(
+        engine,
+        "skus",
+        {
+            "purchase_uom": "VARCHAR(10) NOT NULL DEFAULT ''",
+            "base_per_purchase_unit": "FLOAT NOT NULL DEFAULT 1.0",
+        },
+    )
+    # SCO-143 NOTE: column-TYPE changes (Lot.quantity Integer→Float, etc.)
+    # are silent under SQLite's type-affinity model — existing INTEGER
+    # values coexist with new REAL values in the same column. On Postgres
+    # cutover, these need explicit ALTER COLUMN TYPE migrations because
+    # _ensure_columns above only handles ADD COLUMN. Flagged in commit
+    # message + LICENSING.md (sibling migration-debt entry).
     # SCO-100: title_id FK + custom_title free-text override on User.
     _ensure_columns(
         engine,

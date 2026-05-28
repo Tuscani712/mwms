@@ -78,7 +78,7 @@ def create_receipt(
     db.add(receipt)
     db.flush()
 
-    total_variance = 0
+    total_variance = 0.0
     for line_in in payload.lines:
         asn_line = (
             db.query(ASNLine).filter(ASNLine.id == line_in.asn_line_id, ASNLine.asn_id == asn.id).one()
@@ -87,12 +87,21 @@ def create_receipt(
         variance = line_in.qty_received - asn_line.expected_qty
         total_variance += variance
 
+        # SCO-143: ASN/receipt quantities are in PURCHASE UoM (bag, pack,
+        # case). Lot.quantity is canonical in BASE UoM (LB, EA). Multiply
+        # by the conversion factor at lot creation so all downstream
+        # consumers (inventory queries, recipes, picks) see one canonical
+        # quantity space. Default factor=1.0 for SKUs without a packaging
+        # unit means no conversion (purchased as base unit).
+        factor = sku.base_per_purchase_unit or 1.0
+        lot_quantity = line_in.qty_received * factor
+
         # Create a Lot for the received goods (or to QA-hold if QC failed)
         lot = Lot(
             site_id=site_id,
             lot_code=f"LOT-{asn.asn_code}-{asn_line.id}",
             sku_id=sku.id,
-            quantity=line_in.qty_received,
+            quantity=lot_quantity,
             qa_hold=not line_in.qc_passed,
             supplier=asn.supplier,
         )
@@ -160,7 +169,10 @@ def putaway_suggestions(
 
         primary_cap = cap_left(primary)
         overflow_cap = cap_left(overflow)
-        qty = line.expected_qty
+        # SCO-143: putaway suggestion qty is in BASE UoM (what actually
+        # occupies the slot), so apply the conversion factor.
+        factor = sku.base_per_purchase_unit or 1.0
+        qty = line.expected_qty * factor
         rationale = (
             "FIFO primary fits full quantity"
             if primary_cap >= qty

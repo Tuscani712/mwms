@@ -39,6 +39,11 @@ def _serialize_asn(db: Session, asn) -> ASNOut:
                 received_qty=line.received_qty,
                 qc_status=line.qc_status,
                 requires_qc=sku_map[line.sku_id].requires_qc,
+                # SCO-143: surface conversion context so the receipt-editor
+                # UI can render "10 BAG × 50.0 LB = 500 LB stocked" inline.
+                purchase_uom=sku_map[line.sku_id].purchase_uom or "",
+                base_uom=sku_map[line.sku_id].uom,
+                base_per_purchase_unit=sku_map[line.sku_id].base_per_purchase_unit or 1.0,
             )
             for line in asn.lines
         ],

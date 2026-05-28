@@ -9,12 +9,19 @@ class ASNLineOut(BaseModel):
     id: int
     sku_code: str
     sku_description: str
-    expected_qty: int
-    received_qty: int
+    # SCO-143: ASN quantities are in PURCHASE UoM (bag, pack, case).
+    expected_qty: float
+    received_qty: float
     qc_status: str
     # SCO-138: propagate the SKU's QC requirement so the receipt editor can
     # auto-pass lines whose SKU was created with "Does Not Require QC".
     requires_qc: bool = False
+    # SCO-143: expose conversion context so the UI can show "10 BAG ×
+    # 50.0 LB = 500 LB stocked" inline without a second fetch. Blank
+    # purchase_uom + factor=1.0 means no conversion (purchased as base).
+    purchase_uom: str = ""
+    base_uom: str = "EA"
+    base_per_purchase_unit: float = 1.0
 
     model_config = {"from_attributes": True}
 
@@ -39,7 +46,9 @@ class CheckInRequest(BaseModel):
 
 class ReceiptLineIn(BaseModel):
     asn_line_id: int
-    qty_received: int = Field(ge=0)
+    # SCO-143: qty in PURCHASE UoM; service multiplies by
+    # sku.base_per_purchase_unit to derive Lot.quantity in base UoM.
+    qty_received: float = Field(ge=0)
     qc_passed: bool = True
 
 
@@ -54,7 +63,7 @@ class ReceiptOut(BaseModel):
     asn_id: int
     received_at: datetime
     variance_notes: str | None = None
-    total_variance: int = 0
+    total_variance: float = 0.0  # SCO-143
     lot_ids: list[int] = []
 
     model_config = {"from_attributes": True}
@@ -62,9 +71,9 @@ class ReceiptOut(BaseModel):
 
 class PutawaySuggestion(BaseModel):
     sku_code: str
-    qty: int
+    qty: float  # SCO-143: base UoM
     primary_location: str | None
-    primary_capacity_left: int
+    primary_capacity_left: int  # capacities stay int — slot-count, not weight
     overflow_location: str | None
     overflow_capacity_left: int
     rationale: str
@@ -72,7 +81,8 @@ class PutawaySuggestion(BaseModel):
 
 class ASNLineIn(BaseModel):
     sku_id: int
-    expected_qty: int = Field(ge=1)
+    # SCO-143: PURCHASE UoM (e.g., 10 bags), decimal-allowed (broken half-bag).
+    expected_qty: float = Field(gt=0)
 
 
 class ASNCreate(BaseModel):

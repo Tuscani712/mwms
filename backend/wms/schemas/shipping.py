@@ -9,8 +9,8 @@ class OrderLineOut(BaseModel):
     id: int
     sku_code: str
     sku_description: str
-    qty_ordered: int
-    qty_picked: int
+    qty_ordered: float  # SCO-143: base UoM
+    qty_picked: float
     fefo_required: bool
 
     model_config = {"from_attributes": True}
@@ -32,7 +32,7 @@ class OrderOut(BaseModel):
 class PickAssignmentRequest(BaseModel):
     order_id: int
     order_line_id: int
-    qty: int = Field(gt=0)
+    qty: float = Field(gt=0)  # SCO-143
     strategy: str = Field(default="FIFO", pattern="^(FIFO|FEFO)$")
 
 
@@ -40,7 +40,7 @@ class PickOut(BaseModel):
     id: int
     order_id: int
     lot_code: str
-    qty_picked: int
+    qty_picked: float  # SCO-143
     strategy: str
     picked_at: datetime
 
@@ -50,7 +50,7 @@ class PickOut(BaseModel):
 class ConsolidationLotPlan(BaseModel):
     lot_code: str
     location_code: str | None
-    qty: int
+    qty: float  # SCO-143
     expires_at: date | None
     strategy: str
 
@@ -58,8 +58,8 @@ class ConsolidationLotPlan(BaseModel):
 class ConsolidationPlan(BaseModel):
     order_code: str
     sku_code: str
-    qty_required: int
-    qty_available: int
+    qty_required: float  # SCO-143
+    qty_available: float
     plan: list[ConsolidationLotPlan]
     fefo_triggered: bool
 
@@ -82,7 +82,7 @@ class PackingSlipLine(BaseModel):
     sku_code: str
     description: str
     lot_code: str
-    qty: int
+    qty: float  # SCO-143
 
 
 class PackingSlip(BaseModel):
@@ -94,7 +94,7 @@ class PackingSlip(BaseModel):
 
 class OrderLineIn(BaseModel):
     sku_id: int
-    qty_ordered: int = Field(ge=1)
+    qty_ordered: float = Field(gt=0)  # SCO-143
     fefo_required: bool = False
 
 
