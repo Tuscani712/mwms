@@ -117,19 +117,25 @@
       placeholder="${escapeHtml(f.placeholder || '')}" autocomplete="off" /></div>`;
   }
 
-  function renderLineRow(lineFields, lineIdx, canRemove) {
+  function renderLineRow(lineFields, lineIdx, canRemove, seedValues) {
     // Each line is a horizontal row: [fields...] [× remove]
     // For typical ASN: [SKU select] [qty input] [×]
+    // For recipe (SCO-51 v2): [ingredient SKU select] [qty] [uom] [×]
+    // seedValues is an optional { fieldName → value } map for preloading
+    // existing rows on edit flows.
     const cells = lineFields.map((f, fIdx) => {
       const fieldId = `ml-l-${lineIdx}-${fIdx}`;
+      const seeded = seedValues && Object.prototype.hasOwnProperty.call(seedValues, f.name)
+        ? seedValues[f.name]
+        : f.value;
       if (f.type === 'select' && Array.isArray(f.options)) {
         const opts = f.options.map((o) =>
-          `<option value="${escapeHtml(o.value)}"${String(o.value) === String(f.value ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`,
+          `<option value="${escapeHtml(o.value)}"${String(o.value) === String(seeded ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`,
         ).join('');
         return `<select class="cm-field-input" id="${fieldId}" data-line-name="${escapeHtml(f.name)}">${opts}</select>`;
       }
       return `<input class="cm-field-input" id="${fieldId}" data-line-name="${escapeHtml(f.name)}"
-        type="${escapeHtml(f.type || 'text')}" value="${escapeHtml(f.value ?? '')}"
+        type="${escapeHtml(f.type || 'text')}" value="${escapeHtml(seeded ?? '')}"
         placeholder="${escapeHtml(f.placeholder || '')}" autocomplete="off" />`;
     }).join('');
     const removeBtn = `<button type="button" class="ml-line-remove" data-line-remove ${canRemove ? '' : 'disabled'} aria-label="Remove line">×</button>`;
@@ -146,6 +152,16 @@
     addLineLabel = 'Add line',
     confirmLabel = 'Create',
     cancelLabel = 'Cancel',
+    // SCO-141: optional CSS grid-template-columns override for the line row.
+    // The default `1fr 110px 36px` fits 2 fields (select + qty) + remove btn.
+    // Consumers with N fields pass an explicit template, e.g. recipes use
+    // `1fr 110px 80px 36px` for ingredient SKU + qty + UoM + ×.
+    lineGridTemplate = null,
+    // SCO-141: preload existing rows for edit flows. Array of
+    // { fieldName → value } objects, one per row. When supplied, seeds the
+    // modal with these rows instead of `minLines` empty ones. The user can
+    // still add/remove rows up to maxLines.
+    initialLines = null,
   } = {}) {
     // confirm-modal.js injects the cm-* base styles on its first call. Force
     // it by opening + immediately resolving an alert with no UI footprint —
@@ -198,15 +214,27 @@
         });
       }
 
-      function addLine() {
+      function addLine(seedValues) {
         if (lineCount() >= maxLines) return;
-        const html = renderLineRow(lineFields, lineCount(), true);
+        const html = renderLineRow(lineFields, lineCount(), true, seedValues);
         linesEl.insertAdjacentHTML('beforeend', html);
+        // Apply optional grid template to the newly added row. Setting it
+        // on the row element (not the container) keeps per-modal CSS
+        // scoping without polluting the global .ml-line rule.
+        if (lineGridTemplate) {
+          const rows = linesEl.querySelectorAll('[data-line-row]');
+          const last = rows[rows.length - 1];
+          if (last) last.style.gridTemplateColumns = lineGridTemplate;
+        }
         syncControls();
       }
 
-      // Seed minLines rows.
-      for (let i = 0; i < minLines; i++) addLine();
+      // Seed initialLines if provided (edit flow), otherwise minLines empty rows.
+      if (Array.isArray(initialLines) && initialLines.length > 0) {
+        initialLines.forEach((seed) => addLine(seed));
+      } else {
+        for (let i = 0; i < minLines; i++) addLine();
+      }
 
       addBtn.addEventListener('click', addLine);
 

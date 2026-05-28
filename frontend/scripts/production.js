@@ -228,49 +228,60 @@
   }
 
   // ── Action handlers ─────────────────────────────────────────────────
+  // SCO-141: multi-line recipe creation. Single multi-line modal carries
+  // the product SKU as a header field and N ingredient lines as repeating
+  // rows. Replaces the previous two-step single-line flow that only
+  // allowed one ingredient.
   async function openCreateRecipe() {
     await loadSKUs();
     if (!skus.length) {
       alertModal('No SKUs available', 'Create at least one SKU in the inventory module before defining a recipe.');
       return;
     }
-    // Step 1 — pick product SKU.
-    const product = await confirmModal.form({
-      title: 'Create recipe — step 1 of 2',
-      body: 'Pick the product SKU this recipe produces.',
-      fields: [{
-        name: 'sku_id', label: 'Product SKU', type: 'select',
-        options: skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` })),
-        required: true,
-      }],
-      confirmLabel: 'Next: ingredients',
-    });
-    if (!product) return;
-    // Step 2 — at MVP, accept one ingredient line via form. A richer multi-line
-    // editor would belong in a follow-up; structured fields here keep the
-    // contract tight without dragging in a table component.
-    const line = await confirmModal.form({
-      title: 'Create recipe — step 2 of 2',
-      body: 'Add the first ingredient line. (Additional lines can be appended via a future edit-recipe flow.)',
-      fields: [
-        { name: 'ingredient_sku_id', label: 'Ingredient SKU', type: 'select',
-          options: skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` })),
-          required: true,
-        },
-        { name: 'qty_per_unit', label: 'Qty per output unit', type: 'number', value: '1', required: true },
-        { name: 'uom', label: 'UoM', value: 'EA', required: true },
+    if (!window.WMS?.multiLineModal) {
+      alertModal('Modal unavailable', 'multi-line-modal.js failed to load.');
+      return;
+    }
+    const skuOptions = skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` }));
+    const result = await window.WMS.multiLineModal({
+      title: 'Create recipe',
+      body: 'Pick the product SKU this recipe produces, then add one row per ingredient. Qty is per output unit.',
+      headerFields: [
+        { name: 'sku_id', label: 'Product SKU', type: 'select',
+          options: skuOptions, required: true },
       ],
+      lineFields: [
+        { name: 'ingredient_sku_id', type: 'select', options: skuOptions, required: true },
+        { name: 'qty_per_unit', type: 'number', value: '1', required: true, placeholder: 'Qty/unit' },
+        { name: 'uom', type: 'text', value: 'EA', required: true, placeholder: 'UoM' },
+      ],
+      lineGridTemplate: '1fr 110px 80px 36px',
+      minLines: 1,
+      maxLines: 20,
+      addLineLabel: 'Add ingredient',
       confirmLabel: 'Create recipe',
     });
-    if (!line) return;
+    if (!result) return;
+    // Pre-submit validation: at least one line, no duplicate ingredient SKUs.
+    // (Server also validates; this gives immediate feedback.)
+    const seenSkus = new Set();
+    for (const ln of result.lines) {
+      const sid = Number(ln.ingredient_sku_id);
+      if (seenSkus.has(sid)) {
+        alertModal('Duplicate ingredient',
+          `Ingredient SKU appears more than once. Combine the rows into a single line with the summed quantity.`);
+        return;
+      }
+      seenSkus.add(sid);
+    }
     try {
       await prodApi.createRecipe({
-        sku_id: Number(product.sku_id),
-        lines: [{
-          ingredient_sku_id: Number(line.ingredient_sku_id),
-          qty_per_unit: Number(line.qty_per_unit),
-          uom: line.uom,
-        }],
+        sku_id: Number(result.header.sku_id),
+        lines: result.lines.map((ln) => ({
+          ingredient_sku_id: Number(ln.ingredient_sku_id),
+          qty_per_unit: Number(ln.qty_per_unit),
+          uom: (ln.uom || 'EA').toUpperCase(),
+        })),
       });
       await refresh();
     } catch (err) {
@@ -329,10 +340,12 @@
     }
   }
 
-  // SCO-51 v2: open the "Edit recipe" flow. Calls PUT /recipes/{id}.
-  // The backend returns 501 today (api/v1/production.py:edit_recipe is a
-  // dormant stub); the catch surfaces a clear toast rather than a generic
-  // error. When the endpoint lands, this code does not change.
+  // SCO-51 v2 + SCO-141: open the "Edit recipe" flow. Multi-line modal
+  // preloads existing lines so the operator can adjust qty/uom or
+  // add/remove ingredient rows. Calls PUT /recipes/{id}; the backend
+  // returns 501 today (api/v1/production.py:edit_recipe is a dormant
+  // stub), and the catch surfaces a "wiring pending" toast instead of a
+  // generic API error.
   async function openEditRecipe(recipeId) {
     const current = recipes.find((r) => r.id === recipeId);
     if (!current) {
@@ -340,34 +353,54 @@
       return;
     }
     await loadSKUs();
-    // MVP edit form: same single-line shape as create. A richer multi-line
-    // editor is a follow-up, but the contract on the wire is already the
-    // same {sku_id, lines: [...]} payload, so the backend wire-up doesn't
-    // wait on the UI getting fancier.
-    const existing = (current.lines && current.lines[0]) || { ingredient_sku_id: '', qty_per_unit: 1, uom: 'EA' };
-    const result = await confirmModal.form({
-      title: `Edit recipe #${current.id} (v${current.version})`,
+    if (!window.WMS?.multiLineModal) {
+      alertModal('Modal unavailable', 'multi-line-modal.js failed to load.');
+      return;
+    }
+    const skuOptions = skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` }));
+    const existingLines = (current.lines && current.lines.length)
+      ? current.lines.map((ln) => ({
+          ingredient_sku_id: String(ln.ingredient_sku_id || ''),
+          qty_per_unit: String(ln.qty_per_unit ?? 1),
+          uom: ln.uom || 'EA',
+        }))
+      : [{ ingredient_sku_id: '', qty_per_unit: '1', uom: 'EA' }];
+    const result = await window.WMS.multiLineModal({
+      title: `Edit recipe · ${current.sku_code || ''} (v${current.version})`,
       body: `Editing creates a new version (v${current.version + 1}). The current version stays queryable; running work orders keep their snapshot.`,
-      fields: [
-        { name: 'ingredient_sku_id', label: 'Ingredient SKU', type: 'select',
-          options: skus.map((s) => ({ value: String(s.id), label: `${s.code} · ${s.description}` })),
-          value: String(existing.ingredient_sku_id || ''),
-          required: true,
-        },
-        { name: 'qty_per_unit', label: 'Qty per output unit', type: 'number', value: String(existing.qty_per_unit || 1), required: true },
-        { name: 'uom', label: 'UoM', value: existing.uom || 'EA', required: true },
+      headerFields: [], // SKU is immutable for an edit — only ingredients change.
+      lineFields: [
+        { name: 'ingredient_sku_id', type: 'select', options: skuOptions, required: true },
+        { name: 'qty_per_unit', type: 'number', value: '1', required: true, placeholder: 'Qty/unit' },
+        { name: 'uom', type: 'text', value: 'EA', required: true, placeholder: 'UoM' },
       ],
+      lineGridTemplate: '1fr 110px 80px 36px',
+      initialLines: existingLines,
+      minLines: 1,
+      maxLines: 20,
+      addLineLabel: 'Add ingredient',
       confirmLabel: `Create v${current.version + 1}`,
     });
     if (!result) return;
+    // Duplicate-SKU guard — same as create flow.
+    const seenSkus = new Set();
+    for (const ln of result.lines) {
+      const sid = Number(ln.ingredient_sku_id);
+      if (seenSkus.has(sid)) {
+        alertModal('Duplicate ingredient',
+          'Ingredient SKU appears more than once. Combine the rows into a single line with the summed quantity.');
+        return;
+      }
+      seenSkus.add(sid);
+    }
     try {
       await prodApi.editRecipe(recipeId, {
         sku_id: current.sku_id,
-        lines: [{
-          ingredient_sku_id: Number(result.ingredient_sku_id),
-          qty_per_unit: Number(result.qty_per_unit),
-          uom: result.uom,
-        }],
+        lines: result.lines.map((ln) => ({
+          ingredient_sku_id: Number(ln.ingredient_sku_id),
+          qty_per_unit: Number(ln.qty_per_unit),
+          uom: (ln.uom || 'EA').toUpperCase(),
+        })),
       });
       await refresh();
     } catch (err) {
