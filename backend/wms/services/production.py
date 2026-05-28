@@ -80,7 +80,13 @@ def create_recipe(db: Session, payload: RecipeCreate) -> Recipe:
     # That keeps the create vs version-bump semantics distinct at the
     # API level rather than overloading POST.
     # ────────────────────────────────────────────────────────────────────
-    recipe = Recipe(sku_id=payload.sku_id, version=1)
+    # SCO-142: persist the optional display name (trimmed, empty-allowed —
+    # the serializer falls back to "Recipe #{id}" for blank names).
+    recipe = Recipe(
+        sku_id=payload.sku_id,
+        version=1,
+        name=(payload.name or "").strip()[:80],
+    )
     db.add(recipe)
     db.flush()
     for line in payload.lines:
@@ -426,6 +432,57 @@ def complete_work_order(
     #   - threshold from settings store overrides default
     # ────────────────────────────────────────────────────────────────────
     return wo, child_lot
+
+
+def count_workorders_for_recipe(db: Session, recipe_id: int) -> int:
+    """SCO-142: how many WorkOrders reference this recipe.
+
+    Used by the delete_recipe guard to refuse with a 409 + count when the
+    recipe is still in use. Counts WOs across all statuses (including
+    completed/cancelled) because the snapshot pattern means historical
+    rows still meaningfully reference the recipe id for audit walks.
+    """
+    return (
+        db.query(WorkOrder).filter(WorkOrder.recipe_id == recipe_id).count()
+    )
+
+
+def delete_recipe(db: Session, recipe_id: int) -> dict:
+    """SCO-142: hard-delete a recipe + its lines.
+
+    Caller (router) handles permission gating + audit emission. This
+    service is the FK-safe pivot point:
+      - Raises ValueError("not found") if recipe missing → router → 404.
+      - Raises ValueError("in use by N work order(s)") if any WO
+        references the recipe → router → 409 with N in detail.
+      - Otherwise deletes RecipeLine rows then the Recipe row in a
+        single commit, and returns a snapshot dict the router can use
+        for the audit event detail.
+    """
+    recipe = db.get(Recipe, recipe_id)
+    if recipe is None:
+        raise ValueError(f"Recipe {recipe_id} not found")
+    wo_count = count_workorders_for_recipe(db, recipe.id)
+    if wo_count > 0:
+        # Surface the count so the operator knows what to clean up first.
+        raise ValueError(
+            f"Recipe is referenced by {wo_count} work order(s). "
+            f"Cancel or complete those work orders before deleting."
+        )
+    # Snapshot before delete — router uses this for audit detail_json.
+    snapshot = {
+        "id": recipe.id,
+        "name": recipe.name or "",
+        "sku_id": recipe.sku_id,
+        "version": recipe.version,
+    }
+    # Cascade RecipeLine rows (recipe-owned by definition).
+    db.query(RecipeLine).filter(RecipeLine.recipe_id == recipe.id).delete(
+        synchronize_session=False
+    )
+    db.delete(recipe)
+    db.commit()
+    return snapshot
 
 
 def cancel_work_order(db: Session, wo_id: int, site_id: str) -> WorkOrder:

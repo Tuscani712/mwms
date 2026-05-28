@@ -24,11 +24,16 @@ class RecipeLineOut(BaseModel):
 
 class RecipeCreate(BaseModel):
     sku_id: int
+    # SCO-142: optional human-readable label for the recipe. Empty string
+    # is accepted; the response serializer falls back to "Recipe #{id}"
+    # so the UI always has something readable to render.
+    name: str = Field(default="", max_length=80)
     lines: list[RecipeLineIn] = Field(min_length=1)
 
 
 class RecipeOut(BaseModel):
     id: int
+    name: str
     sku_id: int
     sku_code: str | None = None
     version: int

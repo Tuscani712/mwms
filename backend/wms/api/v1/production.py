@@ -7,7 +7,7 @@ user may create recipes / WOs. Production rollout should layer in:
   - supervisor-only on /cancel
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
@@ -23,6 +23,7 @@ from wms.schemas.production import (
     WorkOrderCreate,
     WorkOrderOut,
 )
+from wms.services import audit_log
 from wms.services import production as svc
 
 router = APIRouter(prefix="/production", tags=["production"])
@@ -34,8 +35,12 @@ def _serialize_recipe(db: Session, recipe) -> RecipeOut:
     lines = svc.get_recipe_lines(db, recipe.id)
     sku_ids = [ln.ingredient_sku_id for ln in lines] + [recipe.sku_id]
     sku_map = {s.id: s for s in db.query(SKU).filter(SKU.id.in_(sku_ids)).all()}
+    # SCO-142: fall back to "Recipe #{id}" for legacy rows where name is
+    # blank, so the UI never shows an empty label.
+    display_name = recipe.name if (recipe.name or "").strip() else f"Recipe #{recipe.id}"
     return RecipeOut(
         id=recipe.id,
+        name=display_name,
         sku_id=recipe.sku_id,
         sku_code=sku_map.get(recipe.sku_id).code if sku_map.get(recipe.sku_id) else None,
         version=recipe.version,
@@ -120,6 +125,51 @@ def create_recipe(
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from None
     return _serialize_recipe(db, recipe)
+
+
+@router.delete(
+    "/recipes/{recipe_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a recipe (SCO-142)",
+    description=(
+        "Hard-delete a recipe and its ingredient lines. Refuses with 409 if "
+        "any work order references this recipe (return count in detail). "
+        "Emits recipe.deleted audit event with a snapshot before the row is "
+        "gone."
+    ),
+    responses={
+        204: {"description": "Recipe deleted"},
+        404: {"description": "Recipe not found"},
+        409: {"description": "Recipe is referenced by one or more work orders"},
+    },
+)
+def delete_recipe(
+    recipe_id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> None:
+    # MVP permission gate: any authed user. Real spec defers to
+    # production.recipe_edit_requires_level (default 3) — wire via the
+    # settings store when SCO-53 backend lands.
+    try:
+        snapshot = svc.delete_recipe(db, recipe_id)
+    except ValueError as e:
+        msg = str(e)
+        if "not found" in msg:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, msg) from None
+        # "in use by N work order(s)" → 409 with count surfaced
+        raise HTTPException(status.HTTP_409_CONFLICT, msg) from None
+    audit_log.record(
+        db,
+        event_type="recipe.deleted",
+        actor_id=user.id,
+        site_id=user.site_id,
+        request=request,
+        detail=snapshot,
+    )
+    # 204 No Content — FastAPI requires returning None for this.
+    return None
 
 
 @router.put("/recipes/{recipe_id}", response_model=RecipeOut)

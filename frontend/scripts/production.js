@@ -34,6 +34,7 @@
     createRecipe: (body) => api('/production/recipes', { method: 'POST', body }),
     // SCO-51 v2: returns 501 today — frontend handles gracefully.
     editRecipe: (id, body) => api(`/production/recipes/${id}`, { method: 'PUT', body }),
+    deleteRecipe: (id) => api(`/production/recipes/${id}`, { method: 'DELETE' }),
     listWOs: () => api('/production/work-orders'),
     createWO: (body) => api('/production/work-orders', { method: 'POST', body }),
     preflight: (id) => api(`/production/work-orders/${id}/preflight`, { method: 'POST' }),
@@ -118,11 +119,14 @@
         const cls = r.id === latest.id ? 'tag tag--amber' : 'tag tag--info';
         return `<button class="${cls}" data-recipe="${r.id}" title="Open v${r.version} (created ${fmtDate(r.created_at)})" style="cursor:pointer;border:none;">v${r.version}</button>`;
       }).join(' ');
+      // SCO-142: display name is the row title (falls back to "Recipe #{id}"
+      // server-side for legacy rows); SKU code is the row subtitle.
+      const displayName = latest.name && latest.name.trim() ? latest.name : `Recipe #${latest.id}`;
       rows.push(`
         <tr>
           <td>
-            <div class="row-title">${latest.sku_code || ''}</div>
-            <div class="row-sub mono">Recipe #${latest.id} · latest</div>
+            <div class="row-title">${displayName}</div>
+            <div class="row-sub mono">${latest.sku_code || ''} · #${latest.id}</div>
           </td>
           <td class="mono">${latest.sku_code || latest.sku_id}</td>
           <td class="num">${(latest.lines || []).length}</td>
@@ -130,6 +134,7 @@
           <td class="mono">${fmtDate(latest.created_at)}</td>
           <td class="col-action" style="display:flex;gap:6px;justify-content:flex-end;">
             <button class="btn btn--sm" data-act="edit-recipe" data-recipe="${latest.id}">Edit</button>
+            <button class="btn btn--sm" data-act="delete-recipe" data-recipe="${latest.id}" style="color: var(--signal-crit);">Delete</button>
             <button class="btn btn--sm btn-arrow" data-recipe="${latest.id}"><span>Open</span></button>
           </td>
         </tr>
@@ -247,6 +252,9 @@
       title: 'Create recipe',
       body: 'Pick the product SKU this recipe produces, then add one row per ingredient. Qty is per output unit.',
       headerFields: [
+        // SCO-142: optional name. Blank is allowed — server falls back to
+        // "Recipe #{id}" on the response side.
+        { name: 'name', label: 'Recipe name (optional)', type: 'text', placeholder: 'e.g. House Chili v1' },
         { name: 'sku_id', label: 'Product SKU', type: 'select',
           options: skuOptions, required: true },
       ],
@@ -277,6 +285,7 @@
     try {
       await prodApi.createRecipe({
         sku_id: Number(result.header.sku_id),
+        name: (result.header.name || '').trim().slice(0, 80),
         lines: result.lines.map((ln) => ({
           ingredient_sku_id: Number(ln.ingredient_sku_id),
           qty_per_unit: Number(ln.qty_per_unit),
@@ -286,6 +295,44 @@
       await refresh();
     } catch (err) {
       alertModal('Create failed', err.message || 'Unknown error');
+    }
+  }
+
+  // SCO-142: delete recipe with typed-DELETE confirm + 409 surface.
+  // Server refuses with 409 if any WorkOrder still references the recipe;
+  // we render the count inline so the operator knows what to clear first.
+  async function openDeleteRecipe(recipeId) {
+    const r = recipes.find((x) => x.id === recipeId);
+    if (!r) {
+      alertModal('Recipe not found', 'Refresh the page and try again.');
+      return;
+    }
+    const displayName = r.name && r.name.trim() ? r.name : `Recipe #${r.id}`;
+    const confirmed = await confirmModal.typed({
+      title: `Delete ${displayName}?`,
+      body:
+        `This permanently removes the recipe and its ingredient lines. ` +
+        `Cannot be undone. Work orders that already reference this recipe ` +
+        `will block deletion — the operation will be refused with a 409.\n\n` +
+        `Type DELETE to confirm.`,
+      confirmWord: 'DELETE',
+      confirmLabel: 'Delete recipe',
+    });
+    if (!confirmed) return;
+    try {
+      await prodApi.deleteRecipe(recipeId);
+      await refresh();
+    } catch (err) {
+      // Surface 409 with the WO count distinctly from generic errors.
+      const msg = err.message || 'Unknown error';
+      if (/409/.test(msg)) {
+        alertModal('Cannot delete', msg.replace(/^API 409:\s*/, ''));
+      } else if (/404/.test(msg)) {
+        alertModal('Recipe not found', 'It may already have been deleted.');
+        await refresh();
+      } else {
+        alertModal('Delete failed', msg);
+      }
     }
   }
 
@@ -365,10 +412,20 @@
           uom: ln.uom || 'EA',
         }))
       : [{ ingredient_sku_id: '', qty_per_unit: '1', uom: 'EA' }];
+    // Pre-populate the name field with the current name, unless it's the
+    // server-side fallback "Recipe #N" — in which case start blank so the
+    // operator sees an empty field nudging them to type something real.
+    const isFallbackName = /^Recipe #\d+$/.test(current.name || '');
+    const seedName = isFallbackName ? '' : (current.name || '');
     const result = await window.WMS.multiLineModal({
       title: `Edit recipe · ${current.sku_code || ''} (v${current.version})`,
       body: `Editing creates a new version (v${current.version + 1}). The current version stays queryable; running work orders keep their snapshot.`,
-      headerFields: [], // SKU is immutable for an edit — only ingredients change.
+      // SCO-142: name editable on edit (so legacy "Recipe #N" recipes can
+      // be renamed). SKU stays immutable — that's the *product* this recipe
+      // outputs, changing it would mean a different recipe entirely.
+      headerFields: [
+        { name: 'name', label: 'Recipe name (public)', type: 'text', value: seedName, placeholder: 'e.g. Sesame Ham Bread' },
+      ],
       lineFields: [
         { name: 'ingredient_sku_id', type: 'select', options: skuOptions, required: true },
         { name: 'qty_per_unit', type: 'number', value: '1', required: true, placeholder: 'Qty/unit' },
@@ -396,6 +453,7 @@
     try {
       await prodApi.editRecipe(recipeId, {
         sku_id: current.sku_id,
+        name: (result.header.name || '').trim().slice(0, 80),
         lines: result.lines.map((ln) => ({
           ingredient_sku_id: Number(ln.ingredient_sku_id),
           qty_per_unit: Number(ln.qty_per_unit),
@@ -539,9 +597,10 @@
       renderWOs();
       return;
     }
-    // SCO-51 v2: edit-recipe button shares the data-recipe attribute with
-    // the open-recipe chip, so dispatch on data-act first.
+    // SCO-51 v2 + SCO-142: edit/delete buttons share data-recipe with the
+    // open-recipe chip, so dispatch on data-act first.
     if (t.dataset.act === 'edit-recipe') return openEditRecipe(Number(t.dataset.recipe));
+    if (t.dataset.act === 'delete-recipe') return openDeleteRecipe(Number(t.dataset.recipe));
     if (t.dataset.recipe) return openRecipe(Number(t.dataset.recipe));
     const wo = Number(t.dataset.wo);
     switch (t.dataset.act) {

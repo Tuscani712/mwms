@@ -32,6 +32,11 @@ class Recipe(Base):
     __tablename__ = "recipes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # SCO-142: human-readable display name distinct from the product SKU.
+    # Nullable + default "" so the additive migration is safe for existing
+    # rows. The service layer falls back to "Recipe #{id}" when blank, so
+    # legacy rows still read sensibly in the UI.
+    name: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     sku_id: Mapped[int] = mapped_column(ForeignKey("skus.id"), index=True, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     locked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

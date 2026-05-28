@@ -79,6 +79,8 @@ def create_app() -> FastAPI:
     # column. create_all() never ALTERs existing tables, so we add the column
     # by hand if it's missing on a pre-existing dev DB.
     _ensure_columns(engine, "users", {"must_change_password": "BOOLEAN NOT NULL DEFAULT 0"})
+    # SCO-142: human-readable name on Recipe (distinct from product SKU).
+    _ensure_columns(engine, "recipes", {"name": "VARCHAR(80) NOT NULL DEFAULT ''"})
     # SCO-100: title_id FK + custom_title free-text override on User.
     _ensure_columns(
         engine,
