@@ -218,6 +218,7 @@ posture before that conversation:
 | 2026-05-28 | Closed-source proprietary posture confirmed; sole ownership Nisaba | Meatbag |
 | 2026-05-28 | Dependency audit baseline established — clean, no copyleft contamination | ClaudeBag |
 | 2026-05-28 | `LICENSE.txt` (proprietary) added to repo root | ClaudeBag |
+| 2026-05-28 | Repo visibility confirmed: `Tuscani712/mwms` is **private** on GitHub | Meatbag |
 
 Append a row every time the posture changes or a license-related decision
 is made.
