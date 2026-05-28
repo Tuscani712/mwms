@@ -464,6 +464,63 @@ except Exception: pass" 2>/dev/null)
       _crud_check "Shifts CRUD"  "/api/v1/admin/shifts" \
         "{\"name\":\"smk-${suffix: -6}\",\"start_time\":\"06:00:00\",\"end_time\":\"14:00:00\"}" \
         "id" "/api/v1/admin/shifts/{id}"
+
+      # SCO-142 Recipe round-trip: needs real SKU IDs from the seed, so
+      # this helper does a GET first (unlike the other _crud_check calls
+      # which use hardcoded payloads). Catches regressions in recipe POST,
+      # the new DELETE endpoint, and the multi-line schema (SCO-141).
+      _recipe_check() {
+        local sku_resp
+        sku_resp=$(curl -s --max-time 5 \
+          -H "Authorization: Bearer $token" \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/inventory/skus" 2>/dev/null || echo '[]')
+        local ids
+        ids=$(printf '%s' "$sku_resp" | python3 -c 'import sys,json
+try:
+    rows = json.loads(sys.stdin.read())
+    print(" ".join(str(r.get("id","")) for r in rows[:2] if r.get("id")))
+except Exception:
+    pass' 2>/dev/null)
+        # shellcheck disable=SC2206
+        local arr=( $ids )
+        if (( ${#arr[@]} < 2 )); then
+          printf "  %s ✗ Recipe CRUD%s        %sneed ≥2 seeded SKUs (got %d)%s\n" \
+            "$C_RED" "$C_RST" "$C_DIM" "${#arr[@]}" "$C_RST"
+          fails=$(( fails + 1 ))
+          return
+        fi
+        local product_sku="${arr[0]}" ingredient_sku="${arr[1]}"
+        local body
+        body="{\"sku_id\":$product_sku,\"name\":\"smoke-recipe-$suffix\",\"lines\":[{\"ingredient_sku_id\":$ingredient_sku,\"qty_per_unit\":1.0,\"uom\":\"EA\"}]}"
+        local create_resp
+        create_resp=$(curl -s --max-time 5 -X POST -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $token" -d "$body" \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/production/recipes" 2>/dev/null || echo '')
+        local rid
+        rid=$(printf '%s' "$create_resp" | python3 -c "import sys,json
+try: print(json.loads(sys.stdin.read()).get('id',''))
+except Exception: pass" 2>/dev/null)
+        if [[ -z "$rid" ]]; then
+          printf "  %s ✗ Recipe CRUD%s        %screate failed: %s%s\n" \
+            "$C_RED" "$C_RST" "$C_DIM" "${create_resp:0:80}" "$C_RST"
+          fails=$(( fails + 1 ))
+          return
+        fi
+        local del_code
+        del_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X DELETE \
+          -H "Authorization: Bearer $token" \
+          "http://127.0.0.1:$BACKEND_PORT/api/v1/production/recipes/$rid" 2>/dev/null || echo 000)
+        if [[ "$del_code" == "204" ]]; then
+          printf "  %s ✓ Recipe CRUD%s        %screate %s → delete 204%s\n" \
+            "$C_GRN" "$C_RST" "$C_DIM" "$rid" "$C_RST"
+          pass=$(( pass + 1 ))
+        else
+          printf "  %s ✗ Recipe CRUD%s        %screate ok (%s), delete %s%s\n" \
+            "$C_RED" "$C_RST" "$C_DIM" "$rid" "$del_code" "$C_RST"
+          fails=$(( fails + 1 ))
+        fi
+      }
+      _recipe_check
     else
       printf "  %s ✗ Auth login%s        %slogin returned no token (creds rotated? seed not run?)%s\n" \
         "$C_RED" "$C_RST" "$C_DIM" "$C_RST"
@@ -472,6 +529,30 @@ except Exception: pass" 2>/dev/null)
     fi
   else
     info "Skipping auth checks (curl not installed)"
+  fi
+
+  # Frontend JS tests — zero-dep node smokes (SCO-144 introduced this
+  # runner pattern for the mass-unit conversion mirror). Catches drift
+  # between Python and JS conversion tables that pytest can't see.
+  if command -v node >/dev/null 2>&1 && [[ -d "$ROOT/frontend/tests" ]]; then
+    local js_fail=0 js_total=0
+    while IFS= read -r -d '' tfile; do
+      js_total=$(( js_total + 1 ))
+      if node "$tfile" >/dev/null 2>&1; then :; else js_fail=$(( js_fail + 1 )); fi
+    done < <(find "$ROOT/frontend/tests" -maxdepth 1 -name '*.test.js' -print0)
+    if (( js_total == 0 )); then
+      info "Skipping JS tests (no *.test.js under frontend/tests)"
+    elif (( js_fail == 0 )); then
+      printf "  %s ✓ JS tests%s           %s%d/%d passing%s\n" \
+        "$C_GRN" "$C_RST" "$C_DIM" "$js_total" "$js_total" "$C_RST"
+      pass=$(( pass + 1 ))
+    else
+      printf "  %s ✗ JS tests%s           %s%d/%d failed — run [j] for detail%s\n" \
+        "$C_RED" "$C_RST" "$C_DIM" "$js_fail" "$js_total" "$C_RST"
+      fails=$(( fails + 1 ))
+    fi
+  else
+    info "Skipping JS tests (node not installed or no frontend/tests dir)"
   fi
 
   # CSS lint pass — catches undefined CSS custom properties before they ship.
@@ -529,7 +610,7 @@ menu_loop() {
     echo
     echo "  ${C_BLD}[s]${C_RST} Status     ${C_BLD}[b]${C_RST} Tail backend log   ${C_BLD}[f]${C_RST} Tail frontend log"
     echo "  ${C_BLD}[r]${C_RST} Restart    ${C_BLD}[t]${C_RST} Smoke test         ${C_BLD}[l]${C_RST} CSS lint"
-    echo "  ${C_BLD}[o]${C_RST} Open login URL    ${C_BLD}[q]${C_RST} Quit"
+    echo "  ${C_BLD}[j]${C_RST} JS tests   ${C_BLD}[o]${C_RST} Open login URL     ${C_BLD}[q]${C_RST} Quit"
     printf "%swms>%s " "$C_BLU" "$C_RST"
     # Ctrl+D (EOF) → fall through to exit; EXIT trap stops both services.
     local cmd; read -r cmd || { echo; exit 0; }
@@ -543,6 +624,29 @@ menu_loop() {
           warn "stylelint not installed — run: npm install"
         else
           (cd "$ROOT" && npm run lint:css)
+        fi
+        ;;
+      j|J|js|jstest)
+        # SCO-144: run every frontend/tests/*.test.js with full output so
+        # the operator can see which assertion drifted (e.g. NIST factor).
+        if ! command -v node >/dev/null 2>&1; then
+          warn "node not installed — install Node.js to run JS tests"
+        elif [[ ! -d "$ROOT/frontend/tests" ]]; then
+          warn "No frontend/tests directory yet"
+        else
+          local any=0 failed=0
+          while IFS= read -r -d '' tfile; do
+            any=1
+            printf "%s── %s%s\n" "$C_DIM" "${tfile#$ROOT/}" "$C_RST"
+            if ! node "$tfile"; then failed=$(( failed + 1 )); fi
+          done < <(find "$ROOT/frontend/tests" -maxdepth 1 -name '*.test.js' -print0)
+          if (( any == 0 )); then
+            info "No *.test.js files under frontend/tests"
+          elif (( failed > 0 )); then
+            warn "$failed JS test file(s) failed"
+          else
+            ok "All JS test files passed"
+          fi
         fi
         ;;
       r|R|restart)

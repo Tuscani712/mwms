@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "lint:css": "stylelint \"frontend/styles/*.css\" \"frontend/*.html\"",
-    "lint:css:fix": "stylelint \"frontend/styles/*.css\" \"frontend/*.html\" --fix"
+    "lint:css:fix": "stylelint \"frontend/styles/*.css\" \"frontend/*.html\" --fix",
+    "test:js": "for f in frontend/tests/*.test.js; do node \"$f\" || exit 1; done"
   },
   "license": "UNLICENSED",
   "type": "commonjs",
