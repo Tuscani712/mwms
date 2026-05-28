@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <title>Admin · System Settings · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/page.css">
+  <style>
+    /* Settings page surface — mirrors admin-orgmeta.html structure: a left
+       module nav + a right panel that swaps content per module. When the
+       backend lands the same DOM hierarchy stays; only the data source flips
+       from the frozen local fallback to the live registry response. */
+    .settings-shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: var(--space-6);
+      align-items: start;
+      margin-top: var(--space-4);
+    }
+    @media (max-width: 900px) {
+      .settings-shell { grid-template-columns: 1fr; }
+    }
+    .settings-nav {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--rule-default);
+      background: var(--surface);
+    }
+    .settings-nav-item {
+      padding: var(--space-3) var(--space-4);
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide); text-transform: uppercase;
+      color: var(--ink-secondary);
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--rule-default);
+      text-align: left;
+      cursor: pointer;
+    }
+    .settings-nav-item:last-child { border-bottom: 0; }
+    .settings-nav-item:hover { color: var(--ink-primary); background: var(--inset); }
+    .settings-nav-item--active {
+      color: var(--ink-primary);
+      background: var(--inset);
+      box-shadow: inset 2px 0 0 var(--amber);
+    }
+    .settings-nav-count {
+      float: right;
+      color: var(--ink-tertiary);
+      font-size: 10px;
+    }
+
+    .settings-panel {
+      border: 1px solid var(--rule-default);
+      background: var(--surface);
+      padding: var(--space-5) var(--space-6);
+      min-height: 320px;
+    }
+    .settings-panel-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding-bottom: var(--space-3);
+      border-bottom: 1px dashed var(--rule-default);
+      margin-bottom: var(--space-4);
+    }
+    .settings-panel-title {
+      font-family: var(--font-display); font-style: italic;
+      font-size: var(--text-xl); margin: 0;
+    }
+    .settings-panel-meta {
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      color: var(--ink-tertiary); letter-spacing: var(--tracking-wide);
+    }
+
+    .settings-row {
+      display: grid;
+      grid-template-columns: 1fr 240px 110px 110px;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--rule-default);
+    }
+    .settings-row:last-child { border-bottom: 0; }
+    @media (max-width: 760px) {
+      .settings-row {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-2);
+      }
+    }
+    .settings-row-meta { display: flex; flex-direction: column; gap: 2px; }
+    .settings-key {
+      font-family: var(--font-mono); font-size: var(--text-sm);
+      color: var(--ink-primary);
+    }
+    .settings-desc {
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      color: var(--ink-tertiary); letter-spacing: var(--tracking-wide);
+    }
+    .settings-bounds {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--ink-tertiary);
+    }
+    .settings-value input,
+    .settings-value select {
+      width: 100%;
+    }
+    .settings-actions {
+      display: flex; gap: var(--space-2); justify-content: flex-end;
+    }
+    .settings-row[data-dirty="true"] {
+      background: rgba(255, 107, 26, 0.04);
+    }
+    .settings-row[data-dirty="true"] .settings-key::after {
+      content: ' •';
+      color: var(--amber);
+    }
+
+    .scope-bar {
+      display: flex; gap: var(--space-3); align-items: center;
+      padding: var(--space-3) var(--space-4);
+      background: var(--inset);
+      border: 1px solid var(--rule-default);
+      margin-bottom: var(--space-4);
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide);
+    }
+    .scope-bar label { display: flex; gap: var(--space-2); align-items: center; }
+    .scope-bar select { min-width: 180px; }
+
+    .gate-banner {
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--rule-default);
+      background: var(--inset);
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+      color: var(--ink-secondary);
+      margin-bottom: var(--space-4);
+    }
+    .gate-banner--warn {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .branding-grid {
+      display: grid; grid-template-columns: 220px 1fr;
+      gap: var(--space-5);
+      align-items: start;
+    }
+    @media (max-width: 760px) {
+      .branding-grid { grid-template-columns: 1fr; }
+    }
+    .logo-preview {
+      width: 100%; aspect-ratio: 1 / 1;
+      border: 1px dashed var(--rule-default);
+      background: var(--inset);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-tertiary);
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide);
+    }
+    .logo-preview img { max-width: 80%; max-height: 80%; }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-8) var(--space-6);
+      text-align: center;
+      color: var(--ink-tertiary);
+    }
+    .empty-state-glyph {
+      font-family: var(--font-display); font-style: italic;
+      font-size: var(--text-3xl); color: var(--ink-muted); line-height: 1;
+    }
+    .empty-state-text {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      letter-spacing: var(--tracking-wide); color: var(--ink-secondary);
+    }
+    .empty-state-sub {
+      font-family: var(--font-mono); font-size: var(--text-2xs);
+      letter-spacing: var(--tracking-wide); color: var(--ink-tertiary);
+    }
+    .empty-state-sub code {
+      font-family: var(--font-mono);
+      color: var(--ink-secondary);
+      background: var(--inset);
+      padding: 1px 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand">
+        <img class="brand-logo" data-bind="brand-logo" alt="" hidden /><span class="brand-mark" data-bind="brand-mark"><em>Wms</em><span class="amp">/</span></span>
+        <span class="brand-tagline">Warehouse Ops · Est. 2026</span>
+      </a>
+      <nav class="topnav" id="topnav-mount" aria-label="Primary"></nav>
+      <div class="topbar-right">
+        <div class="topbar-clock"><span class="topbar-clock-time" id="clock-time">--:--:--</span><span class="topbar-clock-date" id="clock-date">— · —</span></div>
+        <button class="user-chip" id="user-chip" title="Click to sign out"><span class="user-avatar" data-bind="user-initial">M</span><span class="user-name" data-bind="user-name">M. Tuscani</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-head">
+    <div class="crumb">
+      <a href="index.html">Dashboard</a>
+      <span class="crumb-sep">/</span>
+      <a href="admin.html">Admin</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">System Settings</span>
+    </div>
+    <h1 class="page-title">System <em>settings</em></h1>
+    <p class="page-lede">
+      Site-scoped knobs that change behavior without code edits. Every change is
+      audited; resets fall through to global defaults defined in the registry.
+    </p>
+  </div>
+
+  <main class="page">
+
+    <!-- Permission gate banner — admin-settings.js will show/hide based on
+         caller's permission_level. Lvl 4+ can edit site-scope; Lvl 5 only for
+         global / cross-site scope (matches PAGES_WORKFLOW §5 contract). -->
+    <div class="gate-banner" id="gate-banner" hidden></div>
+
+    <!-- Scope selector — Global vs Site, and (for MCS Lvl 5) cross-site. The
+         scope a user picks here is sent as ?scope= on every GET and stamped
+         into the request body on every PUT. Read precedence is enforced
+         server-side (user > role > site > global) regardless of scope picker.
+         Wiring contract: GET /api/v1/admin/settings?scope={global|site:WHS-XYZ}
+         returns resolved values for that scope; PUT body { scope_type,
+         scope_value, value } enforces server-side. -->
+    <div class="scope-bar">
+      <label>
+        Scope
+        <select id="scope-select" class="input" disabled title="Scope picker enabled once backend lands">
+          <option value="site">Site · this site</option>
+          <option value="global">Global · all sites (MCS Lvl 5)</option>
+        </select>
+      </label>
+      <span style="color: var(--ink-tertiary);">
+        Effective: <strong id="effective-scope" style="color: var(--ink-primary);">—</strong>
+      </span>
+      <span style="margin-left: auto;">
+        <button class="btn btn--ghost btn--sm" id="reload-cache" disabled title="POST /admin/settings/reload — wiring pending">
+          Reload cache
+        </button>
+      </span>
+    </div>
+
+    <div class="settings-shell">
+
+      <!-- Left rail: module navigation. Counts come from the registry response;
+           clicking a row swaps the right-panel content via JS. Static fallback
+           list mirrors the modules listed in PAGES_WORKFLOW + SETTINGS_REGISTRY. -->
+      <aside class="settings-nav" id="settings-nav" aria-label="Settings modules">
+        <button class="settings-nav-item settings-nav-item--active" data-module="inventory">
+          Inventory <span class="settings-nav-count" data-bind="count-inventory">5</span>
+        </button>
+        <button class="settings-nav-item" data-module="quality">
+          Quality <span class="settings-nav-count" data-bind="count-quality">3</span>
+        </button>
+        <button class="settings-nav-item" data-module="production">
+          Production <span class="settings-nav-count" data-bind="count-production">4</span>
+        </button>
+        <button class="settings-nav-item" data-module="reports">
+          Reports <span class="settings-nav-count" data-bind="count-reports">5</span>
+        </button>
+        <button class="settings-nav-item" data-module="auth">
+          Auth & MFA <span class="settings-nav-count" data-bind="count-auth">4</span>
+        </button>
+        <button class="settings-nav-item" data-module="uploads">
+          Uploads <span class="settings-nav-count" data-bind="count-uploads">3</span>
+        </button>
+        <button class="settings-nav-item" data-module="system">
+          System <span class="settings-nav-count" data-bind="count-system">2</span>
+        </button>
+        <button class="settings-nav-item" data-module="branding">
+          Branding <span class="settings-nav-count" data-bind="count-branding">3</span>
+        </button>
+      </aside>
+
+      <!-- Right panel: rendered by admin-settings.js. The default state is the
+           "wiring pending" empty-state inside #settings-panel; the JS swaps
+           that for a list of <div class="settings-row"> entries once it has
+           registry data (live or local fallback). -->
+      <section class="settings-panel" id="settings-panel">
+        <div class="settings-panel-head">
+          <h2 class="settings-panel-title" id="panel-title"><em>Inventory</em></h2>
+          <span class="settings-panel-meta" id="panel-meta">— · awaiting backend</span>
+        </div>
+
+        <div id="panel-body">
+          <div class="empty-state">
+            <span class="empty-state-glyph">∅</span>
+            <span class="empty-state-text">No settings rendered yet.</span>
+            <span class="empty-state-sub">Endpoint <code>GET /api/v1/admin/settings/registry</code> not yet wired — UI ready, server contract documented in <code>settings.py</code>.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-bottom" style="border-top: 0; padding-top: 0;">
+      <span>WMS · Admin · System Settings · v0.1.0</span>
+      <span><span class="dot dot--ok"></span> All systems nominal</span>
+    </div>
+  </footer>
+
+  <script src="scripts/shell.js"></script>
+  <script src="scripts/nav-init.js"></script>
+  <script src="scripts/toast.js"></script>
+  <script src="scripts/api.js"></script>
+  <script src="scripts/admin-settings.js"></script>
+</body>
+</html>

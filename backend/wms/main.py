@@ -109,6 +109,13 @@ def create_app() -> FastAPI:
     app.include_router(admin_orgmeta.departments_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.shifts_router, prefix=api_prefix)
     app.include_router(admin_orgmeta.titles_router, prefix=api_prefix)
+    # TODO(SCO-53): when the System Settings backend lands, mount its router:
+    #     from .api.v1 import settings as system_settings  # noqa
+    #     app.include_router(system_settings.router, prefix=api_prefix)
+    # The router file at wms/api/v1/settings.py is a dormant stub today —
+    # full contract documented at the top of that file. Frontend already
+    # ships at /admin-settings.html and gracefully degrades to the local
+    # registry fallback while the backend is unmounted.
 
     upload_root = Path(settings.upload_dir)
     (upload_root / "avatars").mkdir(parents=True, exist_ok=True)

@@ -26,7 +26,7 @@
 | `quality.html` | ✅ MVP | ✅ MVP | **SCO-50 MVP shipped** — list/open/decide holds. Supplier perf + KPI aggregator deferred to v2. |
 | `production.html` | ✅ MVP | ✅ MVP | **SCO-51 MVP shipped** — recipes + work orders + preflight (FIFO) + start/complete (writes child Lot + LotGenealogy) + cancel. Version bump-on-edit + atomic locking + yield variance audit + BOM unit conversion deferred to v2. E2E smoke `tests/test_workflow_e2e.py` green. |
 | `reports.html` | ✅ MVP | ✅ MVP | **SCO-52 MVP shipped** — `/dashboard`, `/inventory-aging`, `/production`, `/shipping`. CSV streaming + outliers + full genealogy walk + cache layer deferred. |
-| `settings.html` (new) | ❌ | ❌ | **SCO-53** — registry-driven admin settings (still open) |
+| `admin-settings.html` | ⚠️ stub | ✅ | **SCO-53** — frontend shipped (registry-driven, 29 knobs across 8 modules). Backend `api/v1/settings.py` is dormant stub with full TODO contract. Page falls back to local registry until backend lands. |
 
 **Recent additions (2026-05-22 — third pass: Receiving UX + multi-line creation):**
 - **SCO-138** — `ASNLineOut.requires_qc` propagated end-to-end (commits `fdeb6cb`, `3f9d27d`). Receipt editor now auto-passes lines whose SKU has `requires_qc=false` instead of asking the operator to decide. Removed the `Line ${line.id}` debug column; replaced with a `REQUIRES QC` / `—` badge. HTML headers renamed `Condition / QC` → `QC Decision / QC Required`.
