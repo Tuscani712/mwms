@@ -24,7 +24,7 @@
 | `shipping.html` | ✅ | ✅ | Wired |
 | `inventory.html` | ✅ | ✅ | DONE (SCO-49 v2 2026-05-22) — lot search + KPIs + adjust + **SKU typeahead with sessionStorage cache** + ticker hydration + mocks fully stripped |
 | `quality.html` | ✅ MVP | ✅ MVP | **SCO-50 MVP shipped** — list/open/decide holds. Supplier perf + KPI aggregator deferred to v2. |
-| `production.html` | ✅ MVP | ✅ MVP | **SCO-51 MVP shipped** — recipes + work orders + preflight (FIFO) + start/complete (writes child Lot + LotGenealogy) + cancel. Version bump-on-edit + atomic locking + yield variance audit + BOM unit conversion deferred to v2. E2E smoke `tests/test_workflow_e2e.py` green. |
+| `production.html` | ⚠️ v2-stub | ✅ v2 | **SCO-51 MVP shipped + v2 frontend** — recipes + WO lifecycle live. v2 frontend (2026-05-28) adds: recipe-edit modal (calls PUT /recipes/{id}, 501 today), version-history chips, BOM conversion-error rendering in preflight, client-side yield variance warning, variance audit feed (empty until audit endpoint lands). Backend v2 (version bump, BOM conversion, atomic locking, yield variance audit) still TODO — full contracts in `services/production.py` + `api/v1/production.py:edit_recipe`. |
 | `reports.html` | ✅ MVP | ✅ MVP | **SCO-52 MVP shipped** — `/dashboard`, `/inventory-aging`, `/production`, `/shipping`. CSV streaming + outliers + full genealogy walk + cache layer deferred. |
 | `admin-settings.html` | ⚠️ stub | ✅ | **SCO-53** — frontend shipped (registry-driven, 29 knobs across 8 modules). Backend `api/v1/settings.py` is dormant stub with full TODO contract. Page falls back to local registry until backend lands. |
 

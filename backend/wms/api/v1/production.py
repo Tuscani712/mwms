@@ -122,6 +122,47 @@ def create_recipe(
     return _serialize_recipe(db, recipe)
 
 
+@router.put("/recipes/{recipe_id}", response_model=RecipeOut)
+def edit_recipe(
+    recipe_id: int,
+    payload: RecipeCreate,
+    db: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> RecipeOut:
+    """SCO-51 v2 — Edit recipe → version bump.
+
+    NOT YET IMPLEMENTED. Returns 501. The frontend's "Edit recipe" UI
+    already calls this endpoint; on 501 it shows a "version-bump not yet
+    wired" toast and falls back to displaying the existing recipe
+    unchanged.
+
+    Contract when implemented:
+        - Load current recipe by id; reject 404 if missing.
+        - Permission gate: caller's permission_level >=
+          ``production.recipe_edit_requires_level`` (registry default 3).
+        - DO NOT mutate the existing row. INSERT a new Recipe row with:
+            * same sku_id
+            * version = MAX(version where sku_id=...) + 1
+            * locked_by = user.id (audit trail of who bumped it)
+            * created_at = now
+          and write new RecipeLine rows attached to the new recipe.id.
+        - Running / reserved / draft WOs retain ``recipe_version_snapshot``
+          pointing at the OLD version — the snapshot column is already
+          present and populated; no migration needed.
+        - Emit ``recipe.version_bumped`` audit event with
+          ``{recipe_sku_id, old_version, new_version, actor_id,
+          line_changes: [...]}`` in detail_json.
+        - Response: the new (latest) RecipeOut so the UI swaps to it.
+    """
+    raise HTTPException(
+        status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "Recipe edit (version bump) is not yet implemented (SCO-51 v2). "
+            "See contract in api/v1/production.py:edit_recipe docstring."
+        ),
+    )
+
+
 # ─── Work order endpoints ───────────────────────────────────────────────
 
 @router.get("/work-orders", response_model=list[WorkOrderOut])

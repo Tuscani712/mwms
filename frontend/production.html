@@ -157,6 +157,40 @@
       </table>
     </section>
 
+    <!-- Yield Variance feed (SCO-51 v2). Renders recent
+         production.yield_variance_high audit events. Empty-state today —
+         the audit feed endpoint is not yet wired and the variance audit
+         emission is a backend v2 TODO (services/production.py:complete_work_order). -->
+    <section>
+      <div class="section-head">
+        <div class="section-head-left">
+          <span class="section-eyebrow">Yield variance</span>
+          <h2 class="section-title">Recent <em>variance</em></h2>
+        </div>
+        <span class="section-meta" id="variance-meta">backend wiring pending</span>
+      </div>
+      <div class="panel">
+        <ul id="variance-list" class="panel-list" aria-live="polite">
+          <!-- Populated by production.js when /admin/audit?action=
+               production.yield_variance_high returns rows. Each entry:
+                 <li class="alert">
+                   <span class="dot dot--warn"></span>
+                   <div>
+                     <div class="alert-title">WO-{id} · {variance%} {over|under}</div>
+                     <div class="alert-sub">target {target_qty} → actual {actual_qty} ({recipe})</div>
+                   </div>
+                   <span class="alert-time">{when}</span>
+                 </li>
+          -->
+        </ul>
+        <div class="empty-state" id="variance-empty" style="padding: var(--space-6) var(--space-4); text-align: center; color: var(--ink-tertiary); font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: var(--tracking-wide);">
+          <div style="font-family: var(--font-display); font-style: italic; font-size: var(--text-2xl); color: var(--ink-muted);">∅</div>
+          <div>No yield variance events to show.</div>
+          <div style="margin-top: var(--space-1);">Endpoint <code style="background: var(--inset); padding: 1px 6px;">GET /api/v1/admin/audit?action=production.yield_variance_high</code> not yet wired.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Recipe / WO detail aside. Hidden until a row is opened. -->
     <section id="detail-section" hidden>
       <div class="section-head">

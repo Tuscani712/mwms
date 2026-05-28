@@ -64,8 +64,22 @@ def create_recipe(db: Session, payload: RecipeCreate) -> Recipe:
         if db.get(SKU, line.ingredient_sku_id) is None:
             raise ValueError(f"Ingredient SKU {line.ingredient_sku_id} not found")
 
-    # TODO(SCO-51 v2): version-bump-on-edit. If a recipe for this sku_id
-    # already exists, increment from MAX(version) instead of starting at 1.
+    # TODO(SCO-51 v2): version-bump-on-edit.
+    # ────────────────────────────────────────────────────────────────────
+    # On create_recipe today we always set version=1 because we don't
+    # distinguish "first recipe for this SKU" from "next version of an
+    # existing recipe". The edit_recipe endpoint (api/v1/production.py)
+    # is the proper place for version bumps; this branch handles initial
+    # creation only.
+    #
+    # When edit_recipe is implemented, this initial-create path should:
+    #   - Query MAX(version) for payload.sku_id.
+    #   - If no rows exist → version = 1 (current behavior).
+    #   - If rows exist → reject 409 "Use PUT /recipes/{id} to bump
+    #     version instead of POST /recipes for an additional version."
+    # That keeps the create vs version-bump semantics distinct at the
+    # API level rather than overloading POST.
+    # ────────────────────────────────────────────────────────────────────
     recipe = Recipe(sku_id=payload.sku_id, version=1)
     db.add(recipe)
     db.flush()
@@ -170,8 +184,39 @@ def preflight_work_order(db: Session, wo_id: int, site_id: str) -> PreflightResu
 
     for line in recipe_lines:
         required = line.qty_per_unit * wo.target_qty
-        # TODO(SCO-51 v2): BOM unit conversion via SKU.unit_weight_kg if
-        # line.uom != lot.sku.uom. For now we assume matched units.
+        # TODO(SCO-51 v2): BOM unit conversion.
+        # ────────────────────────────────────────────────────────────────
+        # Today preflight assumes recipe.uom == lot.uom for every
+        # ingredient. Real plants run recipes in (e.g.) kilograms while
+        # lots are received in pounds, or in liters of solvent while the
+        # SKU is tracked in pounds. The conversion is one of:
+        #   - mass→mass (kg↔lb): pure unit factor, always possible
+        #   - volume→volume (L↔gal): pure unit factor, always possible
+        #   - mass↔volume: requires SKU.density_kg_per_l — currently NOT
+        #     in the schema. Add it before wiring this branch.
+        #   - count↔mass: requires SKU.unit_weight_kg (already present)
+        #
+        # Algorithm to implement:
+        #   1. Resolve lot.sku to get its native uom + unit_weight_kg
+        #      (+ density once added).
+        #   2. Call _convert_uom(from_uom=line.uom, to_uom=lot_sku.uom,
+        #                        qty=required, sku=lot_sku).
+        #   3. _convert_uom returns either a float (converted qty) or
+        #      raises ConversionImpossibleError with structured detail.
+        #   4. On ConversionImpossibleError: ADD an entry to shortages[] with
+        #          error_kind="conversion_impossible"
+        #          required (original), available=0, short_by=required,
+        #          from_uom=line.uom, to_uom=lot_sku.uom,
+        #          message="No density on SKU XYZ — cannot convert kg→L"
+        #      DO NOT raise — preflight stays a 200 with shortages[] so
+        #      the UI can render the failure inline next to qty
+        #      shortages (see frontend doPreflight in production.js).
+        #   5. On success: use converted qty as `required` for the rest
+        #      of the FIFO loop below.
+        #
+        # Schema TODO: add SKU.density_kg_per_l (nullable Float) before
+        # wiring mass↔volume conversion. unit_weight_kg already exists.
+        # ────────────────────────────────────────────────────────────────
         remaining = required
         for lot in _fifo_lots(db, site_id, line.ingredient_sku_id):
             if remaining <= 0:
@@ -209,7 +254,34 @@ def preflight_work_order(db: Session, wo_id: int, site_id: str) -> PreflightResu
         )
 
     # Atomic-ish: write all reservation rows then flip status.
-    # TODO(SCO-51 v2): wrap in BEGIN IMMEDIATE (SQLite) / FOR UPDATE (PG).
+    # TODO(SCO-51 v2): atomic locking on reservation write.
+    # ────────────────────────────────────────────────────────────────────
+    # Today: two concurrent preflights on the same scarce lot read the
+    # same `lot.quantity`, each compute a satisfying reservation set, and
+    # both commit — over-allocating by the smaller of the two.
+    #
+    # Engine-specific fix (must branch on db.bind.dialect.name):
+    #   - SQLite ('sqlite'):
+    #       db.connection().execute(text("BEGIN IMMEDIATE"))
+    #     Must be called BEFORE the first _fifo_lots() in this function,
+    #     not here. Acquires a write lock on the whole DB until commit —
+    #     serializes preflights but doesn't block reads. Acceptable for
+    #     single-site SQLite deployments; not for hot production paths.
+    #   - PostgreSQL ('postgresql'):
+    #       Modify _fifo_lots() to append `.with_for_update(skip_locked=True)`
+    #       on the SQLAlchemy query. This row-locks each candidate lot;
+    #       a concurrent preflight either waits or skips locked rows
+    #       (the skip variant prevents deadlock at the cost of possibly
+    #       returning a shortage that would have resolved with a tiny
+    #       wait — accept that tradeoff).
+    #   - Other dialects: raise on startup. We're not supporting them.
+    #
+    # Test that proves the fix:
+    #   tests/test_production_concurrency.py — spawn two threads, each
+    #   preflighting a WO that needs the same lot. After both return,
+    #   sum(reservations).qty must equal lot.quantity_before — never
+    #   exceed it. Today this test would fail; that's the canary.
+    # ────────────────────────────────────────────────────────────────────
     for r in proposed:
         db.add(r)
     wo.status = "reserved"
@@ -304,9 +376,55 @@ def complete_work_order(
     db.refresh(wo)
     db.refresh(child_lot)
 
-    # TODO(SCO-51 v2): yield variance audit. If
-    #   abs(actual_qty - target_qty) / target_qty > production.yield_variance_threshold
-    # emit `production.yield_variance_high` via wms.services.audit_log.record().
+    # TODO(SCO-51 v2): yield variance audit.
+    # ────────────────────────────────────────────────────────────────────
+    # The frontend's complete-WO modal already warns the operator
+    # client-side when |actual - target| / target > 0.01 — that's UX
+    # only and not load-bearing. The server-side audit event is what
+    # makes variance investigable after the fact.
+    #
+    # Implementation:
+    #   threshold = settings_store.get(
+    #       "production.yield_variance_threshold",
+    #       scope_type="site", scope_value=site_id,
+    #       default=0.01,
+    #   )
+    #   variance = abs(payload.actual_qty - wo.target_qty) / wo.target_qty
+    #   if variance > threshold:
+    #       audit_log.record(
+    #           db,
+    #           action="production.yield_variance_high",
+    #           actor_id=user.id,   # add user param to complete_work_order
+    #           target_type="work_order",
+    #           target_id=wo.id,
+    #           detail_json={
+    #               "work_order_id": wo.id,
+    #               "recipe_id": wo.recipe_id,
+    #               "target_qty": wo.target_qty,
+    #               "actual_qty": payload.actual_qty,
+    #               "variance": round(variance, 4),
+    #               "threshold": threshold,
+    #               "direction": "over" if payload.actual_qty > wo.target_qty else "under",
+    #               "child_lot_code": child_lot.lot_code,
+    #           },
+    #       )
+    #
+    # Both over- and under-yield count. Over-yield often signals
+    # ingredient misweighing; under-yield can signal contamination,
+    # equipment loss, or a recipe error.
+    #
+    # The audit row alone is queryable via /admin/audit?action=
+    # production.yield_variance_high — the frontend already renders that
+    # feed on production.html (Yield Variance section, currently empty).
+    #
+    # Tests to add (tests/test_production_yield_variance.py):
+    #   - over-yield emits the event
+    #   - under-yield emits the event
+    #   - within-threshold does NOT emit
+    #   - boundary (variance == threshold): does NOT emit (strict >)
+    #   - detail_json shape matches the spec above
+    #   - threshold from settings store overrides default
+    # ────────────────────────────────────────────────────────────────────
     return wo, child_lot
 
 
@@ -322,3 +440,96 @@ def cancel_work_order(db: Session, wo_id: int, site_id: str) -> WorkOrder:
     db.commit()
     db.refresh(wo)
     return wo
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SCO-51 v2 contract stubs — frontend already calls these contracts; the
+# implementations below raise so the failure mode is loud not silent.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ConversionImpossibleError(Exception):
+    """Raised when BOM unit conversion cannot be performed.
+
+    Carries enough detail for the caller (preflight_work_order) to convert
+    it into a structured shortage entry rather than a 500. Do NOT let this
+    bubble up to the API layer — catch it inside the FIFO loop.
+    """
+
+    def __init__(self, from_uom: str, to_uom: str, reason: str, sku_code: str = ""):
+        super().__init__(f"Cannot convert {from_uom}→{to_uom} for {sku_code}: {reason}")
+        self.from_uom = from_uom
+        self.to_uom = to_uom
+        self.reason = reason
+        self.sku_code = sku_code
+
+    def to_detail(self) -> dict:
+        """Shape consumed by the frontend's conversion-impossible row."""
+        return {
+            "error_kind": "conversion_impossible",
+            "from_uom": self.from_uom,
+            "to_uom": self.to_uom,
+            "reason": self.reason,
+            "sku_code": self.sku_code,
+        }
+
+
+def _convert_uom(*, from_uom: str, to_uom: str, qty: float, sku) -> float:
+    """Convert `qty` from `from_uom` to `to_uom` for a given SKU.
+
+    NOT YET IMPLEMENTED (SCO-51 v2). When wired:
+      - Same-uom: return qty unchanged.
+      - Mass↔mass (kg↔lb↔g↔oz): pure factor table.
+      - Volume↔volume (L↔gal↔mL↔fl_oz): pure factor table.
+      - Mass↔volume: requires sku.density_kg_per_l (not yet in schema).
+        Raise ConversionImpossibleError if missing.
+      - Count↔mass: requires sku.unit_weight_kg (already present).
+        Raise ConversionImpossibleError if zero/None.
+
+    Raises:
+        ConversionImpossibleError: when the conversion is fundamentally
+            impossible given the SKU's available metadata.
+    """
+    if from_uom == to_uom:
+        return qty
+    # Conservative default until the conversion table is implemented.
+    sku_code = getattr(sku, "code", "") or ""
+    raise ConversionImpossibleError(
+        from_uom=from_uom,
+        to_uom=to_uom,
+        reason="unit conversion not yet implemented",
+        sku_code=sku_code,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SCO-51 v2 test checklist (mirrors PAGES_WORKFLOW.md §3 — owed tests):
+#
+#   tests/test_production_versioning.py
+#     [ ] PUT /recipes/{id} creates v+1 row, leaves original unchanged
+#     [ ] running WO retains its recipe_version_snapshot through edits
+#     [ ] Lvl < production.recipe_edit_requires_level → 403
+#     [ ] POST /recipes for an existing sku_id → 409 (force PUT path)
+#
+#   tests/test_production_conversion.py
+#     [ ] same-uom: identity passthrough
+#     [ ] mass→mass (kg→lb): correct factor
+#     [ ] count→mass via unit_weight_kg
+#     [ ] mass→volume without density → ConversionImpossibleError
+#     [ ] preflight returns shortage with error_kind=conversion_impossible
+#         when conversion fails; does NOT raise to the API layer
+#
+#   tests/test_production_concurrency.py
+#     [ ] two parallel preflights on the same scarce lot serialize;
+#         sum(reservations).qty ≤ lot.quantity_before
+#     [ ] SQLite BEGIN IMMEDIATE path
+#     [ ] Postgres skip_locked path (skipped on SQLite CI)
+#
+#   tests/test_production_yield_variance.py
+#     [ ] over-yield emits production.yield_variance_high
+#     [ ] under-yield emits same event
+#     [ ] within-threshold does NOT emit
+#     [ ] boundary (variance == threshold): does NOT emit (strict >)
+#     [ ] detail_json shape matches spec in complete_work_order TODO
+#     [ ] settings_store override of threshold takes effect
+# ═══════════════════════════════════════════════════════════════════════════
