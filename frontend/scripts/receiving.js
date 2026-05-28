@@ -257,6 +257,24 @@
         const qcRequirementCell = requiresQc
           ? `<span class="tag" style="background:rgba(255,107,26,0.10);color:var(--amber);border-color:var(--amber);">REQUIRES QC</span>`
           : `<span class="mono" style="color:var(--ink-tertiary)">—</span>`;
+        // SCO-144: when the purchase UoM is mass-class (raw weight receipt,
+        // no packaging override), render a unit picker beside the qty so
+        // the operator can type the value in whatever unit is on the
+        // package label (e.g. "1000 KG" on a tote) and the frontend
+        // converts to the SKU's purchase UoM before submit.
+        const purchaseUom = (line.purchase_uom || line.base_uom || '').toUpperCase();
+        const massPicker = window.WMS && WMS.uom && WMS.uom.isMassUnit(purchaseUom);
+        const uomCell = massPicker
+          ? `<select class="input receipt-qty-uom"
+                     data-purchase-uom="${escapeHtml(purchaseUom)}"
+                     style="width:64px">
+               ${WMS.uom.massUnitOptions(purchaseUom)
+                 .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+                 .join('')}
+             </select>`
+          : `<span class="mono" style="color:var(--ink-tertiary)">${escapeHtml(purchaseUom || 'EA')}</span>`;
+        // Step is "any" because SCO-143 made lot.quantity decimal; integer-only
+        // input would block fractional receipts (0.5 LB pour-off lots etc.).
         return `
           <tr data-asn-line-id="${line.id}" data-qc-auto="${requiresQc ? 'manual' : 'pass'}">
             <td class="col-status"><span class="dot dot--ok"></span></td>
@@ -269,10 +287,11 @@
                   class="input receipt-qty-input"
                   type="number"
                   min="0"
-                  step="1"
+                  step="any"
                   value="${expectedQty}"
                   style="width:88px;text-align:right"
                 />
+                ${uomCell}
               </label>
             </td>
             <td>${qcCell}</td>
@@ -456,15 +475,29 @@
     for (const row of rows) {
       const asnLineId = Number(row.dataset.asnLineId);
       const qtyInput = row.querySelector('.receipt-qty-input');
+      const uomSelect = row.querySelector('.receipt-qty-uom');
       const qcSelect = row.querySelector('.receipt-qc-select');
-      const qty = Number(qtyInput?.value || NaN);
-      if (!Number.isFinite(qty) || qty < 0 || !Number.isInteger(qty)) {
+      const rawQty = Number(qtyInput?.value || NaN);
+      // SCO-144: qty can now be fractional (SCO-143 made lot.quantity
+      // decimal). Only block negative / NaN — fractional inputs are valid.
+      if (!Number.isFinite(rawQty) || rawQty < 0) {
         qtyInput?.focus();
         await window.confirmModal?.alert({
           title: 'Invalid quantity',
-          body: 'Every receipt line needs a whole-number quantity of 0 or greater.',
+          body: 'Every receipt line needs a non-negative quantity.',
         });
         return;
+      }
+      // If a mass-unit picker is present and the operator chose a unit
+      // other than the SKU's purchase UoM, convert before submitting.
+      // Backend speaks the SKU's purchase UoM (qty_received × factor → lot base UoM).
+      let qty = rawQty;
+      if (uomSelect && uomSelect.value && uomSelect.dataset.purchaseUom) {
+        const pickerUom = uomSelect.value.toUpperCase();
+        const purchaseUom = uomSelect.dataset.purchaseUom.toUpperCase();
+        if (pickerUom !== purchaseUom && window.WMS && WMS.uom) {
+          qty = WMS.uom.convert(rawQty, pickerUom, purchaseUom);
+        }
       }
       lines.push({
         asn_line_id: asnLineId,

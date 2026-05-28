@@ -486,21 +486,51 @@
   async function doComplete(woId) {
     const wo = workOrders.find((w) => w.id === woId);
     const targetQty = wo ? wo.target_qty : null;
+    // SCO-144: surface the product SKU's base UoM so the picker can default
+    // to it. When the base UoM is mass-class (LB/KG/OZ/G/MG), render a
+    // [number] + [unit] pair; operator can type in any mass unit and we
+    // convert to the SKU's base UoM before submitting.
+    const recipe = wo ? recipes.find((r) => r.id === wo.recipe_id) : null;
+    const productSku = recipe ? skus.find((s) => s.id === recipe.sku_id) : null;
+    const skuUom = (productSku && productSku.uom ? productSku.uom : 'EA').toUpperCase();
+    const useMassPicker = !!(window.WMS && WMS.uom && WMS.uom.isMassUnit(skuUom));
+
     const bodyLines = [
       'Enter the actual produced quantity. A new child lot will be created and ingredient lots decremented.',
     ];
-    if (targetQty != null) bodyLines.push(`Target qty: ${targetQty}.`);
+    if (targetQty != null) bodyLines.push(`Target qty: ${targetQty} ${skuUom}.`);
+
+    const fields = [
+      {
+        name: 'actual_qty',
+        label: useMassPicker ? 'Actual qty' : `Actual qty (${skuUom})`,
+        type: 'number',
+        required: true,
+      },
+    ];
+    if (useMassPicker) {
+      fields.push({
+        name: 'actual_uom',
+        label: 'Unit',
+        type: 'select',
+        options: WMS.uom.massUnitOptions(skuUom),
+      });
+    }
+    fields.push({ name: 'output_lot_code', label: 'Output lot code (optional)', value: '' });
+
     const r = await confirmModal.form({
       title: `Complete WO-${woId}`,
       body: bodyLines.join('\n\n'),
-      fields: [
-        { name: 'actual_qty', label: 'Actual qty', type: 'number', required: true },
-        { name: 'output_lot_code', label: 'Output lot code (optional)', value: '' },
-      ],
+      fields,
       confirmLabel: 'Complete WO',
     });
     if (!r) return;
-    const actualQty = Number(r.actual_qty);
+    let actualQty = Number(r.actual_qty);
+    if (useMassPicker && r.actual_uom && r.actual_uom !== skuUom) {
+      // Convert operator-entered qty into the SKU's base UoM before submit.
+      // Backend speaks the SKU base UoM; conversion lives entirely client-side.
+      actualQty = WMS.uom.convert(actualQty, r.actual_uom, skuUom);
+    }
     // Client-side variance gate. Pure UX — server enforces nothing here.
     if (targetQty != null && targetQty > 0) {
       const variance = Math.abs(actualQty - targetQty) / targetQty;

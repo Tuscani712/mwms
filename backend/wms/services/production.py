@@ -36,6 +36,7 @@ from wms.schemas.production import (
     WorkOrderCompleteRequest,
     WorkOrderCreate,
 )
+from wms.services import uom_conversion
 
 # ─── Recipes ────────────────────────────────────────────────────────────
 
@@ -534,14 +535,14 @@ class ConversionImpossibleError(Exception):
 def _convert_uom(*, from_uom: str, to_uom: str, qty: float, sku) -> float:
     """Convert `qty` from `from_uom` to `to_uom` for a given SKU.
 
-    NOT YET IMPLEMENTED (SCO-51 v2). When wired:
+    Implemented cases (SCO-144 closes the mass↔mass path):
       - Same-uom: return qty unchanged.
-      - Mass↔mass (kg↔lb↔g↔oz): pure factor table.
+      - Mass↔mass (LB↔KG↔OZ↔G↔MG): pure factor table via uom_conversion.
+
+    Still TODO (will raise ConversionImpossibleError until wired):
       - Volume↔volume (L↔gal↔mL↔fl_oz): pure factor table.
       - Mass↔volume: requires sku.density_kg_per_l (not yet in schema).
-        Raise ConversionImpossibleError if missing.
       - Count↔mass: requires sku.unit_weight_kg (already present).
-        Raise ConversionImpossibleError if zero/None.
 
     Raises:
         ConversionImpossibleError: when the conversion is fundamentally
@@ -549,8 +550,12 @@ def _convert_uom(*, from_uom: str, to_uom: str, qty: float, sku) -> float:
     """
     if from_uom == to_uom:
         return qty
-    # Conservative default until the conversion table is implemented.
+
     sku_code = getattr(sku, "code", "") or ""
+
+    if uom_conversion.is_mass_unit(from_uom) and uom_conversion.is_mass_unit(to_uom):
+        return uom_conversion.convert(qty, from_uom, to_uom)
+
     raise ConversionImpossibleError(
         from_uom=from_uom,
         to_uom=to_uom,

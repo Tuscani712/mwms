@@ -121,6 +121,7 @@ def _serialize_lot(lot: Lot, sku: SKU, loc: Location | None) -> LotOut:
         location_is_overflow=bool(loc.is_overflow) if loc else False,
         location_is_qa_hold=bool(loc.is_qa_hold) if loc else False,
         quantity=lot.quantity,
+        uom=sku.uom or "",
         qa_hold=lot.qa_hold,
         received_at=lot.received_at,
         expires_at=lot.expires_at,

@@ -14,6 +14,7 @@ class LotOut(BaseModel):
     location_is_overflow: bool
     location_is_qa_hold: bool
     quantity: float  # SCO-143: base UoM, decimal-capable
+    uom: str = ""  # SCO-144: base UoM (drives mass-unit tooltip in UI)
     qa_hold: bool
     received_at: datetime
     expires_at: date | None

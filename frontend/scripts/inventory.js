@@ -197,11 +197,28 @@
         const note = lot.qa_hold ? 'QA HOLD'
           : lot.expiring_soon ? `Expires ${lot.expires_at}`
           : lot.sku_description;
+        // SCO-144: when the lot's base UoM is mass-class, show a KG
+        // tooltip (or LB tooltip if the base is KG/G/OZ/MG) on hover so
+        // operators can sanity-check in either system without leaving
+        // the page. Falls back to the bare quantity when WMS.uom isn't
+        // loaded (e.g. inventory shown on a page that hasn't included
+        // uom-convert.js) or the lot is in a non-mass UoM.
+        const uom = (lot.uom || '').toUpperCase();
+        let qtyCell = `${fmt(lot.quantity)} ${escapeHtml(uom)}`.trim();
+        if (window.WMS && WMS.uom && WMS.uom.isMassUnit(uom)) {
+          const alt = uom === 'LB' ? 'KG' : 'LB';
+          const tip = WMS.uom.formatWithSecondary(
+            uom === 'LB' ? lot.quantity : WMS.uom.toCanonical(lot.quantity, uom),
+            alt,
+            uom === 'LB' ? 2 : 3,
+          );
+          qtyCell = `<span title="${escapeHtml(tip)}" style="border-bottom:1px dotted var(--ink-tertiary);cursor:help">${fmt(lot.quantity)} ${escapeHtml(uom)}</span>`;
+        }
         return `
           <tr>
             <td class="col-status"><span class="dot ${dotKind}"></span></td>
             <td class="mono">${escapeHtml(lot.lot_code)}</td>
-            <td>${fmt(lot.quantity)} · ${escapeHtml(lot.location_code || '—')}</td>
+            <td>${qtyCell} · ${escapeHtml(lot.location_code || '—')}</td>
             <td>${escapeHtml(note)}</td>
             <td class="num">${escapeHtml(lot.aging_bucket || '—')}</td>
             <td class="col-action"><span class="mono" style="color:var(--ink-tertiary)">${escapeHtml(lot.sku_code)}</span></td>
