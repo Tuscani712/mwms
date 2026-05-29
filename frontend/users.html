@@ -362,6 +362,32 @@
     </div>
   </div>
 
+  <!-- SEC-1: Admin reset-password modal. Dedicated from the Edit form so the
+       audit event (auth.admin.password_reset) and lockout-clear marker are
+       only emitted for an explicit reset action, not for routine field edits. -->
+  <div class="modal-backdrop" id="reset-pw-backdrop">
+    <div class="modal" style="max-width: 480px;">
+      <h2 style="color: var(--amber);">Reset password</h2>
+      <p style="color: var(--ink-secondary); font-size: 13px; line-height: 1.55; margin: var(--space-2) 0 var(--space-4);">
+        Setting a new password for <strong id="reset-pw-target" style="color: var(--ink-primary); font-family: var(--font-mono);">—</strong>.
+        Any active lockout will be cleared. By default the user must change this password at next login.
+      </p>
+      <form id="reset-pw-form" class="modal-form" onsubmit="return false;">
+        <label>New password
+          <input class="input input--compact" type="password" id="reset-pw-input" required minlength="4" maxlength="128" autocomplete="new-password" />
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-secondary);font-weight:normal;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" id="reset-pw-force" checked />
+          Force password change on next login (recommended)
+        </label>
+        <div class="modal-footer" style="margin-top: var(--space-3);">
+          <button type="button" class="btn" id="reset-pw-cancel">Cancel</button>
+          <button type="submit" class="btn" id="reset-pw-confirm" style="background: var(--amber); color: var(--ink-on-amber, #1a1a20); border-color: var(--amber);">Reset password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- SCO-113: Move-site modal (MCS-only). Reuses the inline .modal styling. -->
   <div class="modal-backdrop" id="move-site-backdrop">
     <div class="modal" style="max-width: 520px;">

@@ -19,13 +19,16 @@
   // on window so a soft re-init reuses it.
   let callerId = window.__wmsCallerId ?? null;
   let callerSiteId = null;
+  let callerLevel = window.__wmsCallerLevel ?? 0;
   if (callerId == null) {
     try {
       const me = await WMS_API.me();
       callerId = me?.id ?? null;
       callerSiteId = me?.site_id ?? null;
+      callerLevel = me?.permission_level ?? 0;
       window.__wmsCallerId = callerId;
       window.__wmsCallerSiteId = callerSiteId;
+      window.__wmsCallerLevel = callerLevel;
     } catch (e) {
       // If /auth/me fails the page-load redirect to login.html will fire
       // soon anyway; leaving callerId null just means the guard no-ops.
@@ -33,6 +36,7 @@
     }
   } else {
     callerSiteId = window.__wmsCallerSiteId ?? null;
+    callerLevel = window.__wmsCallerLevel ?? 0;
   }
   // SCO-113: MCS callers see Site dropdown on create, Site column in list,
   // and the "Move site" row action. Backend still enforces; this is UI gating.
@@ -210,6 +214,10 @@
         <td>${statusPill(u)}</td>
         <td><div class="row-actions">
           <button class="btn btn--xs" data-act="edit" data-id="${u.id}">Edit</button>
+          ${(!isSelf && u.is_active && u.permission_level < callerLevel)
+            ? `<button class="btn btn--xs" data-act="reset-password" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})">Reset password</button>
+               <button class="btn btn--xs" data-act="unlock" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})">Unlock</button>`
+            : ''}
           ${callerIsMCS && !isSelf ? `<button class="btn btn--xs" data-act="move-site" data-id="${u.id}" data-name="${escapeHtml(u.full_name)} (${escapeHtml(u.employee_code)})" data-site="${escapeHtml(u.site_id)}">Move site</button>` : ''}
           ${u.is_active
             ? (isSelf
@@ -516,6 +524,16 @@
         loadList();
       } else if (act === 'move-site') {
         openMoveSiteModal(id, btn.dataset.name || `user #${id}`, btn.dataset.site || '');
+      } else if (act === 'reset-password') {
+        openResetPwModal(id, btn.dataset.name || `user #${id}`);
+      } else if (act === 'unlock') {
+        if (!(await confirmModal.simple({
+          title: 'Unlock this user?',
+          body: `Clear any active lockout timer for ${btn.dataset.name || `user #${id}`}. Their failure counter resets to zero.`,
+          confirmLabel: 'Unlock',
+        }))) return;
+        await A.request(`/admin/users/${id}/unlock`, { method: 'POST', body: {} });
+        toast('ok', 'User unlocked');
       } else if (act === 'purge') {
         openPurgeModal(id, btn.dataset.name || `user #${id}`);
       }
@@ -740,6 +758,58 @@
   $('#modal-cancel').addEventListener('click', closeModal);
   $('#modal-backdrop').addEventListener('click', (e) => {
     if (e.target.id === 'modal-backdrop') closeModal();
+  });
+
+  // ── Reset-password modal (SEC-1) ───────────────────────────────────
+  // Dedicated UI for admin password reset. Distinct from the Edit form so
+  // the audit event (auth.admin.password_reset) only fires on an explicit
+  // reset, and so the lockout-clear marker can ride along on the same call.
+  const resetPwBackdrop = $('#reset-pw-backdrop');
+  const resetPwInput    = $('#reset-pw-input');
+  const resetPwForce    = $('#reset-pw-force');
+  const resetPwState    = { id: null, label: null };
+
+  function openResetPwModal(userId, label) {
+    resetPwState.id = userId;
+    resetPwState.label = label;
+    $('#reset-pw-target').textContent = label;
+    resetPwInput.value = '';
+    resetPwForce.checked = true;
+    resetPwBackdrop.dataset.open = 'true';
+    setTimeout(() => resetPwInput.focus(), 0);
+  }
+
+  function closeResetPwModal() {
+    resetPwBackdrop.dataset.open = 'false';
+    resetPwState.id = null;
+    resetPwState.label = null;
+    resetPwInput.value = '';
+  }
+
+  $('#reset-pw-cancel').addEventListener('click', closeResetPwModal);
+  resetPwBackdrop.addEventListener('click', (e) => {
+    if (e.target.id === 'reset-pw-backdrop') closeResetPwModal();
+  });
+  $('#reset-pw-form').addEventListener('submit', async () => {
+    const id = resetPwState.id;
+    const pw = resetPwInput.value;
+    if (!id || !pw || pw.length < 4) return;
+    try {
+      const resp = await A.request(`/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        body: {
+          new_password: pw,
+          force_change_on_next_login: resetPwForce.checked,
+        },
+      });
+      const tail = resp?.must_change_password
+        ? " They'll be prompted to change it at next login."
+        : '';
+      toast('ok', `Password reset for ${resetPwState.label}.${tail}`);
+      closeResetPwModal();
+    } catch (err) {
+      toast('err', err.message);
+    }
   });
 
   // ── Move-site modal (SCO-113, MCS-only) ────────────────────────────
