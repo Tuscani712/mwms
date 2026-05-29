@@ -7,7 +7,7 @@
 ║  this file for the wire-up checklist.                                    ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 
-Contract (single source of truth: PAGES_WORKFLOW.md §5 + SETTINGS_REGISTRY.md):
+Contract (single source of truth: PAGES_WORKFLOW.md §5 + BACKEND_SCHEMA.md §Settings Registry):
 
     Table:
         settings(key PK, value_json, type, scope_type, scope_value,
@@ -18,7 +18,7 @@ Contract (single source of truth: PAGES_WORKFLOW.md §5 + SETTINGS_REGISTRY.md):
         Code-defined in services/settings_registry.py, NOT DB-defined.
         Random keys via PUT must be rejected (only registered keys land).
         Adding a knob = registry entry + getter in the consumer module +
-        appending one row to SETTINGS_REGISTRY.md, all in the same commit.
+        appending one row to BACKEND_SCHEMA.md §Settings Registry, all in the same commit.
 
     Audit:
         Every PUT and RESET emits ``settings.changed`` with

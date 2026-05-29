@@ -33,7 +33,7 @@ The product separates two concerns that most WMS tools blur together:
 - **Site operations** — what an operator does on the floor (receiving, picking, QC holds, lot genealogy). Lives at each warehouse.
 - **Fleet governance** — provisioning users across sites, KPI rollup, recall coordination, license control. Lives at the MCS (client-owned) and the **Vendor Control Plane** (vendor-owned).
 
-See [`MULTI_SITE_ARCHITECTURE.md`](./MULTI_SITE_ARCHITECTURE.md) for the full federation model including the commercial lifecycle (negotiation → deployment → decommission).
+See [`MULTI_SITE_ARCHITECTURE.md`](./docs/MULTI_SITE_ARCHITECTURE.md) for the full federation model including the commercial lifecycle (negotiation → deployment → decommission).
 
 ---
 
@@ -183,7 +183,7 @@ WMS_Software/
 
 ## Implementation Status
 
-> Source of truth: [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md). This section is a high-altitude summary; the roadmap has per-feature checkboxes and ship dates.
+> Source of truth: [`IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md). This section is a high-altitude summary; the roadmap has per-feature checkboxes and ship dates.
 
 ### Shipped (Phase 1, Modules 1–8)
 
@@ -223,7 +223,7 @@ These are tracked in the roadmap and have queued tickets but are not yet shipped
 
 ### Not Started (Phase 2)
 
-These are explicitly out of scope for the MVP but planned. See [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §"PHASE 2" for the full list.
+These are explicitly out of scope for the MVP but planned. See [`IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md) §"PHASE 2" for the full list.
 
 **Phase 1 P3 — Nice-to-have MVP completion:**
 - Handheld RF device pairing for picking
@@ -258,16 +258,16 @@ These are explicitly out of scope for the MVP but planned. See [`IMPLEMENTATION_
 
 | Doc | Purpose |
 |---|---|
-| [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) | Per-feature status with ship dates; Phase 1 vs Phase 2 breakdown; success metrics |
-| [`MULTI_SITE_ARCHITECTURE.md`](./MULTI_SITE_ARCHITECTURE.md) | Federation model · VCP vs MCS · ping thresholds · commercial lifecycle (negotiation → decom) |
-| [`BACKEND_SCHEMA.md`](./BACKEND_SCHEMA.md) | ORM model reference — every table, FK, and invariant |
-| [`FRONTEND_DESIGN_SCHEMA.md`](./FRONTEND_DESIGN_SCHEMA.md) | Industrial Editorial design system — tokens, type scale, component vocabulary |
-| [`PAGES_WORKFLOW.md`](./PAGES_WORKFLOW.md) | Per-page user flows · endpoints touched · edge cases · test coverage |
-| [`PERMISSION_SYSTEM.md`](./PERMISSION_SYSTEM.md) | 5-level RBAC · module access matrix · audit log shape |
-| [`SECURITY_AUDIT.md`](./SECURITY_AUDIT.md) | All audit findings, severity, remediation status |
-| [`SETTINGS_REGISTRY.md`](./SETTINGS_REGISTRY.md) | Configurable thresholds (FEFO trigger window, variance %, hold aging tiers, …) |
-| [`WMS_plan.txt`](./WMS_plan.txt) | Original product spec — leveled feature inventory (Lvl 1–5) |
-| [`answers.txt`](./answers.txt) | Decision log — Q&A captured during scoping |
+| [`IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md) | Per-feature status with ship dates; Phase 1 vs Phase 2 breakdown; success metrics |
+| [`MULTI_SITE_ARCHITECTURE.md`](./docs/MULTI_SITE_ARCHITECTURE.md) | Federation model · VCP vs MCS · ping thresholds · commercial lifecycle (negotiation → decom) |
+| [`BACKEND_SCHEMA.md`](./docs/BACKEND_SCHEMA.md) | ORM model reference — every table, FK, and invariant |
+| [`FRONTEND_DESIGN_SCHEMA.md`](./docs/FRONTEND_DESIGN_SCHEMA.md) | Industrial Editorial design system — tokens, type scale, component vocabulary |
+| [`PAGES_WORKFLOW.md`](./docs/PAGES_WORKFLOW.md) | Per-page user flows · endpoints touched · edge cases · test coverage |
+| [`PERMISSION_SYSTEM.md`](./docs/PERMISSION_SYSTEM.md) | 5-level RBAC · module access matrix · audit log shape |
+| [`SECURITY_AUDIT.md`](./docs/SECURITY_AUDIT.md) | All audit findings, severity, remediation status |
+| [`BACKEND_SCHEMA.md` § Settings Registry](./docs/BACKEND_SCHEMA.md#settings-registry) | Configurable thresholds (FEFO trigger window, variance %, hold aging tiers, …) — merged from former `SETTINGS_REGISTRY.md` |
+| [`docs/_archive/WMS_plan.txt`](./docs/_archive/WMS_plan.txt) | Original product spec — leveled feature inventory (Lvl 1–5). Archived; superseded by `IMPLEMENTATION_ROADMAP.md` |
+| [`docs/_archive/answers.txt`](./docs/_archive/answers.txt) | Decision log — Q&A captured during scoping. Archived; folded into module docs |
 | [`backend/README.md`](./backend/README.md) | Backend-only quick start, endpoint reference, mock-data summary |
 | [`frontend/README.md`](./frontend/README.md) | Frontend-only quick start, page inventory, design principles |
 
