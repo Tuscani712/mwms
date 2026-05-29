@@ -112,6 +112,10 @@
       text-transform: uppercase;
       color: var(--ink-secondary);
     }
+    /* `.modal-form label` sets display:grid, which has higher specificity than
+       the UA default [hidden]{display:none}. Restore the hidden semantics so
+       JS can toggle visibility via the standard `hidden` attribute. */
+    .modal-form label[hidden] { display: none; }
     .modal-footer {
       display: flex;
       gap: var(--space-3);
