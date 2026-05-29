@@ -114,8 +114,11 @@ check_or_create_venv() {
 }
 
 check_or_install_deps() {
-  # Use a sentinel: presence of `uvicorn` binary + `bcrypt` import = installed
-  if [[ -x "$UVICORN" ]] && "$PY" -c "import fastapi, sqlalchemy, bcrypt, jose" >/dev/null 2>&1; then
+  # Sentinel: every runtime + test-runtime import we depend on must resolve.
+  # pytest_xdist is the newest addition (parallel pytest); if it's missing,
+  # this catches it without forcing a wholesale reinstall on every launch.
+  local probe="import fastapi, sqlalchemy, bcrypt, jose, pytest, xdist"
+  if [[ -x "$UVICORN" ]] && "$PY" -c "$probe" >/dev/null 2>&1; then
     ok "Backend dependencies installed"
   else
     log "Installing backend dependencies (this is slow only the first time)…"
@@ -610,7 +613,8 @@ menu_loop() {
     echo
     echo "  ${C_BLD}[s]${C_RST} Status     ${C_BLD}[b]${C_RST} Tail backend log   ${C_BLD}[f]${C_RST} Tail frontend log"
     echo "  ${C_BLD}[r]${C_RST} Restart    ${C_BLD}[t]${C_RST} Smoke test         ${C_BLD}[l]${C_RST} CSS lint"
-    echo "  ${C_BLD}[j]${C_RST} JS tests   ${C_BLD}[o]${C_RST} Open login URL     ${C_BLD}[q]${C_RST} Quit"
+    echo "  ${C_BLD}[p]${C_RST} Pytest     ${C_BLD}[j]${C_RST} JS tests           ${C_BLD}[o]${C_RST} Open login URL"
+    echo "  ${C_BLD}[q]${C_RST} Quit"
     printf "%swms>%s " "$C_BLU" "$C_RST"
     # Ctrl+D (EOF) → fall through to exit; EXIT trap stops both services.
     local cmd; read -r cmd || { echo; exit 0; }
@@ -619,6 +623,19 @@ menu_loop() {
       b|B) [[ -f "$BACKEND_LOG" ]] && tail -n 25 "$BACKEND_LOG" || warn "No backend log yet" ;;
       f|F) [[ -f "$FRONTEND_LOG" ]] && tail -n 25 "$FRONTEND_LOG" || warn "No frontend log yet" ;;
       t|T|test|smoke) smoke_test ;;
+      p|P|pytest|py)
+        # Full Python test suite, parallelized via pytest-xdist.
+        # `-n auto` = one worker per logical core. Override with WMS_PYTEST_N=<n>
+        # (e.g. WMS_PYTEST_N=4) when sharing the machine with heavy workloads.
+        if ! "$PY" -c "import xdist" >/dev/null 2>&1; then
+          warn "pytest-xdist not installed — falling back to single-process"
+          ( cd "$BACKEND" && "$PY" -m pytest -q )
+        else
+          local n="${WMS_PYTEST_N:-auto}"
+          log "Running pytest (-n $n)…"
+          ( cd "$BACKEND" && "$PY" -m pytest -q -n "$n" )
+        fi
+        ;;
       l|L|lint)
         if [[ ! -d "$ROOT/node_modules/stylelint" ]]; then
           warn "stylelint not installed — run: npm install"
