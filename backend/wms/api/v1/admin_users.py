@@ -83,9 +83,37 @@ class UserAdminOut(BaseModel):
     custom_title: str | None = None
     is_active: bool
     supervisor_id: int | None
+    # Resolved supervisor full_name. Frontend renders this directly in the
+    # table; supervisor_id is still useful for hierarchy logic and form prefill.
+    supervisor_name: str | None = None
     display_name: str | None
 
     model_config = {"from_attributes": True}
+
+
+def _serialize_one(db: Session, user: User) -> UserAdminOut:
+    """Build a UserAdminOut for a single user, resolving supervisor_name."""
+    out = UserAdminOut.model_validate(user)
+    if user.supervisor_id is not None:
+        sup = db.query(User.full_name).filter(User.id == user.supervisor_id).first()
+        out.supervisor_name = sup[0] if sup else None
+    return out
+
+
+def _serialize_many(db: Session, users: list[User]) -> list[UserAdminOut]:
+    """Batch-resolve supervisor names for a page of users — one IN() query."""
+    ids = {u.supervisor_id for u in users if u.supervisor_id is not None}
+    name_by_id: dict[int, str] = {}
+    if ids:
+        rows = db.query(User.id, User.full_name).filter(User.id.in_(ids)).all()
+        name_by_id = {row[0]: row[1] for row in rows}
+    out_list: list[UserAdminOut] = []
+    for u in users:
+        out = UserAdminOut.model_validate(u)
+        if u.supervisor_id is not None:
+            out.supervisor_name = name_by_id.get(u.supervisor_id)
+        out_list.append(out)
+    return out_list
 
 
 class UserListResponse(BaseModel):
@@ -130,7 +158,9 @@ def list_users(
         )
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
-    return UserListResponse(items=items, total=total, limit=limit, offset=offset)
+    return UserListResponse(
+        items=_serialize_many(db, items), total=total, limit=limit, offset=offset
+    )
 
 
 @router.post("", response_model=UserAdminOut, status_code=status.HTTP_201_CREATED)
@@ -138,13 +168,14 @@ def create_user(
     payload: UserCreate,
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
-) -> User:
+) -> UserAdminOut:
     try:
-        return svc.create_user(db, caller, payload=payload.model_dump())
+        created = svc.create_user(db, caller, payload=payload.model_dump())
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return _serialize_one(db, created)
 
 
 @router.get("/{user_id}", response_model=UserAdminOut)
@@ -152,7 +183,7 @@ def get_user(
     user_id: int,
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
-) -> User:
+) -> UserAdminOut:
     target = _load_target(db, user_id)
     # Visibility: same rules as list. Reuse assert_can_manage for the read gate
     # except we don't require strict outranking for a *read*.
@@ -162,7 +193,7 @@ def get_user(
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
     if caller.site_id != svc.MCS_SITE_ID and target.site_id != caller.site_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cross-site read requires MCS admin")
-    return target
+    return _serialize_one(db, target)
 
 
 @router.put("/{user_id}", response_model=UserAdminOut)
@@ -171,16 +202,17 @@ def update_user(
     payload: UserUpdate,
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
-) -> User:
+) -> UserAdminOut:
     target = _load_target(db, user_id)
     try:
-        return svc.update_user(db, caller, target, payload.model_dump(exclude_unset=True))
+        updated = svc.update_user(db, caller, target, payload.model_dump(exclude_unset=True))
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
     except ValueError as e:
         # SCO-80: FK validation errors (cross-site dept/shift, missing entity)
         # propagate as 400 — same shape as create_user's wrapper.
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    return _serialize_one(db, updated)
 
 
 @router.delete("/{user_id}", response_model=UserAdminOut)
@@ -188,12 +220,13 @@ def deactivate_user(
     user_id: int,
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
-) -> User:
+) -> UserAdminOut:
     target = _load_target(db, user_id)
     try:
-        return svc.deactivate_user(db, caller, target)
+        deactivated = svc.deactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    return _serialize_one(db, deactivated)
 
 
 @router.post("/{user_id}/reactivate", response_model=UserAdminOut)
@@ -201,12 +234,13 @@ def reactivate_user(
     user_id: int,
     db: Session = Depends(get_session),
     caller: User = Depends(get_current_user),
-) -> User:
+) -> UserAdminOut:
     target = _load_target(db, user_id)
     try:
-        return svc.reactivate_user(db, caller, target)
+        reactivated = svc.reactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+    return _serialize_one(db, reactivated)
 
 
 # ── SEC-1: admin password reset + lockout clear ───────────────────────

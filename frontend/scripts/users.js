@@ -220,7 +220,7 @@
         ${callerIsMCS ? `<td class="col-site">${escapeHtml(u.site_id || '—')}</td>` : ''}
         <td>${escapeHtml(u.department || '—')}</td>
         <td>${escapeHtml(u.shift || '—')}</td>
-        <td>${u.supervisor_id ?? '—'}</td>
+        <td>${u.supervisor_name ? escapeHtml(u.supervisor_name) : '—'}</td>
         <td>${statusPill(u)}</td>
         <td><div class="row-actions">
           <button class="btn btn--xs" data-act="edit" data-id="${u.id}">Edit</button>
