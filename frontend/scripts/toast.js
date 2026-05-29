@@ -36,6 +36,20 @@
         pointer-events: none;
         max-width: 420px;
       }
+      .wms-toast-clear-all {
+        pointer-events: auto;
+        align-self: flex-end;
+        background: transparent;
+        border: 0;
+        color: var(--ink-tertiary, #888);
+        font-family: var(--font-mono, monospace);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        padding: 2px 4px;
+      }
+      .wms-toast-clear-all:hover { color: var(--ink-primary, #fff); }
       .wms-toast {
         pointer-events: auto;
         display: grid;
@@ -125,7 +139,31 @@
   function dismiss(toastEl) {
     if (!toastEl || toastEl.classList.contains('wms-toast--leaving')) return;
     toastEl.classList.add('wms-toast--leaving');
-    setTimeout(() => toastEl.remove(), 180);
+    setTimeout(() => {
+      toastEl.remove();
+      refreshClearAll();
+    }, 180);
+  }
+
+  // Surface a "Clear all" affordance only when 2+ toasts are visible.
+  // Anchored to the container so it auto-removes on dismissAll.
+  function refreshClearAll() {
+    const container = document.getElementById(CONTAINER_ID);
+    if (!container) return;
+    const liveToasts = container.querySelectorAll('.wms-toast:not(.wms-toast--leaving)').length;
+    let btn = container.querySelector('.wms-toast-clear-all');
+    if (liveToasts >= 2) {
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'wms-toast-clear-all';
+        btn.textContent = 'Clear all ×';
+        btn.addEventListener('click', dismissAll);
+        container.insertBefore(btn, container.firstChild);
+      }
+    } else if (btn) {
+      btn.remove();
+    }
   }
 
   function show(kind, msg, opts = {}) {
@@ -147,6 +185,7 @@
     `;
 
     container.appendChild(toastEl);
+    refreshClearAll();
 
     let dismissTimer = setTimeout(() => dismiss(toastEl), duration);
     const cancelTimer = () => { if (dismissTimer) { clearTimeout(dismissTimer); dismissTimer = null; } };

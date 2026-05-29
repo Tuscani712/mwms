@@ -83,12 +83,22 @@
   };
 
   // ── Toast ──────────────────────────────────────────────────────────
-  function toast(kind, text, ms = 2400) {
+  // Delegates to the shared WMS.toast module: 10s default, stacks, has
+  // per-toast × dismiss and WMS.toast.dismissAll(). Falls back to the
+  // legacy #toast div only if the shared module didn't load (defensive;
+  // every page that uses this script must include scripts/toast.js).
+  function toast(kind, text) {
+    const t = window.WMS?.toast;
+    if (t) {
+      (kind === 'err' ? t.err : t.ok)(text);
+      return;
+    }
     const el = $('#toast');
+    if (!el) return;
     el.className = 'toast toast--' + (kind === 'err' ? 'err' : 'ok');
     el.textContent = (kind === 'err' ? '✗ ' : '✓ ') + text;
     el.dataset.open = 'true';
-    setTimeout(() => { el.dataset.open = 'false'; }, ms);
+    setTimeout(() => { el.dataset.open = 'false'; }, 2400);
   }
 
   // ── API ────────────────────────────────────────────────────────────

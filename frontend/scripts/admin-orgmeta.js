@@ -27,7 +27,14 @@
   let allSites = [];
   const siteState = { target: null };
 
+  // Delegates to shared WMS.toast (10s, stacks, dismissible). Falls back to
+  // the legacy #toast div if the shared module didn't load.
   function toast(kind, msg) {
+    const t = window.WMS?.toast;
+    if (t) {
+      (kind === 'err' ? t.err : t.ok)(msg);
+      return;
+    }
     toastEl.textContent = msg;
     toastEl.style.borderColor = kind === 'err' ? 'var(--signal-crit)' : 'var(--signal-ok)';
     toastEl.style.color = kind === 'err' ? 'var(--signal-crit)' : 'var(--signal-ok)';
