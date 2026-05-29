@@ -6,7 +6,35 @@
 
 ---
 
-## Current Status (2026-05-22)
+## Current Status (2026-05-29)
+
+### ✅ SEC-1 · Login throttling + admin reset/unlock + user-mgmt polish — shipped 2026-05-29
+
+Five commits closing out the User Management page for this iteration.
+
+**Backend (`4a16b3b`):**
+- New `wms/services/login_guard.py`. Per-account lockout derived from `login_attempts` rows since last reset; per-fail escalation **fail 4 → 60 s, fail 5 → 120 s, fail 6 → 180 s, fail 7+ → 3600 s**. Successful login or admin unlock fully resets state.
+- Per-IP rate limit (1 req/s) via in-process token bucket; bursts return `429 + Retry-After`.
+- Login route emits `LoginAttempt` rows on every outcome (success/failure/locked/unknown_user). Success row commits before MFA challenge so brute-force counter resets at password verification.
+- Admin endpoints: `POST /admin/users/{id}/reset-password` (new password + `must_change_password=true` default + auto-clears lockout) and `POST /admin/users/{id}/unlock` (idempotent). Both gated by `assert_can_manage` and audit-logged (`auth.admin.password_reset`, `auth.admin.lockout_cleared`).
+- No `User` schema change — lockout state derives from the existing `login_attempts` table (H-4 pre-stage paid off).
+- 19 new tests in `test_login_guard.py` (stage math, HTTP integration, admin paths, IP burst). Suite **296/296**.
+
+**Frontend (`70cb658`, `c694929`, `8c2bbb1`, `071ee14`):**
+- **Edit-user Site row hidden correctly** — was visible because `.modal-form label { display: grid }` outranked `[hidden]{display:none}`; added `.modal-form label[hidden] { display: none }` (one-line CSS specificity restore).
+- **Admin row actions: Reset Password + Unlock** in `users.html`. Visibility gated by `caller_level > target_level && !isSelf && active` (mirrors backend). Reset opens a small amber modal with force-change checkbox; Unlock uses `confirmModal`.
+- **Toast system unified on `WMS.toast`.** Migrated two stragglers (`users.js` 2.4 s → 10 s, `admin-orgmeta.js` 3 s → 10 s) off their local implementations onto the shared module. Added `CLEAR ALL ×` affordance that auto-appears when ≥2 toasts are visible.
+- **Supervisor column shows full_name** instead of raw FK. `UserAdminOut.supervisor_name` resolved via batched `IN()` query in `_serialize_many` (no N+1). All six User-returning admin endpoints updated.
+
+**Site-creation rule reconfirmed** (no code change needed — already correct in `users_admin.py:116-126`):
+- Non-MCS callers can only create users at their own site.
+- Cross-site creation requires `site_id == "MCS"` AND `permission_level >= 4` (conjoined — defends against L5 site-managers escaping site jurisdiction).
+- Frontend Site picker mirrors this: only renders for MCS callers on create; hidden on edit (Site changes go through the dedicated Move site flow with FK clearing).
+
+**Deferred (parked for future tickets):**
+- Forgotten-password flow — needs SMTP config + reset-token table with TTL + frontend page.
+- 🔒 lockout indicator in the table — needs a small backend addition (current lockout state in list response).
+- Login screen lockout countdown polish — works today but could be made nicer if needed.
 
 ### ✅ Inventory page v2 + SKU search + sessionStorage cache (SCO-49 v2) — shipped 2026-05-22
 - **Mocks fully stripped** from `inventory.html`: status ticker, KPI tiles, "Recent Lookups" table, safety-stock alerts, Cycle Counts panel, Floor Chat dock. Replaced with `data-bind` hooks fed from `/inventory/kpis`, `/inventory/lots`, `/inventory/below-safety-stock`.

@@ -135,6 +135,8 @@ Tests already set `WMS_SECRET_KEY="test-secret"` in `conftest.py`, so the suite 
 
 New `LoginAttempt` table — `user_id`, `attempted_at`, `success`, `ip`, `user_agent`. No writes yet (those come with H-1's rate-limiter), but the schema lands now so we don't migrate twice.
 
+**Update 2026-05-29:** SEC-1 has shipped — writes now flow into this table on every login attempt (success/failure/locked/unknown_user), and lockout state is derived from it directly. The pre-stage paid off: no migration needed at SEC-1 time. See "Shipped — SEC-1" section below.
+
 ### 4. Generic MFA challenge error (M-4)
 
 `"Invalid challenge token: <JWTError message>"` → `"Invalid or expired challenge token"`. The detailed error goes to the server log (when L-1's logging lands).
@@ -145,13 +147,32 @@ New `LoginAttempt` table — `user_id`, `attempted_at`, `success`, `ip`, `user_a
 
 | Ticket | Rolls up |
 |---|---|
-| SEC-1 · Rate limiting + login lockout | H-1, H-4, L-3 |
+| SEC-1 · Rate limiting + login lockout | H-1, H-4, L-3 | ✅ **Shipped 2026-05-29** — see `Shipped` section below. |
 | SEC-2 · Token storage hardening | H-3, L-5 |
 | SEC-3 · CSP rollout + escape consistency | H-6, M-3, M-6 |
 | SEC-4 · Migrate to PyJWT | H-5 |
 | SEC-5 · Password lifecycle (history, expiry, bcrypt pre-hash) | M-1, M-2 |
 | SEC-6 · Audit logging | L-1, I-3 |
 | SEC-7 · Production migration story (Alembic + dep pinning) | L-2, I-2 |
+
+---
+
+## Shipped — SEC-1 (2026-05-29)
+
+Closes **H-1** (login rate limit) and **H-4** (account lockout). L-3 (predictable JWT subjects) remains mitigated-by-design through SEC-1's per-IP and per-account limits making brute-force unprofitable rather than impossible.
+
+**What landed:**
+- `wms/services/login_guard.py` — per-account lockout state derived from `login_attempts` rows since the most recent reset event (success or admin-unlock marker). Per-fail escalation: 4th = 60 s, 5th = 120 s, 6th = 180 s, 7th+ = 3600 s. Any success or admin unlock resets the counter.
+- Per-IP rate limit at 1 req/s via in-process token bucket. Returns `429 + Retry-After` on burst.
+- `/auth/login` writes a `LoginAttempt` row on every outcome (success, bad_credentials, unknown_user, locked_out). Unknown users still consume the lockout budget so attackers can't enumerate via lockout-vs-401 behaviour.
+- Admin endpoints `POST /admin/users/{id}/reset-password` and `POST /admin/users/{id}/unlock` — both gated by `assert_can_manage`, audit-logged via `EVT_ADMIN_PASSWORD_RESET` / `EVT_ADMIN_LOCKOUT_CLEARED`. Reset auto-drops a lockout-clear marker so the user isn't bounced on first login with the new password.
+- No `User` schema change — state derives from `login_attempts` directly (H-4 pre-stage pays off).
+- 19 new tests (`tests/test_login_guard.py`) covering stage math, HTTP integration, admin paths, IP-burst behaviour. Suite at 296/296.
+
+**Out of scope for SEC-1 (still parked):**
+- MFA verify rate limit — TOTP windows + backup-code consumption already provide implicit throttling; add explicit limit if needed.
+- Admin `/admin/users` enumeration rate limit — small risk; deferrable.
+- Forgotten-password flow — needs SMTP, reset-token table, email template, frontend page.
 
 ---
 
