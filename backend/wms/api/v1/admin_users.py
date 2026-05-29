@@ -7,9 +7,11 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from wms.core.deps import get_current_user, get_session
-from wms.core.security import assert_password_bcrypt_safe
+from wms.core.security import assert_password_bcrypt_safe, hash_password
 from wms.models import User
+from wms.services import audit_log as audit
 from wms.services import hierarchy as hier_svc
+from wms.services import login_guard as guard
 from wms.services import users_admin as svc
 
 # SECURITY_AUDIT.md M-6: permissive but real format check — rejects obvious
@@ -205,6 +207,107 @@ def reactivate_user(
         return svc.reactivate_user(db, caller, target)
     except svc.AdminAuthorizationError as e:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+
+# ── SEC-1: admin password reset + lockout clear ───────────────────────
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str = Field(min_length=4, max_length=128)
+    force_change_on_next_login: bool = True
+
+    @field_validator("new_password")
+    @classmethod
+    def _bcrypt_byte_limit(cls, v: str) -> str:
+        assert_password_bcrypt_safe(v)
+        return v
+
+
+class ResetPasswordResponse(BaseModel):
+    user_id: int
+    employee_code: str
+    must_change_password: bool
+
+
+class UnlockResponse(BaseModel):
+    user_id: int
+    employee_code: str
+    cleared: bool
+
+
+@router.post("/{user_id}/reset-password", response_model=ResetPasswordResponse)
+def admin_reset_password(
+    user_id: int,
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> ResetPasswordResponse:
+    """Admin sets a new password for a user. Defaults to forcing change on next login."""
+    target = _load_target(db, user_id)
+    try:
+        svc.assert_can_manage(caller, target)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+    target.hashed_password = hash_password(payload.new_password)
+    target.must_change_password = payload.force_change_on_next_login
+    audit.record(
+        db,
+        event_type=audit.EVT_ADMIN_PASSWORD_RESET,
+        user_id=target.id,
+        actor_id=caller.id,
+        site_id=target.site_id,
+        request=request,
+        detail={"force_change": payload.force_change_on_next_login},
+        commit=False,
+    )
+    # Also drop a lockout-reset marker so the user isn't immediately bounced.
+    guard.record_admin_unlock(
+        db,
+        employee_code=target.employee_code,
+        site_id=target.site_id,
+        ip=request.client.host if request.client else None,
+    )
+    return ResetPasswordResponse(
+        user_id=target.id,
+        employee_code=target.employee_code,
+        must_change_password=target.must_change_password,
+    )
+
+
+@router.post("/{user_id}/unlock", response_model=UnlockResponse)
+def admin_unlock_user(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_session),
+    caller: User = Depends(get_current_user),
+) -> UnlockResponse:
+    """Clear the per-account lockout for a user. Idempotent."""
+    target = _load_target(db, user_id)
+    try:
+        svc.assert_can_manage(caller, target)
+    except svc.AdminAuthorizationError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(e)) from e
+
+    guard.record_admin_unlock(
+        db,
+        employee_code=target.employee_code,
+        site_id=target.site_id,
+        ip=request.client.host if request.client else None,
+    )
+    audit.record(
+        db,
+        event_type=audit.EVT_ADMIN_LOCKOUT_CLEARED,
+        user_id=target.id,
+        actor_id=caller.id,
+        site_id=target.site_id,
+        request=request,
+        commit=True,
+    )
+    return UnlockResponse(
+        user_id=target.id, employee_code=target.employee_code, cleared=True
+    )
 
 
 # ── Bulk purge (SCO-89/90) ────────────────────────────────────────────

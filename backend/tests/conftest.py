@@ -30,6 +30,26 @@ from wms.models import (  # noqa: E402
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_guard_state():
+    """SEC-1: neutralize the per-IP rate-limit for tests by default.
+
+    The 1/sec bucket is process-global in-memory state. With it on, every test
+    that makes more than one login call inside a second trips 429 and the
+    suite turns into a flake farm. Tests that *want* to exercise the limit
+    (test_login_guard.py::test_ip_rate_limit_blocks_burst) override
+    `IP_MIN_INTERVAL_SECONDS` locally.
+    """
+    from wms.services import login_guard
+
+    original = login_guard.IP_MIN_INTERVAL_SECONDS
+    login_guard.IP_MIN_INTERVAL_SECONDS = 0.0
+    login_guard.reset_ip_rate_limit()
+    yield
+    login_guard.IP_MIN_INTERVAL_SECONDS = original
+    login_guard.reset_ip_rate_limit()
+
+
 @pytest.fixture
 def db_engine():
     engine = create_engine(

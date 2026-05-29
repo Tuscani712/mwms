@@ -22,6 +22,8 @@ EVT_LOGIN_FAILURE = "auth.login.failure"
 EVT_PASSWORD_CHANGED = "auth.password.changed"
 EVT_MFA_DISABLED = "auth.mfa.disabled"
 EVT_MFA_CODES_REGENERATED = "auth.mfa.backup_codes_regenerated"
+EVT_ADMIN_PASSWORD_RESET = "auth.admin.password_reset"
+EVT_ADMIN_LOCKOUT_CLEARED = "auth.admin.lockout_cleared"
 
 
 def _client_meta(request: Request | None) -> tuple[str | None, str | None]:
