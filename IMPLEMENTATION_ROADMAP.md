@@ -8,6 +8,15 @@
 
 ## Current Status (2026-05-29)
 
+### ✅ Pytest parallel runner via xdist (`9e3f6fe`) — shipped 2026-05-29
+
+- Added `pytest-xdist>=3.5,<4` to dev deps.
+- `start.sh` gained a `[p] Pytest` menu option running `pytest -q -n auto` (or `WMS_PYTEST_N=<n>` to throttle). Falls back to single-process if xdist is missing.
+- `check_or_install_deps()` now probes `import xdist` in its sentinel so out-of-date venvs auto-reinstall on launch.
+- **Suite runtime: 186.92 s → 25.43 s on 16 cores (7.2× speedup).** Zero test changes, 296/296 still passing.
+- Safe to parallelize because each test gets its own in-memory SQLite engine via `db_engine` (StaticPool), `app.dependency_overrides` is process-local under xdist's process-per-worker model, and the SEC-1 `login_guard` IP bucket is reset per-test by an autouse fixture. bcrypt releases the GIL during hashing, which is why the parallel win is so large for this codebase.
+- `-n auto` deliberately not baked into `pyproject.toml` `addopts` — parallel mode breaks `--pdb`, so opt-in via the menu / explicit CLI keeps one-off TDD debuggable.
+
 ### ✅ SEC-1 · Login throttling + admin reset/unlock + user-mgmt polish — shipped 2026-05-29
 
 Five commits closing out the User Management page for this iteration.
